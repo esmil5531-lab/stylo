@@ -1,0 +1,28 @@
+import pg from 'pg';
+
+// BIGINT (money in dirhams, counters) and NUMERIC (ratings) arrive as strings by default.
+// All our BIGINT values are far below Number.MAX_SAFE_INTEGER.
+pg.types.setTypeParser(pg.types.builtins.INT8, (v) => Number(v));
+pg.types.setTypeParser(pg.types.builtins.NUMERIC, (v) => Number(v));
+
+export type Pool = pg.Pool;
+export type Queryable = pg.Pool | pg.PoolClient;
+
+export function createPool(connectionString: string): pg.Pool {
+  return new pg.Pool({ connectionString, max: 10 });
+}
+
+export async function withTransaction<T>(pool: pg.Pool, fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}

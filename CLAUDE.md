@@ -7,36 +7,52 @@ This file is the source of truth for every session working on this repo. Read it
 | | |
 |---|---|
 | Name (Arabic) | **ستايلو** |
-| Name (Latin) | **Stylo** |
+| Name (Latin) | **Stylo** (header wordmark: **STYLO**, serif, burgundy) |
 | Official tagline | **كل ستايل في مكان واحد** (exact text — no rewording, no added punctuation) |
 | Product | Multi-vendor fashion e-commerce marketplace: many independent stores sell on one platform |
+| Market | **Libya** (LY). Default city for estimates: طرابلس |
+| Currency | **Libyan dinar, LYD, shown as «د.ل»** (e.g. `199 د.ل`). LYD has **3 decimals**: money is stored in **dirhams** (1 د.ل = 1000), so 199 د.ل = `199000` |
 | Primary language | Arabic, RTL. English is secondary/optional |
-| Default currency | SAR (stored per row, so other currencies are possible) |
+| Visual reference | The owner-approved mockup (burgundy `#7A1F3D`, soft pink hero, white cards, green «يصلك اليوم» badges). Tokens live in `mobile/src/theme/index.ts`. Do not invent a different look |
 
 Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the name or tagline elsewhere.
+
+### Core features (must keep working)
+- **كمّل اللوك** — curated looks (outfits) across stores; shown on home, on product pages, and as a full look page with «add the whole look to cart».
+- **Multi-store cart** — the cart is grouped by store; checkout creates one order per store.
+- **Delivery choice** — «أسرع توصيل» (each store ships on its own as soon as ready; fee = sum of store fees) vs «توصيل موحد» (one consolidated parcel; one flat fee; only with 2+ stores).
+- **Cart sharing** — snapshot link `…/shared-cart/<token>`; the recipient can view it and add everything to their own cart.
 
 ## 2. Repository layout
 
 ```
 /
 ├── CLAUDE.md                  ← this file
+├── api/                       ← HTTP API (Node 20+, Fastify 5, pg, zod) — see api/README.md
+│   ├── src/app.ts             ← app factory: CORS, dev auth, error handler, /v1 routes
+│   ├── src/modules/<area>/    ← <area>.routes.ts (HTTP + validation) + <area>.service.ts (SQL + rules)
+│   ├── src/scripts/           ← migrate.ts, seed.ts
+│   └── test/                  ← integration tests against a real PostgreSQL
 ├── database/
 │   ├── migrations/            ← numbered, forward-only SQL (0001_init.sql, 0002_…)
 │   └── seeds/                 ← dev-only data (never run in production)
 └── mobile/                    ← Expo app (see mobile/README.md and mobile/AGENTS.md)
     └── src/
-        ├── app/               ← Expo Router routes ONLY (every file is a screen)
+        ├── app/               ← Expo Router routes ONLY ((tabs)/, product/[id], look/[id], …)
+        ├── api/               ← client.ts (fetch + errors), types.ts, hooks.ts (React Query)
         ├── components/        ← shared UI components
-        ├── constants/         ← brand, order statuses, etc.
+        ├── constants/         ← brand, order statuses
         ├── i18n/              ← Arabic strings + RTL setup
+        ├── lib/               ← format (prices, delivery labels), color helpers
         └── theme/             ← colors, spacing, radius, fonts
 ```
 
 ## 3. Tech stack (pinned)
 
-- **Mobile:** Expo **SDK 57** (`expo ~57.0.x`, React Native 0.86, React 19.2), TypeScript strict, Expo Router (file-based, `src/app`).
+- **Mobile:** Expo **SDK 57** (`expo ~57.0.x`, React Native 0.86, React 19.2), TypeScript strict, Expo Router (file-based, `src/app`), TanStack React Query for server state, expo-image.
+- **API:** Node 20+, Fastify 5, `pg`, zod 4, TypeScript (ESM, `.js` import suffixes), run with `tsx`.
 - **Database:** **PostgreSQL** (16 in dev; 14+ supported). Extensions: `pgcrypto`, `citext`.
-- **Font:** Cairo (`@expo-google-fonts/cairo`), loaded in `src/app/_layout.tsx`.
+- **Fonts:** Cairo (Arabic UI) + Cinzel (STYLO and store wordmarks), loaded in `src/app/_layout.tsx`.
 - Do not upgrade the Expo SDK without an explicit request. Expo APIs change every SDK — check the versioned docs at `https://docs.expo.dev/versions/v57.0.0/` instead of relying on memory.
 
 ## 4. Mobile rules
@@ -49,10 +65,18 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 ### Arabic & RTL — mandatory
 - The whole app is RTL. Native: forced by the `expo-localization` plugin (`supportsRTL`, `forcesRTL` in `app.json`) plus `ensureRTL()` in `src/i18n/rtl.ts`. Web: `<html lang="ar" dir="rtl">` in `src/app/+html.tsx`.
 - **Never** use `textAlign: 'left' | 'right'`, `marginLeft/Right`, `paddingLeft/Right`, `left/right` positioning. Use natural alignment (omit `textAlign`) and logical props: `marginStart/End`, `paddingStart/End`, `start/end`. `flexDirection: 'row'` already follows RTL.
-- Directional icons (back arrows, chevrons) must be mirrored in RTL.
-- All user-facing text goes in `src/i18n/ar.ts` — no inline Arabic strings in new screens.
-- Use `fonts.*` from `@/theme` instead of `fontWeight` (with custom fonts each weight is a separate family).
-- Prices: integers in minor units from the API; format for display only (Arabic-locale formatting).
+- Text whose first character is Latin or a digit (sizes like `L`, dates, `× 1`) resolves as LTR and aligns left. Put the Arabic part first, or add `writingDirection: 'rtl'`.
+- Directional icons must be mirrored: use `directionalIcons` from `src/i18n/rtl.ts` (back = `arrow-forward`).
+- All user-facing text goes in `src/i18n/ar.ts` — no inline Arabic strings in screens.
+- Use `fonts.*` from `@/theme` instead of `fontWeight` (with custom fonts each weight is a separate family). Cairo is tall: give labels a `lineHeight` (the tab bar renders its own label for this reason).
+- Prices arrive as integers in minor units; always display with `formatPrice()` from `src/lib/format.ts` → `199 د.ل`.
+
+### Data & navigation
+- All server calls go through `src/api/hooks.ts` (React Query). Screens render loading / error-with-retry through `<QueryState>`; mutation errors show `errorMessage(err)` (the API's Arabic message).
+- Cart mutations return the whole cart and write it into the `['cart']` cache — don't refetch manually.
+- API URL: `EXPO_PUBLIC_API_URL`, else derived from the Metro host (port 4000). See `src/api/client.ts`.
+- In SDK 57, `<Link asChild>` throws if the child gets an **array** style. Use `Pressable` + `router.push(...)` for styled tappable cards.
+- Product/banner photos come from the API (`product_images`, `banners.image_url`). Without a photo, `ProductImage` draws a tinted tile with a garment icon — keep that fallback.
 
 ### Code
 - Path alias `@/*` → `mobile/src/*`.
@@ -60,12 +84,23 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - Before declaring work done, run from `mobile/`: `npm run typecheck` and `npm run lint`.
 - `ios/` and `android/` are generated (CNG). Never commit or hand-edit them; configure via `app.json` / config plugins.
 
-## 5. Database rules
+## 5. API rules
 
-- Migrations are **numbered, forward-only, immutable once committed/applied**: `NNNN_short_name.sql`, wrapped in `BEGIN; … COMMIT;`. To change the schema, add a new migration — never edit an applied one.
-- IDs: `UUID DEFAULT gen_random_uuid()`. Timestamps: `TIMESTAMPTZ`. Money: `BIGINT` minor units + `currency CHAR(3)`. Never floats for money.
+- Routes are versioned under `/v1`. Each area = `*.routes.ts` (parse input with zod, call the service) + `*.service.ts` (SQL and business rules). Services take a `Ctx` (`db`, `config`, `userId`, `now`) — never read globals, so tests can inject a clock.
+- Errors: throw `AppError` helpers from `src/lib/errors.ts` with an **Arabic, user-safe message**; the global handler returns `{ error: { code, message, details } }`. Zod errors → 400, malformed UUIDs → 400.
+- Money is integer dirhams end to end. Never use floats for money.
+- Multi-step writes (checkout) run in `withTransaction` and lock the rows they change (`FOR UPDATE`).
+- Delivery rules live **only** in `src/modules/delivery/delivery.ts` (pure functions + tests). Fees/hours are config (`UNIFIED_DELIVERY_FEE`, `CONSOLIDATION_HOURS`, …), not literals in SQL.
+- **Auth is temporary**: outside production the `x-user-id` header (or `DEV_USER_ID`) selects the user; in production no user is set and user routes return 401. Replace with real auth before any public deployment.
+- Every new endpoint gets an integration test in `api/test/`. Run `npm test` from `api/` before declaring work done (needs PostgreSQL; uses `stylo_test`).
+
+## 6. Database rules
+
+- Migrations are **numbered, forward-only, immutable once committed/applied**: `NNNN_short_name.sql`, wrapped in `BEGIN; … COMMIT;`. To change the schema, add a new migration — never edit an applied one. Apply with `npm run db:migrate` (tracked in `schema_migrations`).
+- IDs: `UUID DEFAULT gen_random_uuid()`. Timestamps: `TIMESTAMPTZ`. Money: `BIGINT` minor units + `currency CHAR(3)` (default `LYD`). Never floats for money.
 - Bilingual text columns: `*_ar` (required) and `*_en` (optional).
 - Order lines snapshot product name/SKU/price — never join back to the catalog to show a past order.
+- `products.rating_avg / rating_count / sold_count` are denormalised for fast feeds; keep them updated when reviews/orders change.
 
 ### Order statuses — exactly six
 
@@ -92,23 +127,26 @@ delivered, cancelled → (terminal)
 - Adding/removing/renaming a status requires owner approval and must update: a new migration, `orderStatus.ts`, and this table.
 
 ### Multi-vendor model
-- `stores` belong to a `users` row with role `vendor`. Products belong to a store.
-- One checkout across several stores creates **one `orders` row per store**, sharing a `checkout_id`. Each store moves its own order through the statuses independently.
+- `stores` belong to a `users` row with role `vendor`. Products belong to a store. Stores carry delivery settings: `city`, `prep_hours`, `delivery_fee`.
+- One checkout across several stores creates **one `orders` row per store**, sharing a `checkout_id` and the chosen `delivery_mode` (`fastest` | `unified`). With `unified`, the flat fee is split across the store orders so the sum is exact.
+- Looks: `looks` + `look_items` (products from any store). Shared carts: `shared_carts` (token, 30-day expiry) + `shared_cart_items` (snapshot).
 
-## 6. Local development
+## 7. Local development
 
 ```bash
 # Database (once)
 sudo -u postgres psql -c "CREATE ROLE stylo LOGIN PASSWORD 'stylo';"
 sudo -u postgres psql -c "CREATE DATABASE stylo_dev OWNER stylo;"
+sudo -u postgres psql -c "CREATE DATABASE stylo_test OWNER stylo;"
 sudo -u postgres psql -d stylo_dev -c "CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE EXTENSION IF NOT EXISTS citext;"
-psql postgresql://stylo:stylo@localhost:5432/stylo_dev -v ON_ERROR_STOP=1 -f database/migrations/0001_init.sql
-psql postgresql://stylo:stylo@localhost:5432/stylo_dev -v ON_ERROR_STOP=1 -f database/seeds/dev_seed.sql
 
-# Mobile
+# API (terminal 1)
+cd api && cp .env.example .env && npm install && npm run db:reset && npm run dev   # http://localhost:4000
+
+# Mobile (terminal 2)
 cd mobile && npm install && npx expo start
 ```
 
-## 7. Not built yet (next steps)
+## 8. Not built yet (next steps)
 
-Backend API layer (the app currently uses static demo data), auth, product/store screens, cart & checkout, payments, vendor dashboard, admin panel.
+Real authentication (replace dev `x-user-id`), address management UI, payments, product photo upload/storage, vendor dashboard (status transitions), admin panel, push notifications, personalised «لأجلك» feed (currently featured + rating).

@@ -11,3 +11,15 @@ export function ensureRTL() {
   I18nManager.allowRTL(true);
   if (!I18nManager.isRTL) I18nManager.forceRTL(true);
 }
+
+/**
+ * The app is RTL-only (see ensureRTL). On native the first launch may still
+ * report LTR until the forced direction applies, so don't read I18nManager here.
+ */
+export const isRTL = true;
+
+/** Icon names that point "back" / "forward" in reading direction. */
+export const directionalIcons = {
+  back: isRTL ? 'arrow-forward' : 'arrow-back',
+  next: isRTL ? 'chevron-back' : 'chevron-forward',
+} as const;

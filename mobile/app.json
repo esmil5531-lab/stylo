@@ -34,7 +34,8 @@
           "forcesRTL": true
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-image"
     ],
     "scheme": "stylo",
     "description": "ستايلو — كل ستايل في مكان واحد",
