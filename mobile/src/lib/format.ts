@@ -34,3 +34,8 @@ export function formatDate(iso: string): string {
 export function formatCount(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n);
 }
+
+/** «أسرع توصيل» · «توصيل عادي» · «توصيل موحد» (orders placed before single-store carts). */
+export function deliveryModeLabel(mode: 'fastest' | 'standard' | 'unified'): string {
+  return ar.delivery[mode];
+}

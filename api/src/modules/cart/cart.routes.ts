@@ -12,15 +12,23 @@ import {
   shareCart,
 } from './cart.service.js';
 
+const ReplaceBody = z.object({ replaceCart: z.boolean().default(false) });
 const TokenParams = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/) });
 
 export async function cartRoutes(app: FastifyInstance) {
-  /** Cart grouped by store, with both delivery options quoted ("أسرع توصيل" / "توصيل موحد"). */
+  /** The single-store cart with both delivery options quoted («أسرع توصيل» / «توصيل عادي»). */
   app.get('/cart', async (req) => getCart(app.ctx(req)));
 
   app.post('/cart/items', async (req) => {
-    const body = z.object({ variantId: Id, quantity: z.number().int().min(1).max(20).default(1) }).parse(req.body);
-    return addToCart(app.ctx(req), body.variantId, body.quantity);
+    const body = z
+      .object({
+        variantId: Id,
+        quantity: z.number().int().min(1).max(20).default(1),
+        /** true = empty the current cart (another store) and start a new one. */
+        replaceCart: z.boolean().default(false),
+      })
+      .parse(req.body);
+    return addToCart(app.ctx(req), body.variantId, body.quantity, body.replaceCart);
   });
 
   app.patch('/cart/items/:variantId', async (req) => {
@@ -49,6 +57,7 @@ export async function cartRoutes(app: FastifyInstance) {
 
   app.post('/shared-carts/:token/import', async (req) => {
     const { token } = TokenParams.parse(req.params);
-    return importSharedCart(app.ctx(req), token);
+    const { replaceCart } = ReplaceBody.parse(req.body ?? {});
+    return importSharedCart(app.ctx(req), token, replaceCart);
   });
 }

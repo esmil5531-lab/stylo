@@ -1,26 +1,30 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { CartGroup } from '@/api/types';
+import type { CartItem, CartStore } from '@/api/types';
 import { ar } from '@/i18n/ar';
-import { arrivalLabel, formatPrice } from '@/lib/format';
+import { formatPrice } from '@/lib/format';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 import { ProductImage } from '../ProductImage';
 import { QuantityStepper } from '../QuantityStepper';
 import { StoreAvatar } from '../StoreAvatar';
 
-/** One store's part of the multi-store cart. `onQuantity` is omitted for read-only (shared) carts. */
+/**
+ * The cart's one store with its items. `onQuantity` is omitted for read-only (shared) carts.
+ */
 export function CartGroupCard({
-  group,
+  store,
+  items,
+  subtotal,
   currency,
-  showShipment,
   onQuantity,
   busy,
 }: {
-  group: CartGroup;
+  store: CartStore;
+  items: CartItem[];
+  subtotal: number;
   currency: string;
-  showShipment?: boolean;
   onQuantity?: (variantId: string, quantity: number) => void;
   busy?: boolean;
 }) {
@@ -28,21 +32,18 @@ export function CartGroupCard({
     <View style={styles.card}>
       <Pressable
         style={styles.head}
-        onPress={() => router.push({ pathname: '/store/[slug]', params: { slug: group.store.slug } })}
+        onPress={() => router.push({ pathname: '/store/[slug]', params: { slug: store.slug } })}
       >
-        <StoreAvatar logoText={group.store.logoText} brandColor={group.store.brandColor} size={36} />
+        <StoreAvatar logoText={store.logoText} brandColor={store.brandColor} size={40} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.storeName}>{group.store.name}</Text>
+          <Text style={styles.storeName}>{ar.cart.orderFrom(store.name)}</Text>
           <Text style={styles.storeMeta}>
-            {group.store.city}
-            {showShipment && group.fastestShipment
-              ? ` · ${ar.delivery.separateShipment} · ${arrivalLabel(group.fastestShipment.dayOffset)}`
-              : ''}
+            {store.city} · {ar.cart.singleStoreNote}
           </Text>
         </View>
       </Pressable>
 
-      {group.items.map((item) => (
+      {items.map((item) => (
         <View key={item.variantId} style={styles.item}>
           <Pressable
             style={styles.thumb}
@@ -60,7 +61,9 @@ export function CartGroupCard({
             <Text style={styles.name} numberOfLines={1}>
               {item.name}
             </Text>
-            <Text style={[styles.variant, styles.rtl]}>{[item.colorName, item.size].filter(Boolean).join(' · ')}</Text>
+            <Text style={[styles.variant, styles.rtl]}>
+              {[item.colorName, item.size].filter(Boolean).join(' · ')}
+            </Text>
             {item.issue && (
               <Text style={styles.issue}>
                 {item.issue === 'unavailable' ? ar.cart.issueUnavailable : ar.cart.issueStock(item.stock)}
@@ -84,8 +87,8 @@ export function CartGroupCard({
       ))}
 
       <View style={styles.subtotal}>
-        <Text style={styles.subLabel}>{ar.cart.storeSubtotal}</Text>
-        <Text style={styles.subValue}>{formatPrice(group.subtotal, currency)}</Text>
+        <Text style={styles.subLabel}>{ar.cart.subtotal}</Text>
+        <Text style={styles.subValue}>{formatPrice(subtotal, currency)}</Text>
       </View>
     </View>
   );

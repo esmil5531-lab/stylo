@@ -1,4 +1,6 @@
 // All user-facing Arabic text. Keep screens free of inline strings.
+const orderNumber = (n: number) => `طلب #${n}`;
+
 export const ar = {
   common: {
     seeAll: 'عرض الكل',
@@ -6,7 +8,6 @@ export const ar = {
     loading: 'جارٍ التحميل…',
     genericError: 'حدث خطأ غير متوقع',
     back: 'رجوع',
-    fromStores: (n: number) => (n === 1 ? 'من متجر واحد' : n === 2 ? 'من متجرين' : `من ${n} متاجر`),
     pieces: (n: number) => (n === 1 ? 'قطعة واحدة' : n === 2 ? 'قطعتان' : `${n} قطع`),
   },
   tabs: {
@@ -21,31 +22,33 @@ export const ar = {
     feeds: {
       for_you: 'لأجلك',
       trending: 'ترند',
-      new: 'جديد',
+      offers: 'عروض',
       nearby: 'قريب منك',
+      new: 'وصل حديثاً',
     },
     pickedForYou: 'منتجات مختارة لك',
     completeTheLook: 'كمّل اللوك',
     storesForYou: 'متاجر مختارة لك',
     lookTotal: (price: string) => `اللوك كامل بـ ${price}`,
+    offersEmpty: 'لا توجد عروض حالياً',
   },
   delivery: {
     today: 'يصلك اليوم',
     tomorrow: 'يصلك غداً',
-    inDays: (n: number) => `يصلك خلال ${n} أيام`,
+    inDays: (n: number) => (n === 2 ? 'يصلك خلال يومين' : n <= 10 ? `يصلك خلال ${n} أيام` : `يصلك خلال ${n} يوماً`),
     chooseTitle: 'طريقة التوصيل',
     fastest: 'أسرع توصيل',
-    fastestHint: (n: number) =>
-      n <= 1 ? 'شحنة واحدة تصلك فور تجهيزها' : `${n} شحنات، كل متجر يرسل طلبه فور تجهيزه`,
+    fastestHint: 'مندوب خاص يستلم طلبك فور تجهيزه',
+    standard: 'توصيل عادي',
+    standardHint: 'مع جولة التوصيل المعتادة، برسوم أقل',
+    /** Orders placed before single-store carts. */
     unified: 'توصيل موحد',
-    unifiedHint: 'نجمع طلباتك من كل المتاجر في شحنة واحدة',
-    unifiedUnavailable: 'متاح عند الطلب من أكثر من متجر',
-    save: (amount: string) => `وفّري ${amount}`,
     fee: 'رسوم التوصيل',
     free: 'مجاني',
-    separateShipment: 'شحنة مستقلة',
   },
   product: {
+    discount: (n: number) => `-${n}%`,
+    cartFromOtherStore: (store: string) => `سلتك الحالية من «${store}»`,
     addToCart: 'أضيفي إلى السلة',
     added: 'تمت الإضافة إلى السلة',
     viewCart: 'عرض السلة',
@@ -70,7 +73,8 @@ export const ar = {
     share: 'مشاركة السلة',
     shareMessage: (link: string) => `شوفي سلتي على ستايلو 🛍️\n${link}`,
     shareReady: 'رابط السلة جاهز للمشاركة',
-    storeSubtotal: 'مجموع المتجر',
+    singleStoreNote: 'كل طلب في ستايلو من متجر واحد',
+    orderFrom: (store: string) => `طلبك من «${store}»`,
     subtotal: 'مجموع المنتجات',
     total: 'الإجمالي',
     checkout: 'إتمام الطلب',
@@ -79,7 +83,17 @@ export const ar = {
     issueStock: (n: number) => (n === 0 ? 'نفدت الكمية' : `المتوفر ${n} فقط`),
     fixIssues: 'عدّلي المنتجات غير المتوفرة لإتمام الطلب',
     orderPlaced: 'تم استلام طلبك 🎉',
-    orderPlacedHint: (n: number) => (n === 1 ? 'تم إنشاء طلب واحد' : `تم إنشاء ${n} طلبات، طلب لكل متجر`),
+    orderPlacedHint: (n: number, store: string) => `${orderNumber(n)} من «${store}»`,
+    viewOrder: 'تفاصيل الطلب',
+  },
+  storeConflict: {
+    title: 'سلتك من متجر آخر',
+    body: (current: string, requested: string, count: number) =>
+      `في سلتك ${count === 1 ? 'قطعة واحدة' : count === 2 ? 'قطعتان' : `${count} قطع`} من «${current}». ` +
+      `في ستايلو يكون كل طلب من متجر واحد، فهل تريدين بدء سلة جديدة من «${requested}»؟`,
+    warning: 'ستُحذف منتجات السلة الحالية',
+    startNew: (requested: string) => `ابدئي سلة جديدة من «${requested}»`,
+    keep: 'الإبقاء على سلتي الحالية',
   },
   sharedCart: {
     title: 'سلة مشتركة',
@@ -113,7 +127,7 @@ export const ar = {
   orders: {
     title: 'طلباتي',
     empty: 'لا توجد طلبات بعد',
-    number: (n: number) => `طلب #${n}`,
+    number: orderNumber,
     items: (n: number) => (n === 1 ? 'قطعة واحدة' : `${n} قطع`),
     statusesTitle: 'حالة الطلب',
     expected: 'الوصول المتوقع',

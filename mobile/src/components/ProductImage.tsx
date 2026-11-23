@@ -11,6 +11,7 @@ type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 function iconFor(category: string | null | undefined, name = ''): IconName {
   if (/نظار/.test(name)) return 'sunglasses';
   if (/قلادة|عقد/.test(name)) return 'necklace';
+  if (/أقراط|حلق|خاتم/.test(name)) return 'diamond-stone';
   if (/رياضي|سنيكر/.test(name)) return 'shoe-sneaker';
   switch (category) {
     case 'bags':

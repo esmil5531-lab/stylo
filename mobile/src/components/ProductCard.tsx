@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { ProductSummary } from '@/api/types';
+import { ar } from '@/i18n/ar';
 import { formatPrice } from '@/lib/format';
 import { colors, fonts, radius, shadow } from '@/theme';
 
@@ -27,6 +28,11 @@ export function ProductCard({ product, width }: { product: ProductSummary; width
           category={product.category}
           name={product.name}
         />
+        {product.discountPercent ? (
+          <View style={styles.sale}>
+            <Text style={styles.saleText}>{ar.product.discount(product.discountPercent)}</Text>
+          </View>
+        ) : null}
         <View style={styles.heart}>
           <WishlistButton productId={product.id} initial={product.isWishlisted} />
         </View>
@@ -63,6 +69,17 @@ const styles = StyleSheet.create({
   },
   imageWrap: { aspectRatio: 0.92, backgroundColor: colors.surfaceMuted },
   heart: { position: 'absolute', top: 8, start: 8 },
+  sale: {
+    position: 'absolute',
+    top: 10,
+    end: 8,
+    backgroundColor: colors.sale,
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  // Latin digits + %: keep "-23%" in LTR order.
+  saleText: { fontFamily: fonts.bold, fontSize: 11, color: colors.white, writingDirection: 'ltr' },
   body: { padding: 10, gap: 3 },
   name: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
   store: { fontFamily: fonts.regular, fontSize: 12, color: colors.inkMuted, marginTop: -2 },
@@ -71,7 +88,7 @@ const styles = StyleSheet.create({
   compare: {
     fontFamily: fonts.regular,
     fontSize: 12,
-    color: colors.inkFaint,
+    color: colors.inkMuted,
     textDecorationLine: 'line-through',
   },
 });

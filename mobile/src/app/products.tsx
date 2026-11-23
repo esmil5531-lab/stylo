@@ -9,7 +9,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { ar } from '@/i18n/ar';
 import { colors, spacing } from '@/theme';
 
-const FEEDS: Feed[] = ['for_you', 'trending', 'new', 'nearby'];
+const FEEDS: Feed[] = ['for_you', 'trending', 'offers', 'nearby', 'new'];
 
 /** Product results for a feed, category, store or search: /products?feed=&category=&q=&title= */
 export default function ProductsScreen() {

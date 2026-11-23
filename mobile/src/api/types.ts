@@ -1,7 +1,9 @@
 // Response shapes of the Stylo API (api/src/modules/*). Money is always in minor units (LYD dirhams).
 
-export type Feed = 'for_you' | 'trending' | 'new' | 'nearby';
-export type DeliveryMode = 'fastest' | 'unified';
+/** Home tabs: لأجلك · ترند · عروض · قريب منك (`new` is used by banner links). */
+export type Feed = 'for_you' | 'trending' | 'offers' | 'nearby' | 'new';
+/** أسرع توصيل · توصيل عادي */
+export type DeliveryMode = 'fastest' | 'standard';
 
 export interface StoreRef {
   id: string;
@@ -16,6 +18,8 @@ export interface ProductSummary {
   brand: string | null;
   price: number;
   compareAtPrice: number | null;
+  /** Whole-percent discount for «عروض», else null. */
+  discountPercent: number | null;
   currency: string;
   rating: number;
   ratingCount: number;
@@ -72,9 +76,10 @@ export interface Look {
   title: string;
   subtitle: string | null;
   coverUrl: string | null;
+  /** Looks are curated per store, so a whole look fits one cart. */
+  store: { id: string; slug: string; name: string; logoText: string; brandColor: string | null };
   items: ProductSummary[];
   totalPrice: number;
-  storeCount: number;
 }
 
 export interface Banner {
@@ -100,21 +105,20 @@ export interface Category {
   productCount: number;
 }
 
-export interface StoreEta {
-  storeId: string;
+export interface DeliveryOption {
+  mode: DeliveryMode;
   fee: number;
   arrivesAt: string;
   dayOffset: number;
 }
 
-export interface DeliveryOption {
-  mode: DeliveryMode;
-  available: boolean;
-  fee: number;
-  shipments: number;
-  arrivesAt: string | null;
-  dayOffset: number | null;
-  perStore: StoreEta[];
+export interface CartStore {
+  id: string;
+  slug: string;
+  name: string;
+  logoText: string;
+  brandColor: string | null;
+  city: string;
 }
 
 export interface CartItem {
@@ -126,6 +130,7 @@ export interface CartItem {
   colorName: string | null;
   size: string | null;
   category: string | null;
+  sku: string;
   unitPrice: number;
   quantity: number;
   lineTotal: number;
@@ -133,23 +138,23 @@ export interface CartItem {
   issue: 'unavailable' | 'insufficient_stock' | null;
 }
 
-export interface CartGroup {
-  store: { id: string; slug: string; name: string; logoText: string; brandColor: string | null; city: string };
+/** A cart always belongs to ONE store (null when empty). */
+export interface Cart {
+  store: CartStore | null;
   items: CartItem[];
   itemsCount: number;
   subtotal: number;
-  fastestShipment: StoreEta | null;
+  currency: string;
+  delivery: Record<DeliveryMode, DeliveryOption> | null;
+  totals: Record<DeliveryMode, number> | null;
+  hasIssues: boolean;
 }
 
-export interface Cart {
-  groups: CartGroup[];
+/** `details` of a 409 `cart_store_conflict`. */
+export interface StoreConflict {
+  currentStore: { id: string; slug: string; name: string };
+  requestedStore: { id: string; slug: string; name: string };
   itemsCount: number;
-  storeCount: number;
-  subtotal: number;
-  currency: string;
-  delivery: { fastest: DeliveryOption; unified: DeliveryOption & { savings: number } };
-  totals: { fastest: number; unified: number };
-  hasIssues: boolean;
 }
 
 export interface SharedCart {
@@ -179,7 +184,8 @@ export interface OrderSummary {
   shippingFee: number;
   discount: number;
   total: number;
-  deliveryMode: DeliveryMode;
+  /** 'unified' only on orders placed before single-store carts. */
+  deliveryMode: DeliveryMode | 'unified';
   estimatedDeliveryAt: string | null;
   placedAt: string;
   trackingNumber: string | null;
@@ -206,20 +212,15 @@ export interface OrderDetail extends OrderSummary {
 }
 
 export interface CheckoutResult {
-  checkoutId: string;
+  id: string;
+  orderNumber: number;
+  store: CartStore;
   deliveryMode: DeliveryMode;
   currency: string;
   subtotal: number;
   deliveryFee: number;
   total: number;
-  orders: {
-    id: string;
-    orderNumber: number;
-    store: CartGroup['store'];
-    total: number;
-    shippingFee: number;
-    estimatedDeliveryAt: string | null;
-  }[];
+  estimatedDeliveryAt: string;
 }
 
 export interface Me {

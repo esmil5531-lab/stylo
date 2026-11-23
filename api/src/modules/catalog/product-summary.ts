@@ -25,6 +25,8 @@ export interface ProductSummary {
   brand: string | null;
   price: number;
   compareAtPrice: number | null;
+  /** Whole-percent discount when compareAtPrice > price («عروض»), else null. */
+  discountPercent: number | null;
   currency: string;
   rating: number;
   ratingCount: number;
@@ -46,6 +48,10 @@ export function mapProductSummary(r: any, ctx: Ctx, customerCity: string): Produ
     brand: r.brand,
     price: r.base_price,
     compareAtPrice: r.compare_at_price,
+    discountPercent:
+      r.compare_at_price && r.compare_at_price > r.base_price
+        ? Math.round((1 - r.base_price / r.compare_at_price) * 100)
+        : null,
     currency: r.currency,
     rating: r.rating_avg,
     ratingCount: r.rating_count,

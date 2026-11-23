@@ -13,8 +13,10 @@ import { CartGroupCard } from '@/components/cart/CartGroupCard';
 import { DeliveryOptionCard } from '@/components/DeliveryOptionCard';
 import { EmptyState, QueryState } from '@/components/QueryState';
 import { ar } from '@/i18n/ar';
-import { arrivalLabel, formatPrice } from '@/lib/format';
+import { arrivalLabel, deliveryModeLabel, formatDate, formatPrice } from '@/lib/format';
 import { colors, fonts, radius, spacing } from '@/theme';
+
+const MODES: DeliveryMode[] = ['fastest', 'standard'];
 
 export default function CartScreen() {
   const cart = useCart();
@@ -40,7 +42,7 @@ export default function CartScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>{ar.cart.title}</Text>
-        {hasItems && (
+        {hasItems && !placed && (
           <Pressable onPress={onShare} style={styles.shareBtn} disabled={share.isPending} hitSlop={6}>
             <Ionicons name="share-social-outline" size={18} color={colors.primary} />
             <Text style={styles.shareText}>{ar.cart.share}</Text>
@@ -67,7 +69,10 @@ export default function CartScreen() {
                 cart={data}
                 shareLink={shareLink}
                 shareError={share.isError ? errorMessage(share.error) : null}
-                onPlaced={setPlaced}
+                onPlaced={(r) => {
+                  setShareLink(null);
+                  setPlaced(r);
+                }}
               />
             )
           }
@@ -92,10 +97,10 @@ function CartContent({
   const setQty = useSetCartQuantity();
   const checkout = useCheckout();
 
-  // Unified needs 2+ stores; fall back if the cart shrank to one store.
-  const effectiveMode: DeliveryMode = mode === 'unified' && !cart.delivery.unified.available ? 'fastest' : mode;
-  const option = cart.delivery[effectiveMode];
-  const total = cart.totals[effectiveMode];
+  // Non-empty carts always have a store, delivery quote and totals.
+  if (!cart.store || !cart.delivery || !cart.totals) return null;
+  const option = cart.delivery[mode];
+  const total = cart.totals[mode];
 
   return (
     <>
@@ -110,37 +115,27 @@ function CartContent({
         )}
         {shareError && <Text style={styles.error}>{shareError}</Text>}
 
-        <Text style={styles.meta}>
-          {ar.common.pieces(cart.itemsCount)} · {ar.common.fromStores(cart.storeCount)}
-        </Text>
-
-        {cart.groups.map((g) => (
-          <CartGroupCard
-            key={g.store.id}
-            group={g}
-            currency={cart.currency}
-            showShipment={effectiveMode === 'fastest'}
-            onQuantity={(variantId, quantity) => setQty.mutate({ variantId, quantity })}
-            busy={setQty.isPending}
-          />
-        ))}
+        <CartGroupCard
+          store={cart.store}
+          items={cart.items}
+          subtotal={cart.subtotal}
+          currency={cart.currency}
+          onQuantity={(variantId, quantity) => setQty.mutate({ variantId, quantity })}
+          busy={setQty.isPending}
+        />
         {setQty.isError && <Text style={styles.error}>{errorMessage(setQty.error)}</Text>}
 
         <Text style={styles.section}>{ar.delivery.chooseTitle}</Text>
         <View style={{ gap: spacing.sm }}>
-          <DeliveryOptionCard
-            option={cart.delivery.fastest}
-            selected={effectiveMode === 'fastest'}
-            onSelect={() => setMode('fastest')}
-            currency={cart.currency}
-          />
-          <DeliveryOptionCard
-            option={cart.delivery.unified}
-            selected={effectiveMode === 'unified'}
-            onSelect={() => setMode('unified')}
-            currency={cart.currency}
-            savings={cart.delivery.unified.savings}
-          />
+          {MODES.map((m) => (
+            <DeliveryOptionCard
+              key={m}
+              option={cart.delivery![m]}
+              selected={mode === m}
+              onSelect={() => setMode(m)}
+              currency={cart.currency}
+            />
+          ))}
         </View>
 
         <View style={styles.summary}>
@@ -161,7 +156,7 @@ function CartContent({
           title={`${ar.cart.checkout} · ${formatPrice(total, cart.currency)}`}
           loading={checkout.isPending}
           disabled={cart.hasIssues}
-          onPress={() => checkout.mutate({ deliveryMode: effectiveMode }, { onSuccess: onPlaced })}
+          onPress={() => checkout.mutate({ deliveryMode: mode }, { onSuccess: onPlaced })}
         />
       </View>
     </>
@@ -184,20 +179,20 @@ function OrderPlaced({ result, onDone }: { result: CheckoutResult; onDone: () =>
         <Ionicons name="checkmark" size={40} color={colors.white} />
       </View>
       <Text style={styles.placedTitle}>{ar.cart.orderPlaced}</Text>
-      <Text style={styles.meta}>{ar.cart.orderPlacedHint(result.orders.length)}</Text>
-      {result.orders.map((o) => (
-        <View key={o.id} style={styles.placedRow}>
-          <Text style={styles.rowLabel}>
-            {ar.orders.number(o.orderNumber)} · {o.store.name}
-          </Text>
-          <Text style={styles.rowValue}>{formatPrice(o.total, result.currency)}</Text>
-        </View>
-      ))}
+      <Text style={styles.placedHint}>{ar.cart.orderPlacedHint(result.orderNumber, result.store.name)}</Text>
+      <View style={styles.placedCard}>
+        <Row
+          label={deliveryModeLabel(result.deliveryMode)}
+          value={formatPrice(result.deliveryFee, result.currency)}
+        />
+        <Row label={ar.orders.expected} value={formatDate(result.estimatedDeliveryAt)} />
+        <Row label={ar.cart.total} value={formatPrice(result.total, result.currency)} strong />
+      </View>
       <Button
-        title={ar.orders.title}
+        title={ar.cart.viewOrder}
         onPress={() => {
           onDone();
-          router.push('/orders');
+          router.push({ pathname: '/orders/[id]', params: { id: result.id } });
         }}
         style={styles.cta}
       />
@@ -226,7 +221,6 @@ const styles = StyleSheet.create({
   },
   shareText: { fontFamily: fonts.semiBold, fontSize: 13, color: colors.primary },
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
-  meta: { fontFamily: fonts.regular, fontSize: 13, color: colors.inkMuted },
   section: { fontFamily: fonts.extraBold, fontSize: 17, color: colors.ink, marginTop: spacing.xs },
   notice: { backgroundColor: colors.successSoft, borderRadius: radius.md, padding: 12, gap: 4 },
   noticeTitle: { fontFamily: fonts.bold, fontSize: 13, color: colors.success },
@@ -261,12 +255,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   placedTitle: { fontFamily: fonts.extraBold, fontSize: 20, color: colors.ink },
-  placedRow: {
+  placedHint: { fontFamily: fonts.regular, fontSize: 14, color: colors.inkMuted },
+  placedCard: {
     alignSelf: 'stretch',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     backgroundColor: colors.surfaceMuted,
     borderRadius: radius.md,
-    padding: 12,
+    padding: spacing.md,
+    gap: spacing.sm,
   },
 });

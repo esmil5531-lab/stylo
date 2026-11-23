@@ -107,5 +107,5 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   rowLabel: { fontFamily: fonts.semiBold, fontSize: 15, color: colors.ink },
-  tagline: { fontFamily: fonts.regular, fontSize: 12, color: colors.inkFaint, textAlign: 'center' },
+  tagline: { fontFamily: fonts.regular, fontSize: 12, color: colors.inkMuted, textAlign: 'center' },
 });

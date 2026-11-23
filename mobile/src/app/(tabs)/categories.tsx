@@ -9,7 +9,7 @@ import { QueryState } from '@/components/QueryState';
 import { ar } from '@/i18n/ar';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-const TONES = ['#7A1F3D', '#B08A5B', '#5E1730', '#C9A9A6', '#8E8E8E', '#D4B8A8', '#B79B87'];
+const TONES = ['#5B0E2D', '#B08A5B', '#3F0820', '#C9A9A6', '#8E8E8E', '#D4B8A8', '#B79B87'];
 
 export default function CategoriesScreen() {
   const categories = useCategories();

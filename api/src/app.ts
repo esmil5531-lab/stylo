@@ -71,6 +71,11 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
     }
     // Postgres: invalid uuid text / foreign key violations from bad client input.
     const pgCode = (err as { code?: string }).code;
+    if (pgCode === '23514' && (err as { constraint?: string }).constraint === 'cart_single_store') {
+      return reply.status(409).send({
+        error: { code: 'cart_store_conflict', message: 'السلة تقبل منتجات من متجر واحد فقط' },
+      });
+    }
     if (pgCode === '22P02') {
       return reply.status(400).send({ error: { code: 'invalid_id', message: 'معرّف غير صالح' } });
     }

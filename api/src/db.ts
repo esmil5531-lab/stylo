@@ -26,3 +26,9 @@ export async function withTransaction<T>(pool: pg.Pool, fn: (client: pg.PoolClie
     client.release();
   }
 }
+
+/** Runs `fn` in a transaction: opens one on a Pool, or reuses the caller's when already on a client. */
+export async function inTransaction<T>(db: Queryable, fn: (client: Queryable) => Promise<T>): Promise<T> {
+  if ('release' in db) return fn(db);
+  return withTransaction(db, fn);
+}

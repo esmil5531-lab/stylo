@@ -30,21 +30,21 @@ npm run dev           # http://localhost:4000  (watch mode)
 | Method | Path | الوصف |
 |---|---|---|
 | GET | `/home` | البانرات، اللوك المميز («كمّل اللوك»)، المتاجر المختارة |
-| GET | `/products?feed=for_you\|trending\|new\|nearby&category=&store=&q=&limit=&offset=` | بطاقات المنتجات (سعر، تقييم، «يصلك اليوم/غداً») |
+| GET | `/products?feed=for_you\|trending\|offers\|nearby\|new&category=&store=&q=&limit=&offset=` | بطاقات المنتجات (سعر، `discountPercent`، تقييم، «يصلك اليوم/غداً»). `offers` = «عروض»: المخفّضة فقط، الأعلى خصماً أولاً |
 | GET | `/products/:id` | تفاصيل المنتج مع المقاسات/الألوان والمخزون |
 | GET | `/products/:id/complete-the-look` | قطع تكمّل اللوك مع هذا المنتج |
 | GET | `/categories` | الأقسام وعدد منتجاتها |
 | GET | `/stores?featured=true` · `/stores/:slug` | المتاجر / متجر مع منتجاته |
-| GET | `/looks?featured=true` · `/looks/:idOrSlug` | اللوكات مع القطع والإجمالي |
-| POST | `/looks/:idOrSlug/add-to-cart` | إضافة اللوك كاملاً (body اختياري: `{ variants: { productId: variantId } }`) |
-| GET | `/cart` | السلة مجمّعة حسب المتجر + عرضا التوصيل (`fastest` / `unified`) + الإجماليات |
-| POST | `/cart/items` | `{ variantId, quantity }` |
+| GET | `/looks?featured=true&store=` · `/looks/:idOrSlug` | اللوكات (كل لوك من متجر واحد) مع القطع والإجمالي |
+| POST | `/looks/:idOrSlug/add-to-cart` | إضافة اللوك كاملاً. body اختياري: `{ variants: { productId: variantId }, replaceCart }` |
+| GET | `/cart` | السلة (متجر واحد: `store`، `items`) + خيارا التوصيل (`fastest` / `standard`) + الإجماليات |
+| POST | `/cart/items` | `{ variantId, quantity, replaceCart? }` — من متجر آخر ⇒ `409 cart_store_conflict` |
 | PATCH / DELETE | `/cart/items/:variantId` | تعديل الكمية (`{ quantity }`، 0 = حذف) / حذف |
 | DELETE | `/cart` | تفريغ السلة |
 | POST | `/cart/share` | إنشاء رابط مشاركة → `{ token, url, expiresAt }` |
 | GET | `/shared-carts/:token` | عرض السلة المشتركة |
-| POST | `/shared-carts/:token/import` | نسخها إلى سلة المستخدم الحالي |
-| POST | `/checkout` | `{ deliveryMode: 'fastest' \| 'unified', addressId? }` → طلب لكل متجر |
+| POST | `/shared-carts/:token/import` | نسخها إلى سلة المستخدم الحالي (`{ replaceCart? }`) |
+| POST | `/checkout` | `{ deliveryMode: 'fastest' \| 'standard', addressId? }` → طلب واحد للمتجر |
 | GET | `/orders` · `/orders/:id` | الطلبات / التفاصيل مع سجل الحالات |
 | GET / PUT / DELETE | `/wishlist` · `/wishlist/:productId` | المفضلة |
 | GET | `/me` | المستخدم وعنوانه الافتراضي |
@@ -52,10 +52,25 @@ npm run dev           # http://localhost:4000  (watch mode)
 
 الأخطاء دائماً: `{ "error": { "code": "insufficient_stock", "message": "المتوفر 3 فقط", "details": … } }`.
 
+## سلة من متجر واحد
+
+كل سلة وكل طلب من متجر واحد فقط (جدول `carts`، migration 0003، ومحمي أيضاً بـ trigger في قاعدة البيانات).
+إضافة منتج من متجر آخر ترجع:
+
+```json
+{ "error": { "code": "cart_store_conflict", "message": "سلتك الحالية من «أزياء لورا»…",
+  "details": { "currentStore": { "slug": "laura", "name": "أزياء لورا" },
+               "requestedStore": { "slug": "chic", "name": "شيك" }, "itemsCount": 3 } } }
+```
+
+بعد موافقة العميلة يعيد التطبيق الطلب نفسه مع `replaceCart: true`: تُفرَّغ السلة وتُربط بالمتجر الجديد في معاملة واحدة.
+
 ## قواعد التوصيل (`src/modules/delivery/delivery.ts`)
 
-- **أسرع توصيل:** كل متجر يشحن وحده فور التجهيز. الرسوم = مجموع `stores.delivery_fee`. الوصول = التجهيز (`prep_hours`) + النقل (3 ساعات داخل المدينة، 24 بين المدن)، ضمن ساعات التوصيل 10:00–22:00 بتوقيت ليبيا.
-- **توصيل موحد:** شحنة واحدة لكل المتاجر، رسوم ثابتة `UNIFIED_DELIVERY_FEE` (افتراضياً 15 د.ل)، الوصول = أبطأ تجهيز + `CONSOLIDATION_HOURS` + أبطأ نقل. متاح فقط عند وجود متجرين أو أكثر.
+شحنة واحدة دائماً (متجر واحد). ساعات التوصيل 10:00–22:00 بتوقيت ليبيا؛ النقل 3 ساعات داخل المدينة و24 بين المدن.
+
+- **أسرع توصيل:** مندوب خاص فور التجهيز. الرسوم = `stores.delivery_fee` + `EXPRESS_SURCHARGE` (افتراضياً 5 د.ل). الوصول = `prep_hours` + النقل.
+- **توصيل عادي:** مع جولة التوصيل المعتادة. الرسوم = `stores.delivery_fee`. الوصول = ما سبق + `STANDARD_DELAY_HOURS` (افتراضياً 24).
 
 ## البنية
 

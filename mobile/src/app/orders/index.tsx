@@ -7,7 +7,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { StoreAvatar } from '@/components/StoreAvatar';
 import { ar } from '@/i18n/ar';
-import { formatDate, formatPrice } from '@/lib/format';
+import { deliveryModeLabel, formatDate, formatPrice } from '@/lib/format';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 export default function OrdersScreen() {
@@ -38,7 +38,7 @@ export default function OrdersScreen() {
                     </Text>
                     <View style={styles.row}>
                       <Text style={styles.meta}>
-                        {o.deliveryMode === 'unified' ? ar.delivery.unified : ar.delivery.fastest}
+                        {deliveryModeLabel(o.deliveryMode)}
                       </Text>
                       <Text style={styles.total}>{formatPrice(o.total, o.currency)}</Text>
                     </View>

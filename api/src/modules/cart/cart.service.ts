@@ -1,13 +1,19 @@
 import { randomBytes } from 'node:crypto';
 
+import { inTransaction, type Queryable } from '../../db.js';
 import { requireUser, type Ctx } from '../../lib/context.js';
 import { AppError, badRequest, conflict, notFound } from '../../lib/errors.js';
-import { quoteDelivery, type DeliveryQuote, type StoreEta } from '../delivery/delivery.js';
+import { quoteDelivery, type DeliveryQuote } from '../delivery/delivery.js';
 import { getCustomerCity } from '../users/users.service.js';
+
+/**
+ * One cart per user, bound to ONE store (table `carts`, migration 0003).
+ * Adding something from another store answers 409 `cart_store_conflict`; the client then
+ * asks the customer and repeats the call with `replaceCart: true` to start a new cart.
+ */
 
 // ---------------------------------------------------------------- read model
 
-/** Lines from either a user's cart or a shared-cart snapshot. */
 type LineSource = { kind: 'cart'; userId: string } | { kind: 'shared'; sharedCartId: string };
 
 const LINE_SELECT = `
@@ -27,15 +33,14 @@ const LINE_JOINS = `
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LineRow = Record<string, any>;
 
-export async function loadLines(ctx: Ctx, source: LineSource, forUpdate = false): Promise<LineRow[]> {
+export async function loadLines(db: Queryable, source: LineSource, forUpdate = false): Promise<LineRow[]> {
   const sql =
     source.kind === 'cart'
-      ? `${LINE_SELECT} FROM cart_items x ${LINE_JOINS} WHERE x.user_id = $1 ORDER BY s.name_ar, x.added_at`
-      : `${LINE_SELECT} FROM shared_cart_items x ${LINE_JOINS} WHERE x.shared_cart_id = $1 ORDER BY s.name_ar, v.sku`;
-  const { rows } = await ctx.db.query(
-    forUpdate ? `${sql} FOR UPDATE OF v` : sql,
-    [source.kind === 'cart' ? source.userId : source.sharedCartId],
-  );
+      ? `${LINE_SELECT} FROM cart_items x ${LINE_JOINS} WHERE x.user_id = $1 ORDER BY x.added_at, v.sku`
+      : `${LINE_SELECT} FROM shared_cart_items x ${LINE_JOINS} WHERE x.shared_cart_id = $1 ORDER BY v.sku`;
+  const { rows } = await db.query(forUpdate ? `${sql} FOR UPDATE OF v` : sql, [
+    source.kind === 'cart' ? source.userId : source.sharedCartId,
+  ]);
   return rows;
 }
 
@@ -45,118 +50,160 @@ function lineIssue(r: LineRow): 'unavailable' | 'insufficient_stock' | null {
   return null;
 }
 
+export interface CartStore {
+  id: string;
+  slug: string;
+  name: string;
+  logoText: string;
+  brandColor: string | null;
+  city: string;
+}
+
+export interface CartItem {
+  variantId: string;
+  productId: string;
+  name: string;
+  imageUrl: string | null;
+  colorHex: string | null;
+  colorName: string | null;
+  size: string | null;
+  category: string | null;
+  sku: string;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+  stock: number;
+  issue: 'unavailable' | 'insufficient_stock' | null;
+}
+
 export interface CartView {
-  groups: Array<{
-    store: { id: string; slug: string; name: string; logoText: string; brandColor: string | null; city: string };
-    items: Array<{
-      variantId: string;
-      productId: string;
-      name: string;
-      imageUrl: string | null;
-      colorHex: string | null;
-      colorName: string | null;
-      size: string | null;
-      category: string | null;
-      unitPrice: number;
-      quantity: number;
-      lineTotal: number;
-      stock: number;
-      issue: 'unavailable' | 'insufficient_stock' | null;
-    }>;
-    itemsCount: number;
-    subtotal: number;
-    /** This store's own parcel when the customer picks "أسرع توصيل". */
-    fastestShipment: StoreEta | null;
-  }>;
+  /** The single store this cart belongs to; null when empty. */
+  store: CartStore | null;
+  items: CartItem[];
   itemsCount: number;
-  storeCount: number;
   subtotal: number;
   currency: string;
-  delivery: DeliveryQuote;
-  totals: { fastest: number; unified: number };
+  /** «أسرع توصيل» / «توصيل عادي» for this store; null when empty. */
+  delivery: DeliveryQuote | null;
+  totals: { fastest: number; standard: number } | null;
   hasIssues: boolean;
 }
 
 export function buildCartView(rows: LineRow[], customerCity: string, ctx: Ctx): CartView {
-  const groups = new Map<string, CartView['groups'][number] & { _store: LineRow }>();
-  for (const r of rows) {
-    let g = groups.get(r.store_id);
-    if (!g) {
-      g = {
-        store: {
-          id: r.store_id,
-          slug: r.store_slug,
-          name: r.store_name,
-          logoText: r.logo_text ?? r.store_name,
-          brandColor: r.brand_color,
-          city: r.store_city,
-        },
-        items: [],
-        itemsCount: 0,
-        subtotal: 0,
-        fastestShipment: null,
-        _store: r,
-      };
-      groups.set(r.store_id, g);
-    }
-    const lineTotal = r.unit_price * r.quantity;
-    g.items.push({
-      variantId: r.variant_id,
-      productId: r.product_id,
-      name: r.name_ar,
-      imageUrl: r.image_url,
-      colorHex: r.color_hex,
-      colorName: r.color_name_ar,
-      size: r.size,
-      category: r.category_slug,
-      unitPrice: r.unit_price,
-      quantity: r.quantity,
-      lineTotal,
-      stock: r.stock_qty,
-      issue: lineIssue(r),
-    });
-    g.itemsCount += r.quantity;
-    g.subtotal += lineTotal;
+  const first = rows[0];
+  if (!first) {
+    return {
+      store: null,
+      items: [],
+      itemsCount: 0,
+      subtotal: 0,
+      currency: ctx.config.currency,
+      delivery: null,
+      totals: null,
+      hasIssues: false,
+    };
   }
 
-  const list = [...groups.values()];
+  const items: CartItem[] = rows.map((r) => ({
+    variantId: r.variant_id,
+    productId: r.product_id,
+    name: r.name_ar,
+    imageUrl: r.image_url,
+    colorHex: r.color_hex,
+    colorName: r.color_name_ar,
+    size: r.size,
+    category: r.category_slug,
+    sku: r.sku,
+    unitPrice: r.unit_price,
+    quantity: r.quantity,
+    lineTotal: r.unit_price * r.quantity,
+    stock: r.stock_qty,
+    issue: lineIssue(r),
+  }));
+  const subtotal = items.reduce((s, i) => s + i.lineTotal, 0);
   const delivery = quoteDelivery(
-    list.map((g) => ({
-      storeId: g.store.id,
-      city: g._store.store_city,
-      prepHours: g._store.prep_hours,
-      deliveryFee: g._store.delivery_fee,
-    })),
+    { city: first.store_city, prepHours: first.prep_hours, deliveryFee: first.delivery_fee },
     customerCity,
     ctx.now,
     ctx.config.delivery,
   );
-  const etaByStore = new Map(delivery.fastest.perStore.map((e) => [e.storeId, e]));
 
-  const subtotal = list.reduce((s, g) => s + g.subtotal, 0);
   return {
-    groups: list.map(({ _store: _ignored, ...g }) => ({ ...g, fastestShipment: etaByStore.get(g.store.id) ?? null })),
-    itemsCount: list.reduce((s, g) => s + g.itemsCount, 0),
-    storeCount: list.length,
+    store: {
+      id: first.store_id,
+      slug: first.store_slug,
+      name: first.store_name,
+      logoText: first.logo_text ?? first.store_name,
+      brandColor: first.brand_color,
+      city: first.store_city,
+    },
+    items,
+    itemsCount: items.reduce((s, i) => s + i.quantity, 0),
     subtotal,
-    currency: (rows[0]?.currency as string | undefined) ?? ctx.config.currency,
+    currency: first.currency,
     delivery,
-    totals: { fastest: subtotal + delivery.fastest.fee, unified: subtotal + delivery.unified.fee },
-    hasIssues: list.some((g) => g.items.some((i) => i.issue)),
+    totals: { fastest: subtotal + delivery.fastest.fee, standard: subtotal + delivery.standard.fee },
+    hasIssues: items.some((i) => i.issue),
   };
 }
 
 export async function getCart(ctx: Ctx): Promise<CartView> {
   const userId = requireUser(ctx);
-  const [rows, city] = await Promise.all([loadLines(ctx, { kind: 'cart', userId }), getCustomerCity(ctx)]);
+  const [rows, city] = await Promise.all([loadLines(ctx.db, { kind: 'cart', userId }), getCustomerCity(ctx)]);
   return buildCartView(rows, city, ctx);
+}
+
+// ---------------------------------------------------------------- single-store guard
+
+interface StoreRef {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+/**
+ * Makes sure the user's cart belongs to `store`. Creates the cart if there is none.
+ * If it belongs to another store: throws `cart_store_conflict`, or — with `replace` —
+ * empties it and rebinds it to the new store. Must run inside a transaction.
+ */
+async function bindCartToStore(db: Queryable, userId: string, store: StoreRef, replace: boolean) {
+  const { rows } = await db.query(
+    `SELECT c.store_id, s.slug, s.name_ar,
+            (SELECT COALESCE(SUM(quantity), 0)::int FROM cart_items WHERE user_id = c.user_id) AS items_count
+       FROM carts c JOIN stores s ON s.id = c.store_id
+      WHERE c.user_id = $1
+      FOR UPDATE OF c`,
+    [userId],
+  );
+  const current = rows[0];
+
+  if (current && current.store_id !== store.id) {
+    if (!replace) {
+      throw conflict(
+        'cart_store_conflict',
+        `سلتك الحالية من «${current.name_ar}». الطلب في ستايلو يكون من متجر واحد في كل مرة`,
+        {
+          currentStore: { id: current.store_id, slug: current.slug, name: current.name_ar },
+          requestedStore: store,
+          itemsCount: current.items_count,
+        },
+      );
+    }
+    await db.query(`DELETE FROM carts WHERE user_id = $1`, [userId]); // cascades to cart_items
+  }
+  if (!current || current.store_id !== store.id) {
+    await db.query(`INSERT INTO carts (user_id, store_id) VALUES ($1, $2)`, [userId, store.id]);
+  } else {
+    await db.query(`UPDATE carts SET updated_at = now() WHERE user_id = $1`, [userId]);
+  }
 }
 
 // ---------------------------------------------------------------- mutations
 
-async function getVariantForCart(ctx: Ctx, variantId: string) {
-  const { rows } = await ctx.db.query(
-    `SELECT v.stock_qty, p.status AS product_status, s.status AS store_status
+async function getVariantForCart(db: Queryable, variantId: string) {
+  const { rows } = await db.query(
+    `SELECT v.stock_qty, p.status AS product_status, s.status AS store_status,
+            s.id AS store_id, s.slug AS store_slug, s.name_ar AS store_name
        FROM product_variants v JOIN products p ON p.id = v.product_id JOIN stores s ON s.id = p.store_id
       WHERE v.id = $1`,
     [variantId],
@@ -166,43 +213,48 @@ async function getVariantForCart(ctx: Ctx, variantId: string) {
   if (v.product_status !== 'active' || v.store_status !== 'active') {
     throw conflict('unavailable', 'هذا المنتج غير متاح حالياً');
   }
-  return v as { stock_qty: number };
+  return {
+    stock: v.stock_qty as number,
+    store: { id: v.store_id as string, slug: v.store_slug as string, name: v.store_name as string },
+  };
 }
 
 function assertStock(stock: number, wanted: number) {
   if (wanted > stock) {
-    throw conflict(
-      'insufficient_stock',
-      stock === 0 ? 'نفدت الكمية' : `المتوفر ${stock} فقط`,
-      { available: stock },
-    );
+    throw conflict('insufficient_stock', stock === 0 ? 'نفدت الكمية' : `المتوفر ${stock} فقط`, {
+      available: stock,
+    });
   }
 }
 
-export async function addToCart(ctx: Ctx, variantId: string, quantity: number) {
+export async function addToCart(ctx: Ctx, variantId: string, quantity: number, replaceCart = false) {
   const userId = requireUser(ctx);
-  const v = await getVariantForCart(ctx, variantId);
-  const { rows } = await ctx.db.query<{ quantity: number }>(
-    `SELECT quantity FROM cart_items WHERE user_id = $1 AND variant_id = $2`,
-    [userId, variantId],
-  );
-  assertStock(v.stock_qty, (rows[0]?.quantity ?? 0) + quantity);
-  await ctx.db.query(
-    `INSERT INTO cart_items (user_id, variant_id, quantity) VALUES ($1, $2, $3)
-     ON CONFLICT (user_id, variant_id) DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity`,
-    [userId, variantId, quantity],
-  );
+  await inTransaction(ctx.db, async (db) => {
+    const v = await getVariantForCart(db, variantId);
+    await bindCartToStore(db, userId, v.store, replaceCart);
+    const { rows } = await db.query<{ quantity: number }>(
+      `SELECT quantity FROM cart_items WHERE user_id = $1 AND variant_id = $2`,
+      [userId, variantId],
+    );
+    assertStock(v.stock, (rows[0]?.quantity ?? 0) + quantity);
+    await db.query(
+      `INSERT INTO cart_items (user_id, variant_id, quantity) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, variant_id) DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity`,
+      [userId, variantId, quantity],
+    );
+  });
   return getCart(ctx);
 }
 
 export async function setCartQuantity(ctx: Ctx, variantId: string, quantity: number) {
   const userId = requireUser(ctx);
   if (quantity === 0) {
+    // The empty cart row (and its store binding) is dropped by trigger.
     await ctx.db.query(`DELETE FROM cart_items WHERE user_id = $1 AND variant_id = $2`, [userId, variantId]);
     return getCart(ctx);
   }
-  const v = await getVariantForCart(ctx, variantId);
-  assertStock(v.stock_qty, quantity);
+  const v = await getVariantForCart(ctx.db, variantId);
+  assertStock(v.stock, quantity);
   const { rowCount } = await ctx.db.query(
     `UPDATE cart_items SET quantity = $3 WHERE user_id = $1 AND variant_id = $2`,
     [userId, variantId, quantity],
@@ -213,44 +265,61 @@ export async function setCartQuantity(ctx: Ctx, variantId: string, quantity: num
 
 export async function clearCart(ctx: Ctx) {
   const userId = requireUser(ctx);
-  await ctx.db.query(`DELETE FROM cart_items WHERE user_id = $1`, [userId]);
+  await ctx.db.query(`DELETE FROM carts WHERE user_id = $1`, [userId]);
   return getCart(ctx);
 }
 
 /**
- * Adds every piece of a look ("كمّل اللوك") to the cart.
- * `variants` lets the client pick sizes; otherwise the first in-stock variant is used.
+ * Adds every piece of a look ("كمّل اللوك") to the cart. Looks belong to one store, so the
+ * same single-store rule applies. `variants` picks sizes; otherwise the first in-stock variant.
  * Pieces already in the cart are left as they are.
  */
-export async function addLookToCart(ctx: Ctx, lookId: string, variants: Record<string, string> = {}) {
+export async function addLookToCart(
+  ctx: Ctx,
+  lookId: string,
+  variants: Record<string, string> = {},
+  replaceCart = false,
+) {
   const userId = requireUser(ctx);
-  const { rows } = await ctx.db.query(
-    `SELECT li.product_id,
-            (SELECT v.id FROM product_variants v
-              WHERE v.product_id = li.product_id AND v.stock_qty > 0
-              ORDER BY v.created_at, v.sku LIMIT 1) AS default_variant
-       FROM look_items li JOIN looks l ON l.id = li.look_id AND l.is_active
-       JOIN products p ON p.id = li.product_id AND p.status = 'active'
-      WHERE l.id::text = $1 OR l.slug = $1
-      ORDER BY li.position`,
-    [lookId],
-  );
-  if (rows.length === 0) throw notFound('اللوك');
-
   const skipped: string[] = [];
-  for (const r of rows) {
-    const variantId = variants[r.product_id] ?? r.default_variant;
-    if (!variantId) {
-      skipped.push(r.product_id);
-      continue;
-    }
-    await ctx.db.query(
-      `INSERT INTO cart_items (user_id, variant_id, quantity)
-       SELECT $1, v.id, 1 FROM product_variants v WHERE v.id = $2 AND v.product_id = $3 AND v.stock_qty > 0
-       ON CONFLICT DO NOTHING`,
-      [userId, variantId, r.product_id],
+
+  await inTransaction(ctx.db, async (db) => {
+    const { rows } = await db.query(
+      `SELECT li.product_id, s.id AS store_id, s.slug AS store_slug, s.name_ar AS store_name,
+              (SELECT v.id FROM product_variants v
+                WHERE v.product_id = li.product_id AND v.stock_qty > 0
+                ORDER BY v.created_at, v.sku LIMIT 1) AS default_variant
+         FROM looks l
+         JOIN stores s ON s.id = l.store_id AND s.status = 'active'
+         JOIN look_items li ON li.look_id = l.id
+         JOIN products p ON p.id = li.product_id AND p.status = 'active'
+        WHERE l.is_active AND (l.id::text = $1 OR l.slug = $1)
+        ORDER BY li.position`,
+      [lookId],
     );
-  }
+    const first = rows[0];
+    if (!first) throw notFound('اللوك');
+
+    await bindCartToStore(
+      db,
+      userId,
+      { id: first.store_id, slug: first.store_slug, name: first.store_name },
+      replaceCart,
+    );
+    for (const r of rows) {
+      const variantId = variants[r.product_id] ?? r.default_variant;
+      if (!variantId) {
+        skipped.push(r.product_id);
+        continue;
+      }
+      await db.query(
+        `INSERT INTO cart_items (user_id, variant_id, quantity)
+         SELECT $1, v.id, 1 FROM product_variants v WHERE v.id = $2 AND v.product_id = $3 AND v.stock_qty > 0
+         ON CONFLICT DO NOTHING`,
+        [userId, variantId, r.product_id],
+      );
+    }
+  });
   return { cart: await getCart(ctx), skippedProductIds: skipped };
 }
 
@@ -262,16 +331,17 @@ function newToken(): string {
 
 export async function shareCart(ctx: Ctx) {
   const userId = requireUser(ctx);
-  const count = await ctx.db.query(`SELECT count(*)::int AS n FROM cart_items WHERE user_id = $1`, [userId]);
-  if (count.rows[0].n === 0) throw badRequest('cart_empty', 'السلة فارغة، أضيفي منتجات قبل المشاركة');
+  const cart = await ctx.db.query<{ store_id: string }>(`SELECT store_id FROM carts WHERE user_id = $1`, [userId]);
+  const storeId = cart.rows[0]?.store_id;
+  if (!storeId) throw badRequest('cart_empty', 'السلة فارغة، أضيفي منتجات قبل المشاركة');
 
   const token = newToken();
   const { rows } = await ctx.db.query(
-    `WITH sc AS (INSERT INTO shared_carts (token, owner_id) VALUES ($1, $2) RETURNING id, expires_at),
+    `WITH sc AS (INSERT INTO shared_carts (token, owner_id, store_id) VALUES ($1, $2, $3) RETURNING id, expires_at),
           ins AS (INSERT INTO shared_cart_items (shared_cart_id, variant_id, quantity)
                   SELECT sc.id, ci.variant_id, ci.quantity FROM sc, cart_items ci WHERE ci.user_id = $2)
      SELECT expires_at FROM sc`,
-    [token, userId],
+    [token, userId, storeId],
   );
   return {
     token,
@@ -280,22 +350,26 @@ export async function shareCart(ctx: Ctx) {
   };
 }
 
-async function findSharedCart(ctx: Ctx, token: string) {
-  const { rows } = await ctx.db.query(
-    `SELECT sc.id, sc.expires_at, sc.created_at, u.full_name
-       FROM shared_carts sc JOIN users u ON u.id = sc.owner_id WHERE sc.token = $1`,
+async function findSharedCart(db: Queryable, token: string, now: Date) {
+  const { rows } = await db.query(
+    `SELECT sc.id, sc.expires_at, sc.created_at, u.full_name,
+            s.id AS store_id, s.slug AS store_slug, s.name_ar AS store_name
+       FROM shared_carts sc
+       JOIN users u ON u.id = sc.owner_id
+       JOIN stores s ON s.id = sc.store_id
+      WHERE sc.token = $1`,
     [token],
   );
   const sc = rows[0];
   if (!sc) throw notFound('السلة المشتركة');
-  if ((sc.expires_at as Date) <= ctx.now) throw new AppError(410, 'expired', 'انتهت صلاحية رابط السلة');
+  if ((sc.expires_at as Date) <= now) throw new AppError(410, 'expired', 'انتهت صلاحية رابط السلة');
   return sc;
 }
 
 export async function getSharedCart(ctx: Ctx, token: string) {
-  const sc = await findSharedCart(ctx, token);
+  const sc = await findSharedCart(ctx.db, token, ctx.now);
   const [rows, city] = await Promise.all([
-    loadLines(ctx, { kind: 'shared', sharedCartId: sc.id }),
+    loadLines(ctx.db, { kind: 'shared', sharedCartId: sc.id }),
     getCustomerCity(ctx),
   ]);
   return {
@@ -309,21 +383,28 @@ export async function getSharedCart(ctx: Ctx, token: string) {
 }
 
 /** Copies a shared cart into the current user's cart (quantities capped by stock). */
-export async function importSharedCart(ctx: Ctx, token: string) {
+export async function importSharedCart(ctx: Ctx, token: string, replaceCart = false) {
   const userId = requireUser(ctx);
-  const sc = await findSharedCart(ctx, token);
-  await ctx.db.query(
-    `INSERT INTO cart_items (user_id, variant_id, quantity)
-     SELECT $1, sci.variant_id, LEAST(sci.quantity, v.stock_qty)
-       FROM shared_cart_items sci
-       JOIN product_variants v ON v.id = sci.variant_id
-       JOIN products p ON p.id = v.product_id AND p.status = 'active'
-       JOIN stores s ON s.id = p.store_id AND s.status = 'active'
-      WHERE sci.shared_cart_id = $2 AND v.stock_qty > 0
-     ON CONFLICT (user_id, variant_id) DO UPDATE
-       SET quantity = GREATEST(1, LEAST(cart_items.quantity + EXCLUDED.quantity,
-                                        (SELECT stock_qty FROM product_variants WHERE id = EXCLUDED.variant_id)))`,
-    [userId, sc.id],
-  );
+  await inTransaction(ctx.db, async (db) => {
+    const sc = await findSharedCart(db, token, ctx.now);
+    await bindCartToStore(db, userId, { id: sc.store_id, slug: sc.store_slug, name: sc.store_name }, replaceCart);
+    await db.query(
+      `INSERT INTO cart_items (user_id, variant_id, quantity)
+       SELECT $1, sci.variant_id, LEAST(sci.quantity, v.stock_qty)
+         FROM shared_cart_items sci
+         JOIN product_variants v ON v.id = sci.variant_id
+         JOIN products p ON p.id = v.product_id AND p.status = 'active'
+        WHERE sci.shared_cart_id = $2 AND v.stock_qty > 0
+       ON CONFLICT (user_id, variant_id) DO UPDATE
+         SET quantity = GREATEST(1, LEAST(cart_items.quantity + EXCLUDED.quantity,
+                                          (SELECT stock_qty FROM product_variants WHERE id = EXCLUDED.variant_id)))`,
+      [userId, sc.id],
+    );
+    // Everything was out of stock: don't leave an empty cart bound to the store.
+    await db.query(
+      `DELETE FROM carts c WHERE c.user_id = $1 AND NOT EXISTS (SELECT 1 FROM cart_items WHERE user_id = $1)`,
+      [userId],
+    );
+  });
   return getCart(ctx);
 }

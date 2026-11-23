@@ -6,59 +6,40 @@ import { ar } from '@/i18n/ar';
 import { arrivalLabel, formatPrice } from '@/lib/format';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-/** Radio card for "أسرع توصيل" / "توصيل موحد". */
+/** Radio card for «أسرع توصيل» / «توصيل عادي». */
 export function DeliveryOptionCard({
   option,
   selected,
   onSelect,
   currency,
-  savings = 0,
 }: {
   option: DeliveryOption;
   selected: boolean;
   onSelect: () => void;
   currency: string;
-  savings?: number;
 }) {
   const fastest = option.mode === 'fastest';
-  const disabled = !option.available;
   return (
     <Pressable
       onPress={onSelect}
-      disabled={disabled}
       accessibilityRole="radio"
-      accessibilityState={{ selected, disabled }}
-      style={[styles.card, selected && styles.selected, disabled && styles.disabled]}
+      accessibilityState={{ selected }}
+      style={[styles.card, selected && styles.selected]}
     >
       <View style={[styles.icon, selected && { backgroundColor: colors.primary }]}>
         <MaterialCommunityIcons
-          name={fastest ? 'lightning-bolt' : 'package-variant-closed'}
+          name={fastest ? 'lightning-bolt' : 'truck-outline'}
           size={20}
           color={selected ? colors.white : colors.primary}
         />
       </View>
       <View style={styles.body}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>{fastest ? ar.delivery.fastest : ar.delivery.unified}</Text>
-          {!fastest && savings > 0 && (
-            <View style={styles.save}>
-              <Text style={styles.saveText}>{ar.delivery.save(formatPrice(savings, currency))}</Text>
-            </View>
-          )}
+        <Text style={styles.title}>{fastest ? ar.delivery.fastest : ar.delivery.standard}</Text>
+        <Text style={styles.hint}>{fastest ? ar.delivery.fastestHint : ar.delivery.standardHint}</Text>
+        <View style={styles.meta}>
+          <Text style={styles.eta}>{arrivalLabel(option.dayOffset)}</Text>
+          <Text style={styles.fee}>{option.fee === 0 ? ar.delivery.free : formatPrice(option.fee, currency)}</Text>
         </View>
-        <Text style={styles.hint}>
-          {disabled
-            ? ar.delivery.unifiedUnavailable
-            : fastest
-              ? ar.delivery.fastestHint(option.shipments)
-              : ar.delivery.unifiedHint}
-        </Text>
-        {!disabled && (
-          <View style={styles.meta}>
-            <Text style={styles.eta}>{arrivalLabel(option.dayOffset)}</Text>
-            <Text style={styles.fee}>{option.fee === 0 ? ar.delivery.free : formatPrice(option.fee, currency)}</Text>
-          </View>
-        )}
       </View>
       <Ionicons
         name={selected ? 'radio-button-on' : 'radio-button-off'}
@@ -81,7 +62,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   selected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  disabled: { opacity: 0.55 },
   icon: {
     width: 38,
     height: 38,
@@ -91,10 +71,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   body: { flex: 1, gap: 2 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   title: { fontFamily: fonts.bold, fontSize: 15, color: colors.ink },
-  save: { backgroundColor: colors.successSoft, borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 1 },
-  saveText: { fontFamily: fonts.semiBold, fontSize: 11, color: colors.success },
   hint: { fontFamily: fonts.regular, fontSize: 12, color: colors.inkMuted },
   meta: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
   eta: { fontFamily: fonts.semiBold, fontSize: 12, color: colors.success },

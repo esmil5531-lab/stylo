@@ -7,21 +7,26 @@ This file is the source of truth for every session working on this repo. Read it
 | | |
 |---|---|
 | Name (Arabic) | **ستايلو** |
-| Name (Latin) | **Stylo** (header wordmark: **STYLO**, serif, burgundy) |
+| Name (Latin) | **Stylo** (header wordmark: **STYLO**, serif, deep burgundy) |
 | Official tagline | **كل ستايل في مكان واحد** (exact text — no rewording, no added punctuation) |
 | Product | Multi-vendor fashion e-commerce marketplace: many independent stores sell on one platform |
 | Market | **Libya** (LY). Default city for estimates: طرابلس |
 | Currency | **Libyan dinar, LYD, shown as «د.ل»** (e.g. `199 د.ل`). LYD has **3 decimals**: money is stored in **dirhams** (1 د.ل = 1000), so 199 د.ل = `199000` |
 | Primary language | Arabic, RTL. English is secondary/optional |
-| Visual reference | The owner-approved mockup (burgundy `#7A1F3D`, soft pink hero, white cards, green «يصلك اليوم» badges). Tokens live in `mobile/src/theme/index.ts`. Do not invent a different look |
+| Visual reference | The owner-approved mockup (deep burgundy `#5B0E2D`, soft pink hero, white cards, green «يصلك اليوم» badges). Tokens live in `mobile/src/theme/index.ts`. Do not invent a different look |
 
 Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the name or tagline elsewhere.
 
 ### Core features (must keep working)
-- **كمّل اللوك** — curated looks (outfits) across stores; shown on home, on product pages, and as a full look page with «add the whole look to cart».
-- **Multi-store cart** — the cart is grouped by store; checkout creates one order per store.
-- **Delivery choice** — «أسرع توصيل» (each store ships on its own as soon as ready; fee = sum of store fees) vs «توصيل موحد» (one consolidated parcel; one flat fee; only with 2+ stores).
-- **Cart sharing** — snapshot link `…/shared-cart/<token>`; the recipient can view it and add everything to their own cart.
+- **One store per cart and per order** (owner decision). A cart holds items from a single store. Adding an item from another store shows a dialog with two choices: «ابدئي سلة جديدة من …» (empties the cart and rebinds it) or «الإبقاء على سلتي الحالية». Never mix stores in a cart, order, shared cart or look.
+- **Home tabs** — «لأجلك · ترند · عروض · قريب منك». «عروض» = discounted products only (`compare_at_price > base_price`), biggest discount first, with a «-23%» badge.
+- **كمّل اللوك** — looks are curated **per store** so the whole look fits one cart; shown on home, on product pages (same store) and as a look page with «add the whole look to cart».
+- **Delivery choice (one parcel)** — «أسرع توصيل» (priority courier; store fee + `EXPRESS_SURCHARGE`) vs «توصيل عادي» (next regular round; store fee only, + `STANDARD_DELAY_HOURS`). «توصيل موحد» (multi-store) is retired and only appears on old orders.
+- **Cart sharing** — single-store snapshot link `…/shared-cart/<token>`; the recipient can view it and add everything to their own cart (same store rule applies).
+
+### Colors & contrast
+- Body/secondary text must meet WCAG AA (≥ 4.5:1): use `ink`, `inkSecondary` or `inkMuted`. `inkFaint` (3.9:1) is only for icons, disabled controls and decoration — never for text people must read.
+- White text only on `primary` / `primaryDark` / `sale` / `success`. Contrast ratios are documented at the top of `theme/index.ts`; re-check them when changing a color.
 
 ## 2. Repository layout
 
@@ -74,6 +79,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 ### Data & navigation
 - All server calls go through `src/api/hooks.ts` (React Query). Screens render loading / error-with-retry through `<QueryState>`; mutation errors show `errorMessage(err)` (the API's Arabic message).
 - Cart mutations return the whole cart and write it into the `['cart']` cache — don't refetch manually.
+- Anything that adds to the cart (product, look, shared cart) must go through `useStoreConflictGuard()` (`components/cart/StoreConflictDialog.tsx`) so a store conflict opens the two-choice dialog instead of an error.
 - API URL: `EXPO_PUBLIC_API_URL`, else derived from the Metro host (port 4000). See `src/api/client.ts`.
 - In SDK 57, `<Link asChild>` throws if the child gets an **array** style. Use `Pressable` + `router.push(...)` for styled tappable cards.
 - Product/banner photos come from the API (`product_images`, `banners.image_url`). Without a photo, `ProductImage` draws a tinted tile with a garment icon — keep that fallback.
@@ -90,7 +96,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - Errors: throw `AppError` helpers from `src/lib/errors.ts` with an **Arabic, user-safe message**; the global handler returns `{ error: { code, message, details } }`. Zod errors → 400, malformed UUIDs → 400.
 - Money is integer dirhams end to end. Never use floats for money.
 - Multi-step writes (checkout) run in `withTransaction` and lock the rows they change (`FOR UPDATE`).
-- Delivery rules live **only** in `src/modules/delivery/delivery.ts` (pure functions + tests). Fees/hours are config (`UNIFIED_DELIVERY_FEE`, `CONSOLIDATION_HOURS`, …), not literals in SQL.
+- Delivery rules live **only** in `src/modules/delivery/delivery.ts` (pure functions + tests). Fees/hours are config (`EXPRESS_SURCHARGE`, `STANDARD_DELAY_HOURS`, transit hours, …), not literals in SQL.
 - **Auth is temporary**: outside production the `x-user-id` header (or `DEV_USER_ID`) selects the user; in production no user is set and user routes return 401. Replace with real auth before any public deployment.
 - Every new endpoint gets an integration test in `api/test/`. Run `npm test` from `api/` before declaring work done (needs PostgreSQL; uses `stylo_test`).
 
@@ -128,8 +134,9 @@ delivered, cancelled → (terminal)
 
 ### Multi-vendor model
 - `stores` belong to a `users` row with role `vendor`. Products belong to a store. Stores carry delivery settings: `city`, `prep_hours`, `delivery_fee`.
-- One checkout across several stores creates **one `orders` row per store**, sharing a `checkout_id` and the chosen `delivery_mode` (`fastest` | `unified`). With `unified`, the flat fee is split across the store orders so the sum is exact.
-- Looks: `looks` + `look_items` (products from any store). Shared carts: `shared_carts` (token, 30-day expiry) + `shared_cart_items` (snapshot).
+- **Single-store carts (migration 0003)**: `carts(user_id PK, store_id)` binds each user's cart to one store; trigger `cart_items_same_store` (constraint name `cart_single_store`) refuses items from another store, and the cart row is dropped automatically when its last item is removed. The API answers `409 cart_store_conflict` with `details: { currentStore, requestedStore, itemsCount }`; the client repeats the call with `replaceCart: true` only after the customer chooses «ابدئي سلة جديدة».
+- Checkout creates **one `orders` row** for the cart's store with `delivery_mode` `fastest` | `standard` (CHECK `orders_delivery_mode_single_store`). `unified` stays in the enum only for historical orders.
+- Looks: `looks.store_id` + `look_items` (trigger `look_single_store`: products from the look's store only). Shared carts: `shared_carts` (token, `store_id`, 30-day expiry) + `shared_cart_items` (snapshot).
 
 ## 7. Local development
 

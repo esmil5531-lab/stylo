@@ -8,7 +8,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ORDER_STATUS_META, type OrderStatus } from '@/constants/orderStatus';
 import { ar } from '@/i18n/ar';
-import { formatDate, formatPrice } from '@/lib/format';
+import { deliveryModeLabel, formatDate, formatPrice } from '@/lib/format';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 /** The normal path through the six statuses; "ملغي" replaces the remaining steps. */
@@ -42,7 +42,7 @@ function OrderBody({ order }: { order: OrderDetail }) {
           <StatusBadge status={order.status} />
         </View>
         <Text style={styles.meta}>
-          {ar.orders.deliveryMode}: {order.deliveryMode === 'unified' ? ar.delivery.unified : ar.delivery.fastest}
+          {ar.orders.deliveryMode}: {deliveryModeLabel(order.deliveryMode)}
         </Text>
         {order.estimatedDeliveryAt && !cancelled && (
           <Text style={styles.meta}>
@@ -55,7 +55,7 @@ function OrderBody({ order }: { order: OrderDetail }) {
       <View style={styles.card}>
         {steps.map((s, i) => {
           const done = reached.has(s);
-          const color = done ? ORDER_STATUS_META[s].color : colors.inkFaint;
+          const color = done ? ORDER_STATUS_META[s].color : colors.inkMuted;
           return (
             <View key={s} style={styles.step}>
               <View style={styles.rail}>
@@ -63,7 +63,7 @@ function OrderBody({ order }: { order: OrderDetail }) {
                 {i < steps.length - 1 && <View style={[styles.line, done && { backgroundColor: color }]} />}
               </View>
               <View style={{ flex: 1, paddingBottom: spacing.md }}>
-                <Text style={[styles.stepLabel, { color: done ? colors.ink : colors.inkFaint }]}>
+                <Text style={[styles.stepLabel, { color: done ? colors.ink : colors.inkMuted }]}>
                   {ORDER_STATUS_META[s].labelAr}
                 </Text>
                 {done && <Text style={[styles.meta, styles.rtl]}>{formatDate(reached.get(s)!)}</Text>}

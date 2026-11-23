@@ -1,21 +1,26 @@
-// Visual tokens taken from the approved Stylo reference design (burgundy brand, soft pink accents).
+// Visual tokens from the approved Stylo reference design (deep burgundy brand, soft pink accents).
+// Contrast (WCAG): primary on white 13.6:1 · inkMuted on white 6.5:1 · inkMuted on surfaceMuted 5.8:1
+// · success on successSoft 5.7:1 · inkFaint on white 3.9:1 (decorative / strike-through / large only).
 export const colors = {
-  primary: '#7A1F3D',
-  primaryDark: '#5E1730',
-  primarySoft: '#F8E9EE',
+  primary: '#5B0E2D',
+  primaryDark: '#3F0820',
+  primarySoft: '#F8EBEF',
   heroBackground: '#F4DFE6',
-  ink: '#1C1C1E',
-  inkMuted: '#8A8A8E',
-  inkFaint: '#B9B4B7',
+  ink: '#1A1A1C',
+  inkSecondary: '#4E4A4D',
+  inkMuted: '#625D60',
+  inkFaint: '#857F82',
   background: '#FFFFFF',
   surface: '#FFFFFF',
-  surfaceMuted: '#F6F3F4',
-  border: '#EEE6E9',
-  success: '#2E7D4F',
-  successSoft: '#E6F4EC',
-  star: '#F2A93B',
-  danger: '#C0392B',
-  dangerSoft: '#FBEAE8',
+  surfaceMuted: '#F4F1F2',
+  border: '#E9DFE3',
+  success: '#1E6B40',
+  successSoft: '#E3F3E9',
+  star: '#C77C00',
+  sale: '#B3261E',
+  saleSoft: '#FCE8E6',
+  danger: '#B3261E',
+  dangerSoft: '#FCE8E6',
   white: '#FFFFFF',
 } as const;
 
@@ -35,7 +40,7 @@ export const fonts = {
 
 export const shadow = {
   card: {
-    shadowColor: '#7A1F3D',
+    shadowColor: colors.primary,
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },

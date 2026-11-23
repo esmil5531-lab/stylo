@@ -4,9 +4,9 @@ import type { Feed } from '@/api/types';
 import { ar } from '@/i18n/ar';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-export const FEED_ORDER: Feed[] = ['for_you', 'trending', 'new', 'nearby'];
+export const FEED_ORDER: Feed[] = ['for_you', 'trending', 'offers', 'nearby'];
 
-/** "لأجلك" (selected, burgundy pill) · "ترند" · "جديد" · "قريب منك" */
+/** «لأجلك» (selected, burgundy pill) · «ترند» · «عروض» · «قريب منك» */
 export function FeedTabs({ value, onChange }: { value: Feed; onChange: (f: Feed) => void }) {
   return (
     <View style={styles.row} accessibilityRole="tablist">

@@ -106,8 +106,11 @@ function useCartMutation<V>(fn: (v: V) => Promise<Cart>) {
   return useMutation({ mutationFn: fn, onSuccess: (cart) => qc.setQueryData(queryKeys.cart, cart) });
 }
 
+/** `replaceCart: true` empties a cart from another store and starts a new one (after asking). */
 export const useAddToCart = () =>
-  useCartMutation((v: { variantId: string; quantity?: number }) => api.post<Cart>('/cart/items', v));
+  useCartMutation((v: { variantId: string; quantity?: number; replaceCart?: boolean }) =>
+    api.post<Cart>('/cart/items', v),
+  );
 
 export const useSetCartQuantity = () =>
   useCartMutation((v: { variantId: string; quantity: number }) =>
@@ -115,11 +118,15 @@ export const useSetCartQuantity = () =>
   );
 
 export const useImportSharedCart = () =>
-  useCartMutation((token: string) => api.post<Cart>(`/shared-carts/${token}/import`));
+  useCartMutation((v: { token: string; replaceCart?: boolean }) =>
+    api.post<Cart>(`/shared-carts/${v.token}/import`, { replaceCart: v.replaceCart ?? false }),
+  );
 
 export const useAddLookToCart = () =>
-  useCartMutation((lookId: string) =>
-    api.post<{ cart: Cart }>(`/looks/${lookId}/add-to-cart`).then((r) => r.cart),
+  useCartMutation((v: { lookId: string; replaceCart?: boolean }) =>
+    api
+      .post<{ cart: Cart }>(`/looks/${v.lookId}/add-to-cart`, { replaceCart: v.replaceCart ?? false })
+      .then((r) => r.cart),
   );
 
 export const useShareCart = () => useMutation({ mutationFn: () => api.post<ShareResult>('/cart/share') });

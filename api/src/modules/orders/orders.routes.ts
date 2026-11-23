@@ -2,12 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 import { Id, IdParams, Pagination } from '../../lib/validation.js';
+import { DELIVERY_MODES } from '../delivery/delivery.js';
 import { checkout, getOrder, listOrders } from './orders.service.js';
 
 export async function ordersRoutes(app: FastifyInstance) {
   app.post('/checkout', async (req, reply) => {
     const body = z
-      .object({ deliveryMode: z.enum(['fastest', 'unified']), addressId: Id.optional() })
+      .object({ deliveryMode: z.enum(DELIVERY_MODES), addressId: Id.optional() })
       .parse(req.body);
     const result = await checkout(app.db, app.ctx(req), body);
     reply.status(201);

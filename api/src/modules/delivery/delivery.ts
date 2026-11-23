@@ -2,51 +2,39 @@ import type { DeliveryConfig } from '../../config.js';
 
 /**
  * Delivery rules — pure functions, no I/O, so they are easy to test and change.
+ * Every cart/order belongs to ONE store, so there is exactly one parcel.
  *
- * "أسرع توصيل" (fastest): each store ships its own parcel as soon as it is ready.
- *    fee  = sum of each store's delivery_fee
- *    ETA  = per store: now + prep_hours + transit (arrivals may differ per store)
- * "توصيل موحد" (unified): Stylo collects every store's items and sends one parcel.
- *    fee  = one flat platform fee
- *    ETA  = now + slowest prep + consolidation + slowest transit
- * Unified is only offered when the cart has items from 2+ stores.
+ * "أسرع توصيل" (fastest): priority courier picks up as soon as the store is ready.
+ *    fee = store.delivery_fee + expressSurcharge
+ *    ETA = now + prep_hours + transit
+ * "توصيل عادي" (standard): the parcel joins the courier's next regular round.
+ *    fee = store.delivery_fee
+ *    ETA = now + prep_hours + transit + standardDelayHours
+ * Arrivals outside courier hours move to the next delivery window.
  */
 
-export type DeliveryMode = 'fastest' | 'unified';
+export const DELIVERY_MODES = ['fastest', 'standard'] as const;
+export type DeliveryMode = (typeof DELIVERY_MODES)[number];
 
 /** Libya is UTC+2 all year (no DST). */
 const LIBYA_UTC_OFFSET_MS = 2 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 
 export interface StoreShipmentInput {
-  storeId: string;
   city: string;
   prepHours: number;
   deliveryFee: number;
 }
 
-export interface StoreEta {
-  storeId: string;
+export interface DeliveryOption {
+  mode: DeliveryMode;
   fee: number;
   arrivesAt: string;
   /** 0 = today, 1 = tomorrow, … (Libya local calendar days) */
   dayOffset: number;
 }
 
-export interface DeliveryOption {
-  mode: DeliveryMode;
-  available: boolean;
-  fee: number;
-  shipments: number;
-  arrivesAt: string | null;
-  dayOffset: number | null;
-  perStore: StoreEta[];
-}
-
-export interface DeliveryQuote {
-  fastest: DeliveryOption;
-  unified: DeliveryOption & { savings: number };
-}
+export type DeliveryQuote = Record<DeliveryMode, DeliveryOption>;
 
 export function transitHours(storeCity: string, customerCity: string, cfg: DeliveryConfig): number {
   return storeCity === customerCity ? cfg.sameCityTransitHours : cfg.intercityTransitHours;
@@ -76,6 +64,11 @@ export function dayOffset(from: Date, to: Date): number {
   return Math.round((db - da) / (24 * HOUR_MS));
 }
 
+function arrival(now: Date, hours: number, cfg: DeliveryConfig): Date {
+  return fitToDeliveryWindow(new Date(now.getTime() + hours * HOUR_MS), cfg);
+}
+
+/** Fastest possible arrival — what product cards show as «يصلك اليوم / غداً». */
 export function estimateArrival(
   now: Date,
   prepHours: number,
@@ -83,69 +76,30 @@ export function estimateArrival(
   customerCity: string,
   cfg: DeliveryConfig,
 ): Date {
-  const raw = new Date(now.getTime() + (prepHours + transitHours(storeCity, customerCity, cfg)) * HOUR_MS);
-  return fitToDeliveryWindow(raw, cfg);
+  return arrival(now, prepHours + transitHours(storeCity, customerCity, cfg), cfg);
 }
 
 export function quoteDelivery(
-  stores: StoreShipmentInput[],
+  store: StoreShipmentInput,
   customerCity: string,
   now: Date,
   cfg: DeliveryConfig,
 ): DeliveryQuote {
-  const perStore: StoreEta[] = stores.map((s) => {
-    const at = estimateArrival(now, s.prepHours, s.city, customerCity, cfg);
-    return { storeId: s.storeId, fee: s.deliveryFee, arrivesAt: at.toISOString(), dayOffset: dayOffset(now, at) };
-  });
-
-  const latest = perStore.reduce<StoreEta | null>(
-    (acc, s) => (!acc || s.arrivesAt > acc.arrivesAt ? s : acc),
-    null,
-  );
-  const fastestFee = perStore.reduce((sum, s) => sum + s.fee, 0);
-
-  const fastest: DeliveryOption = {
-    mode: 'fastest',
-    available: stores.length > 0,
-    fee: fastestFee,
-    shipments: stores.length,
-    arrivesAt: latest?.arrivesAt ?? null,
-    dayOffset: latest?.dayOffset ?? null,
-    perStore,
-  };
-
-  let unifiedAt: Date | null = null;
-  if (stores.length > 0) {
-    const maxPrep = Math.max(...stores.map((s) => s.prepHours));
-    const maxTransit = Math.max(...stores.map((s) => transitHours(s.city, customerCity, cfg)));
-    unifiedAt = fitToDeliveryWindow(
-      new Date(now.getTime() + (maxPrep + cfg.consolidationHours + maxTransit) * HOUR_MS),
-      cfg,
-    );
-  }
-  const unifiedAvailable = stores.length > 1;
-  const unifiedFee = stores.length > 0 ? cfg.unifiedFee : 0;
-
+  const base = store.prepHours + transitHours(store.city, customerCity, cfg);
+  const fastestAt = arrival(now, base, cfg);
+  const standardAt = arrival(now, base + cfg.standardDelayHours, cfg);
   return {
-    fastest,
-    unified: {
-      mode: 'unified',
-      available: unifiedAvailable,
-      fee: unifiedFee,
-      shipments: stores.length > 0 ? 1 : 0,
-      arrivesAt: unifiedAt?.toISOString() ?? null,
-      dayOffset: unifiedAt ? dayOffset(now, unifiedAt) : null,
-      perStore: [],
-      savings: unifiedAvailable ? Math.max(0, fastestFee - unifiedFee) : 0,
+    fastest: {
+      mode: 'fastest',
+      fee: store.deliveryFee + cfg.expressSurcharge,
+      arrivesAt: fastestAt.toISOString(),
+      dayOffset: dayOffset(now, fastestAt),
+    },
+    standard: {
+      mode: 'standard',
+      fee: store.deliveryFee,
+      arrivesAt: standardAt.toISOString(),
+      dayOffset: dayOffset(now, standardAt),
     },
   };
-}
-
-/** Splits a total fee across N orders; the remainder goes to the first so the sum is exact. */
-export function splitFee(total: number, parts: number): number[] {
-  if (parts <= 0) return [];
-  const base = Math.floor(total / parts);
-  const out = Array.from({ length: parts }, () => base);
-  out[0]! += total - base * parts;
-  return out;
 }

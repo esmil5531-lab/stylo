@@ -9,16 +9,18 @@ const EnvSchema = z.object({
   DEV_USER_ID: z.guid().optional(),
   DEFAULT_CITY: z.string().default('طرابلس'),
   // Delivery rules (amounts in LYD dirhams: 1 د.ل = 1000)
-  UNIFIED_DELIVERY_FEE: z.coerce.number().int().nonnegative().default(15000),
-  CONSOLIDATION_HOURS: z.coerce.number().nonnegative().default(6),
+  EXPRESS_SURCHARGE: z.coerce.number().int().nonnegative().default(5000),
+  STANDARD_DELAY_HOURS: z.coerce.number().nonnegative().default(24),
   SAME_CITY_TRANSIT_HOURS: z.coerce.number().nonnegative().default(3),
   INTERCITY_TRANSIT_HOURS: z.coerce.number().nonnegative().default(24),
   SHARE_LINK_BASE: z.string().default('stylo://shared-cart/'),
 });
 
 export interface DeliveryConfig {
-  unifiedFee: number;
-  consolidationHours: number;
+  /** Added to the store's fee for «أسرع توصيل» (dirhams). */
+  expressSurcharge: number;
+  /** Extra hours «توصيل عادي» waits for the courier's next regular round. */
+  standardDelayHours: number;
   sameCityTransitHours: number;
   intercityTransitHours: number;
   /** Couriers deliver between these local (Libya, UTC+2) hours. */
@@ -52,8 +54,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     defaultCity: e.DEFAULT_CITY,
     currency: 'LYD',
     delivery: {
-      unifiedFee: e.UNIFIED_DELIVERY_FEE,
-      consolidationHours: e.CONSOLIDATION_HOURS,
+      expressSurcharge: e.EXPRESS_SURCHARGE,
+      standardDelayHours: e.STANDARD_DELAY_HOURS,
       sameCityTransitHours: e.SAME_CITY_TRANSIT_HOURS,
       intercityTransitHours: e.INTERCITY_TRANSIT_HOURS,
       windowStartHour: 10,

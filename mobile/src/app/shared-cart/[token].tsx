@@ -6,51 +6,73 @@ import { errorMessage } from '@/api/client';
 import { useImportSharedCart, useSharedCart } from '@/api/hooks';
 import { Button } from '@/components/Button';
 import { CartGroupCard } from '@/components/cart/CartGroupCard';
-import { QueryState } from '@/components/QueryState';
+import { storeConflictOf, useStoreConflictGuard } from '@/components/cart/StoreConflictDialog';
+import { EmptyState, QueryState } from '@/components/QueryState';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { ar } from '@/i18n/ar';
 import { formatPrice } from '@/lib/format';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-/** Opened from a shared link (stylo://shared-cart/<token>). Read-only view + "add all to my cart". */
+/** Opened from a shared link (…/shared-cart/<token>). Read-only view + "add all to my cart". */
 export default function SharedCartScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const shared = useSharedCart(token);
   const importCart = useImportSharedCart();
+  const guard = useStoreConflictGuard();
   const insets = useSafeAreaInsets();
+
+  const goToCart = () => router.navigate('/cart');
+  const addAll = () =>
+    importCart.mutate(
+      { token },
+      {
+        onSuccess: goToCart,
+        onError: (e) =>
+          guard.handle(e, {
+            onReplace: () => importCart.mutate({ token, replaceCart: true }, { onSuccess: goToCart }),
+            onKeep: importCart.reset,
+          }),
+      },
+    );
 
   return (
     <View style={styles.screen}>
       <ScreenHeader title={ar.sharedCart.title} />
       <QueryState query={shared} minHeight={400}>
-        {(s) => (
-          <>
-            <ScrollView contentContainerStyle={styles.content}>
-              <View style={styles.banner}>
-                <Text style={styles.bannerTitle}>{ar.sharedCart.sharedBy(s.sharedBy)}</Text>
-                <Text style={styles.bannerMeta}>
-                  {ar.common.pieces(s.cart.itemsCount)} · {ar.common.fromStores(s.cart.storeCount)}
-                </Text>
+        {(s) =>
+          !s.cart.store ? (
+            <EmptyState icon="bag-handle-outline" title={ar.cart.empty} />
+          ) : (
+            <>
+              <ScrollView contentContainerStyle={styles.content}>
+                <View style={styles.banner}>
+                  <Text style={styles.bannerTitle}>{ar.sharedCart.sharedBy(s.sharedBy)}</Text>
+                  <Text style={styles.bannerMeta}>
+                    {ar.common.pieces(s.cart.itemsCount)} · {s.cart.store.name}
+                  </Text>
+                </View>
+                <CartGroupCard
+                  store={s.cart.store}
+                  items={s.cart.items}
+                  subtotal={s.cart.subtotal}
+                  currency={s.cart.currency}
+                />
+              </ScrollView>
+              <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>{ar.cart.subtotal}</Text>
+                  <Text style={styles.total}>{formatPrice(s.cart.subtotal, s.cart.currency)}</Text>
+                </View>
+                {importCart.isError && !storeConflictOf(importCart.error) && (
+                  <Text style={styles.error}>{errorMessage(importCart.error)}</Text>
+                )}
+                <Button title={ar.sharedCart.addAll} loading={importCart.isPending} onPress={addAll} />
               </View>
-              {s.cart.groups.map((g) => (
-                <CartGroupCard key={g.store.id} group={g} currency={s.cart.currency} />
-              ))}
-            </ScrollView>
-            <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>{ar.cart.subtotal}</Text>
-                <Text style={styles.total}>{formatPrice(s.cart.subtotal, s.cart.currency)}</Text>
-              </View>
-              {importCart.isError && <Text style={styles.error}>{errorMessage(importCart.error)}</Text>}
-              <Button
-                title={ar.sharedCart.addAll}
-                loading={importCart.isPending}
-                onPress={() => importCart.mutate(token, { onSuccess: () => router.navigate('/cart') })}
-              />
-            </View>
-          </>
-        )}
+            </>
+          )
+        }
       </QueryState>
+      {guard.dialog}
     </View>
   );
 }

@@ -38,7 +38,7 @@ export function LookStrip({ look }: { look: Look }) {
           {look.title}
         </Text>
         <Text style={styles.total}>
-          {ar.home.lookTotal(formatPrice(look.totalPrice, currency))} · {ar.common.fromStores(look.storeCount)}
+          {ar.home.lookTotal(formatPrice(look.totalPrice, currency))} · {look.store.name}
         </Text>
       </View>
     </Pressable>

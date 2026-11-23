@@ -4,9 +4,10 @@ import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
-import { useAddToCart, useCompleteTheLook, useProduct } from '@/api/hooks';
+import { useAddToCart, useCart, useCompleteTheLook, useProduct } from '@/api/hooks';
 import type { ProductDetail } from '@/api/types';
 import { Button } from '@/components/Button';
+import { storeConflictOf, useStoreConflictGuard } from '@/components/cart/StoreConflictDialog';
 import { DeliveryBadge } from '@/components/DeliveryBadge';
 import { ProductCard } from '@/components/ProductCard';
 import { ProductImage } from '@/components/ProductImage';
@@ -41,6 +42,22 @@ function ProductBody({ product }: { product: ProductDetail }) {
   const [variantId, setVariantId] = useState(firstInStock?.id);
   const variant = product.variants.find((v) => v.id === variantId);
   const add = useAddToCart();
+  const guard = useStoreConflictGuard();
+  // Heads-up before the dialog: the cart is bound to another store.
+  const cart = useCart();
+  const otherStore = cart.data?.store && cart.data.store.id !== product.store.id ? cart.data.store : null;
+
+  const addToCart = (variantId: string) =>
+    add.mutate(
+      { variantId, quantity: 1 },
+      {
+        onError: (e) =>
+          guard.handle(e, {
+            onReplace: () => add.mutate({ variantId, quantity: 1, replaceCart: true }),
+            onKeep: add.reset,
+          }),
+      },
+    );
   const look = useCompleteTheLook(product.id);
 
   return (
@@ -68,6 +85,11 @@ function ProductBody({ product }: { product: ProductDetail }) {
             <Text style={styles.price}>{formatPrice(variant?.price ?? product.price, product.currency)}</Text>
             {product.compareAtPrice ? (
               <Text style={styles.compare}>{formatPrice(product.compareAtPrice, product.currency)}</Text>
+            ) : null}
+            {product.discountPercent ? (
+              <View style={styles.sale}>
+                <Text style={styles.saleText}>{ar.product.discount(product.discountPercent)}</Text>
+              </View>
             ) : null}
           </View>
           <DeliveryBadge dayOffset={product.delivery.dayOffset} />
@@ -115,7 +137,10 @@ function ProductBody({ product }: { product: ProductDetail }) {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
-        {add.isError && <Text style={styles.error}>{errorMessage(add.error)}</Text>}
+        {otherStore && !add.isSuccess && (
+          <Text style={styles.note}>{ar.product.cartFromOtherStore(otherStore.name)}</Text>
+        )}
+        {add.isError && !storeConflictOf(add.error) && <Text style={styles.error}>{errorMessage(add.error)}</Text>}
         {add.isSuccess ? (
           <View style={styles.footerRow}>
             <Text style={styles.added}>✓ {ar.product.added}</Text>
@@ -126,10 +151,11 @@ function ProductBody({ product }: { product: ProductDetail }) {
             title={variant && variant.stock > 0 ? ar.product.addToCart : ar.product.outOfStock}
             disabled={!variant || variant.stock === 0}
             loading={add.isPending}
-            onPress={() => variant && add.mutate({ variantId: variant.id, quantity: 1 })}
+            onPress={() => variant && addToCart(variant.id)}
           />
         )}
       </View>
+      {guard.dialog}
     </>
   );
 }
@@ -142,7 +168,7 @@ const styles = StyleSheet.create({
   name: { fontFamily: fonts.extraBold, fontSize: 22, color: colors.ink },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
   price: { fontFamily: fonts.extraBold, fontSize: 24, color: colors.ink },
-  compare: { fontFamily: fonts.regular, fontSize: 15, color: colors.inkFaint, textDecorationLine: 'line-through' },
+  compare: { fontFamily: fonts.regular, fontSize: 15, color: colors.inkMuted, textDecorationLine: 'line-through' },
   description: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, color: colors.inkMuted },
   label: { fontFamily: fonts.bold, fontSize: 15, color: colors.ink, marginTop: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
@@ -171,6 +197,9 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.background,
   },
+  sale: { backgroundColor: colors.saleSoft, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 2 },
+  saleText: { fontFamily: fonts.bold, fontSize: 13, color: colors.sale, writingDirection: 'ltr' },
+  note: { fontFamily: fonts.semiBold, fontSize: 12, color: colors.inkMuted, textAlign: 'center' },
   footerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   added: { fontFamily: fonts.bold, fontSize: 14, color: colors.success },
   error: { fontFamily: fonts.semiBold, fontSize: 13, color: colors.danger, textAlign: 'center' },

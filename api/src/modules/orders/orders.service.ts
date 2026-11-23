@@ -4,7 +4,7 @@ import { withTransaction, type Pool } from '../../db.js';
 import { requireUser, type Ctx } from '../../lib/context.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { buildCartView, loadLines } from '../cart/cart.service.js';
-import { splitFee, type DeliveryMode } from '../delivery/delivery.js';
+import type { DeliveryMode } from '../delivery/delivery.js';
 
 export interface CheckoutInput {
   deliveryMode: DeliveryMode;
@@ -12,8 +12,8 @@ export interface CheckoutInput {
 }
 
 /**
- * Turns the cart into one order per store (sharing a checkout_id), atomically:
- * locks the variants, re-checks stock, snapshots lines, decrements stock, clears the cart.
+ * Turns the (single-store) cart into ONE order, atomically: locks the variants, re-checks stock,
+ * snapshots the lines, decrements stock, updates sales counters and empties the cart.
  */
 export async function checkout(pool: Pool, baseCtx: Ctx, input: CheckoutInput) {
   const userId = requireUser(baseCtx);
@@ -30,76 +30,64 @@ export async function checkout(pool: Pool, baseCtx: Ctx, input: CheckoutInput) {
     const address = addr.rows[0];
     if (!address) throw badRequest('address_required', 'أضيفي عنوان توصيل لإتمام الطلب');
 
-    const rows = await loadLines(ctx, { kind: 'cart', userId }, true);
-    if (rows.length === 0) throw badRequest('cart_empty', 'السلة فارغة');
-
+    const rows = await loadLines(client, { kind: 'cart', userId }, true);
     const cart = buildCartView(rows, address.city, ctx);
+    if (!cart.store || !cart.delivery) throw badRequest('cart_empty', 'السلة فارغة');
     if (cart.hasIssues) {
-      const problems = cart.groups.flatMap((g) =>
-        g.items.filter((i) => i.issue).map((i) => ({ variantId: i.variantId, issue: i.issue, available: i.stock })),
-      );
+      const problems = cart.items
+        .filter((i) => i.issue)
+        .map((i) => ({ variantId: i.variantId, issue: i.issue, available: i.stock }));
       throw conflict('cart_has_issues', 'بعض المنتجات لم تعد متوفرة بالكمية المطلوبة', problems);
     }
 
     const option = cart.delivery[input.deliveryMode];
-    if (!option.available) {
-      throw badRequest('delivery_mode_unavailable', 'التوصيل الموحد متاح عند الطلب من أكثر من متجر');
-    }
+    const { rows: created } = await client.query(
+      `INSERT INTO orders (checkout_id, customer_id, store_id, currency, subtotal, shipping_fee,
+                           shipping_address, delivery_mode, estimated_delivery_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, order_number, total, estimated_delivery_at`,
+      [
+        randomUUID(),
+        userId,
+        cart.store.id,
+        cart.currency,
+        cart.subtotal,
+        option.fee,
+        address,
+        input.deliveryMode,
+        option.arrivesAt,
+      ],
+    );
+    const order = created[0];
 
-    const checkoutId = randomUUID();
-    const unifiedFees = splitFee(option.fee, cart.groups.length);
-    const orders = [];
-
-    for (const [i, group] of cart.groups.entries()) {
-      const fee = input.deliveryMode === 'fastest' ? (group.fastestShipment?.fee ?? 0) : unifiedFees[i]!;
-      const eta = input.deliveryMode === 'fastest' ? group.fastestShipment?.arrivesAt : option.arrivesAt;
-
-      const { rows: created } = await client.query(
-        `INSERT INTO orders (checkout_id, customer_id, store_id, currency, subtotal, shipping_fee,
-                             shipping_address, delivery_mode, estimated_delivery_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING id, order_number, total, estimated_delivery_at`,
-        [checkoutId, userId, group.store.id, cart.currency, group.subtotal, fee, address, input.deliveryMode, eta],
+    for (const item of cart.items) {
+      await client.query(
+        `INSERT INTO order_items (order_id, variant_id, product_name_ar, sku, size, color_name_ar, unit_price, quantity)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [order.id, item.variantId, item.name, item.sku, item.size, item.colorName, item.unitPrice, item.quantity],
       );
-      const order = created[0];
-
-      for (const item of group.items) {
-        const line = rows.find((r) => r.variant_id === item.variantId)!;
-        await client.query(
-          `INSERT INTO order_items (order_id, variant_id, product_name_ar, sku, size, color_name_ar, unit_price, quantity)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [order.id, item.variantId, item.name, line.sku, item.size, item.colorName, item.unitPrice, item.quantity],
-        );
-        await client.query(`UPDATE product_variants SET stock_qty = stock_qty - $2 WHERE id = $1`, [
-          item.variantId,
-          item.quantity,
-        ]);
-        await client.query(`UPDATE products SET sold_count = sold_count + $2 WHERE id = $1`, [
-          item.productId,
-          item.quantity,
-        ]);
-      }
-
-      orders.push({
-        id: order.id as string,
-        orderNumber: order.order_number as number,
-        store: group.store,
-        total: order.total as number,
-        shippingFee: fee,
-        estimatedDeliveryAt: order.estimated_delivery_at ? (order.estimated_delivery_at as Date).toISOString() : null,
-      });
+      await client.query(`UPDATE product_variants SET stock_qty = stock_qty - $2 WHERE id = $1`, [
+        item.variantId,
+        item.quantity,
+      ]);
+      await client.query(`UPDATE products SET sold_count = sold_count + $2 WHERE id = $1`, [
+        item.productId,
+        item.quantity,
+      ]);
     }
 
-    await client.query(`DELETE FROM cart_items WHERE user_id = $1`, [userId]);
+    await client.query(`DELETE FROM carts WHERE user_id = $1`, [userId]);
 
     return {
-      checkoutId,
+      id: order.id as string,
+      orderNumber: order.order_number as number,
+      store: cart.store,
       deliveryMode: input.deliveryMode,
       currency: cart.currency,
       subtotal: cart.subtotal,
       deliveryFee: option.fee,
-      total: cart.subtotal + option.fee,
-      orders,
+      total: order.total as number,
+      estimatedDeliveryAt: (order.estimated_delivery_at as Date).toISOString(),
     };
   });
 }
@@ -125,7 +113,8 @@ function mapOrder(r: any) {
     shippingFee: r.shipping_fee as number,
     discount: r.discount as number,
     total: r.total as number,
-    deliveryMode: r.delivery_mode as DeliveryMode,
+    /** 'unified' only on orders placed before single-store carts (migration 0003). */
+    deliveryMode: r.delivery_mode as DeliveryMode | 'unified',
     estimatedDeliveryAt: r.estimated_delivery_at ? (r.estimated_delivery_at as Date).toISOString() : null,
     placedAt: (r.placed_at as Date).toISOString(),
     trackingNumber: r.tracking_number as string | null,

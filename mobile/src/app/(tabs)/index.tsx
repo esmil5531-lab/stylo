@@ -58,6 +58,9 @@ export default function HomeScreen() {
                 data={items}
                 keyExtractor={(p) => p.id}
                 renderItem={({ item }) => <ProductCard product={item} width={150} />}
+                ListEmptyComponent={
+                  <Text style={styles.empty}>{feed === 'offers' ? ar.home.offersEmpty : ar.products.empty}</Text>
+                }
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.rail}
               />
@@ -107,5 +110,6 @@ const styles = StyleSheet.create({
   rail: { paddingHorizontal: spacing.md, gap: 10, paddingBottom: 6 },
   stores: { paddingHorizontal: spacing.md, gap: spacing.md },
   store: { alignItems: 'center', gap: 6, width: 72 },
+  empty: { fontFamily: fonts.regular, fontSize: 14, color: colors.inkMuted, paddingVertical: spacing.lg },
   storeName: { fontFamily: fonts.semiBold, fontSize: 12, color: colors.ink },
 });

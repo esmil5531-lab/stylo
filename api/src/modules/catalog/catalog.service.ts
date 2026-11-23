@@ -3,7 +3,8 @@ import { notFound } from '../../lib/errors.js';
 import { getCustomerCity } from '../users/users.service.js';
 import { mapProductSummary, PRODUCT_SUMMARY_SELECT, type ProductSummary } from './product-summary.js';
 
-export const FEEDS = ['for_you', 'trending', 'new', 'nearby'] as const;
+/** Home tabs: لأجلك · ترند · عروض · قريب منك. `new` stays available for links (e.g. banners). */
+export const FEEDS = ['for_you', 'trending', 'offers', 'nearby', 'new'] as const;
 export type Feed = (typeof FEEDS)[number];
 
 export interface ListProductsInput {
@@ -38,6 +39,11 @@ export async function listProducts(ctx: Ctx, input: ListProductsInput): Promise<
       break;
     case 'new':
       order = 'p.created_at DESC';
+      break;
+    case 'offers':
+      // Discounted products only, biggest discount first.
+      where.push('p.compare_at_price > p.base_price');
+      order = '(p.compare_at_price - p.base_price)::numeric / p.compare_at_price DESC, p.sold_count DESC';
       break;
     case 'nearby':
       order = `(s.city = ${add(city)}) DESC, s.prep_hours ASC, p.rating_avg DESC`;
