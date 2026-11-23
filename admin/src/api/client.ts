@@ -1,0 +1,50 @@
+import { getActingUserId } from '@/lib/identity';
+
+/** Same-origin `/v1` (Vite proxies it to the API in development), unless VITE_API_URL is set. */
+const BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1';
+
+/** Error with an Arabic message from the API, safe to show as-is. */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly details?: unknown,
+  ) {
+    super(message);
+  }
+}
+
+export async function request<T>(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = { accept: 'application/json' };
+  if (body !== undefined) headers['content-type'] = 'application/json';
+  // TEMPORARY until real login: the API trusts x-user-id outside production.
+  const userId = getActingUserId();
+  if (userId) headers['x-user-id'] = userId;
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, 'network', 'تعذّر الاتصال بالخادم. تأكدي أن الـ API يعمل على المنفذ 4000');
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const e = data?.error;
+    throw new ApiError(res.status, e?.code ?? 'http_error', e?.message ?? 'حدث خطأ غير متوقع', e?.details);
+  }
+  return data as T;
+}
+
+export function errorMessage(err: unknown): string {
+  return err instanceof ApiError ? err.message : 'حدث خطأ غير متوقع';
+}
+
+export function qs(params: Record<string, string | number | undefined>): string {
+  const p = Object.entries(params).filter(([, v]) => v !== undefined && v !== '');
+  return p.length ? `?${p.map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&')}` : '';
+}

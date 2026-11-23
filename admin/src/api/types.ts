@@ -1,0 +1,125 @@
+// Shapes returned by /v1/admin (api/src/modules/admin). Money is in LYD dirhams (1 د.ل = 1000).
+
+export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+export type StoreStatus = 'pending_review' | 'active' | 'suspended';
+export type DriverStatus = 'available' | 'busy' | 'offline';
+export type Vehicle = 'motorcycle' | 'car' | 'van';
+
+export type Permission =
+  | 'dashboard.view'
+  | 'stores.read'
+  | 'stores.write'
+  | 'staff.read'
+  | 'staff.write'
+  | 'drivers.read'
+  | 'drivers.write'
+  | 'orders.read'
+  | 'orders.update_status'
+  | 'orders.assign_driver';
+
+export interface Me {
+  id: string;
+  fullName: string;
+  role: { key: string; name: string };
+  store: { id: string; name: string } | null;
+  permissions: Permission[];
+}
+
+export interface Dashboard {
+  scope: { storeId: string; storeName: string } | null;
+  ordersByStatus: Partial<Record<OrderStatus, number>>;
+  today: { orders: number; sales: number; currency: string };
+  stores: Partial<Record<StoreStatus, number>> | null;
+  drivers: Partial<Record<DriverStatus, number>> | null;
+}
+
+export interface AdminStore {
+  id: string;
+  slug: string;
+  nameAr: string;
+  nameEn: string | null;
+  logoText: string | null;
+  brandColor: string | null;
+  city: string;
+  prepHours: number;
+  deliveryFee: number;
+  status: StoreStatus;
+  isFeatured: boolean;
+  commissionBps: number;
+  rating: number;
+  createdAt: string;
+  owner: { id: string; name: string; phone: string | null };
+  productsCount: number;
+  openOrders: number;
+}
+
+export interface Role {
+  key: string;
+  name: string;
+  description: string | null;
+  storeScoped: boolean;
+  permissions: { key: Permission; label: string }[];
+}
+
+export interface StaffMember {
+  id: string;
+  fullName: string;
+  phone: string | null;
+  email: string | null;
+  role: { key: string; name: string };
+  store: { id: string; name: string } | null;
+  jobTitle: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface Driver {
+  id: string;
+  fullName: string;
+  phone: string | null;
+  city: string;
+  vehicle: Vehicle;
+  plateNumber: string | null;
+  status: DriverStatus;
+  isActive: boolean;
+  activeOrders: number;
+  deliveredOrders: number;
+  createdAt: string;
+}
+
+export interface AdminOrder {
+  id: string;
+  orderNumber: number;
+  status: OrderStatus;
+  paymentStatus: string;
+  currency: string;
+  subtotal: number;
+  shippingFee: number;
+  total: number;
+  deliveryMode: string;
+  city: string | null;
+  placedAt: string;
+  updatedAt: string;
+  estimatedDeliveryAt: string | null;
+  cancelReason: string | null;
+  itemsCount: number;
+  store: { id: string; name: string };
+  customer: { id: string; name: string; phone: string | null };
+  driver: { id: string; name: string; phone: string | null } | null;
+}
+
+export interface AdminOrderDetail extends AdminOrder {
+  shippingAddress: Record<string, string>;
+  items: {
+    id: string;
+    name: string;
+    sku: string;
+    size: string | null;
+    colorName: string | null;
+    unitPrice: number;
+    quantity: number;
+    lineTotal: number;
+  }[];
+  history: { from: OrderStatus | null; to: OrderStatus; note: string | null; at: string; by: string | null }[];
+  allowedNext: OrderStatus[];
+}

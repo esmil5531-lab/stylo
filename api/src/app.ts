@@ -6,6 +6,7 @@ import type { Config } from './config.js';
 import type { Pool } from './db.js';
 import type { Ctx } from './lib/context.js';
 import { AppError } from './lib/errors.js';
+import { adminRoutes } from './modules/admin/admin.routes.js';
 import { cartRoutes } from './modules/cart/cart.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { homeRoutes } from './modules/home/home.routes.js';
@@ -76,6 +77,12 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
         error: { code: 'cart_store_conflict', message: 'السلة تقبل منتجات من متجر واحد فقط' },
       });
     }
+    if (pgCode === '23505') {
+      return reply.status(409).send({ error: { code: 'duplicate', message: 'هذه البيانات مسجّلة من قبل' } });
+    }
+    if (pgCode === '23514' && (err as { constraint?: string }).constraint === 'orders_shipped_needs_driver') {
+      return reply.status(400).send({ error: { code: 'driver_required', message: 'أسندي الطلب لسائق أولاً' } });
+    }
     if (pgCode === '22P02') {
       return reply.status(400).send({ error: { code: 'invalid_id', message: 'معرّف غير صالح' } });
     }
@@ -102,6 +109,7 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
       await v1.register(ordersRoutes);
       await v1.register(wishlistRoutes);
       await v1.register(usersRoutes);
+      await v1.register(adminRoutes, { prefix: '/admin' });
     },
     { prefix: '/v1' },
   );

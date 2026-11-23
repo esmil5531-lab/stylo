@@ -4,7 +4,7 @@
 -- compare_at_price > base_price marks a product as on offer ("عروض").
 BEGIN;
 
-TRUNCATE users, stores, categories, products, banners, looks, shared_carts, carts RESTART IDENTITY CASCADE;
+TRUNCATE users, stores, categories, products, banners, looks, shared_carts, carts, staff_members, drivers RESTART IDENTITY CASCADE;
 
 -- ---------------------------------------------------------------- users
 INSERT INTO users (id, email, full_name, role) VALUES
@@ -129,5 +129,61 @@ INSERT INTO look_items (look_id, product_id, position) VALUES
   ('40000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000007', 1),
   ('40000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000008', 2),
   ('40000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000021', 3);
+
+-- ---------------------------------------------------------------- back-office (لوحة الإدارة)
+INSERT INTO users (id, email, phone, full_name, role) VALUES
+  ('00000000-0000-0000-0000-000000000006', 'ops@stylo.local',     '+218910000006', 'أحمد الزوي',     'staff'),
+  ('00000000-0000-0000-0000-000000000007', 'support@stylo.local', '+218910000007', 'هدى بن علي',     'staff'),
+  ('00000000-0000-0000-0000-000000000008', 'laura.mgr@stylo.local','+218910000008', 'ريم الترهوني',   'staff'),
+  ('00000000-0000-0000-0000-000000000011', NULL,                  '+218910000011', 'محمد الككلي',    'driver'),
+  ('00000000-0000-0000-0000-000000000012', NULL,                  '+218920000012', 'علي المغربي',    'driver'),
+  ('00000000-0000-0000-0000-000000000013', NULL,                  '+218910000013', 'سالم القماطي',   'driver');
+
+INSERT INTO staff_members (user_id, role_key, store_id, job_title) VALUES
+  ('00000000-0000-0000-0000-000000000001', 'super_admin',        NULL, 'المدير العام'),
+  ('00000000-0000-0000-0000-000000000006', 'operations_manager', NULL, 'مدير العمليات'),
+  ('00000000-0000-0000-0000-000000000007', 'customer_support',   NULL, 'خدمة العملاء'),
+  ('00000000-0000-0000-0000-000000000008', 'store_manager',      '10000000-0000-0000-0000-000000000001', 'مديرة متجر أزياء لورا');
+
+INSERT INTO drivers (user_id, city, vehicle, plate_number, status) VALUES
+  ('00000000-0000-0000-0000-000000000011', 'طرابلس', 'motorcycle', '5-123456', 'busy'),
+  ('00000000-0000-0000-0000-000000000012', 'بنغازي', 'car',        '10-654321', 'available'),
+  ('00000000-0000-0000-0000-000000000013', 'طرابلس', 'motorcycle', '5-777888', 'available');
+
+-- ---------------------------------------------------------------- sample orders (one per status)
+INSERT INTO orders (id, checkout_id, customer_id, store_id, subtotal, shipping_fee, shipping_address, delivery_mode, placed_at) VALUES
+  ('50000000-0000-0000-0000-000000000001', gen_random_uuid(), '00000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 199000, 15000,
+    '{"recipient_name":"سارة أحمد","phone":"+218910000004","city":"طرابلس","district":"حي الأندلس","street":"شارع جرابة"}', 'fastest',  now() - interval '20 minutes'),
+  ('50000000-0000-0000-0000-000000000002', gen_random_uuid(), '00000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000006', 210000, 10000,
+    '{"recipient_name":"مريم علي","phone":"+218920000005","city":"بنغازي","district":"الفويهات","street":"شارع دبي"}', 'standard', now() - interval '2 hours'),
+  ('50000000-0000-0000-0000-000000000003', gen_random_uuid(), '00000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000002', 165000, 10000,
+    '{"recipient_name":"سارة أحمد","phone":"+218910000004","city":"طرابلس","district":"حي الأندلس","street":"شارع جرابة"}', 'standard', now() - interval '5 hours'),
+  ('50000000-0000-0000-0000-000000000004', gen_random_uuid(), '00000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000005', 135000, 20000,
+    '{"recipient_name":"سارة أحمد","phone":"+218910000004","city":"طرابلس","district":"حي الأندلس","street":"شارع جرابة"}', 'fastest',  now() - interval '1 day'),
+  ('50000000-0000-0000-0000-000000000005', gen_random_uuid(), '00000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000007', 175000, 15000,
+    '{"recipient_name":"مريم علي","phone":"+218920000005","city":"بنغازي","district":"الفويهات","street":"شارع دبي"}', 'standard', now() - interval '3 days'),
+  ('50000000-0000-0000-0000-000000000006', gen_random_uuid(), '00000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000004', 420000, 12000,
+    '{"recipient_name":"سارة أحمد","phone":"+218910000004","city":"طرابلس","district":"حي الأندلس","street":"شارع جرابة"}', 'standard', now() - interval '2 days');
+
+INSERT INTO order_items (order_id, variant_id, product_name_ar, sku, size, color_name_ar, unit_price, quantity)
+SELECT o.id, v.id, p.name_ar, v.sku, v.size, v.color_name_ar, COALESCE(v.price, p.base_price), 1
+  FROM (VALUES ('50000000-0000-0000-0000-000000000001'::uuid, 'LAU-WRP-BRG-M'),
+               ('50000000-0000-0000-0000-000000000002'::uuid, 'CHC-HEL-NUD-38'),
+               ('50000000-0000-0000-0000-000000000003'::uuid, 'FIO-CAR-CRM-M'),
+               ('50000000-0000-0000-0000-000000000004'::uuid, 'NOV-LIN-WHT-L'),
+               ('50000000-0000-0000-0000-000000000005'::uuid, 'VEL-CRS-BLK'),
+               ('50000000-0000-0000-0000-000000000006'::uuid, 'LUN-SAT-WIN-M')) AS x(order_id, sku)
+  JOIN orders o ON o.id = x.order_id
+  JOIN product_variants v ON v.sku = x.sku
+  JOIN products p ON p.id = v.product_id;
+
+-- Walk orders through the allowed transitions (the trigger records history).
+UPDATE orders SET status = 'confirmed'  WHERE id IN ('50000000-0000-0000-0000-000000000002','50000000-0000-0000-0000-000000000003','50000000-0000-0000-0000-000000000004','50000000-0000-0000-0000-000000000005');
+UPDATE orders SET status = 'processing' WHERE id IN ('50000000-0000-0000-0000-000000000003','50000000-0000-0000-0000-000000000004','50000000-0000-0000-0000-000000000005');
+UPDATE orders SET driver_id = '00000000-0000-0000-0000-000000000011', assigned_at = now() - interval '20 hours' WHERE id = '50000000-0000-0000-0000-000000000004';
+UPDATE orders SET driver_id = '00000000-0000-0000-0000-000000000012', assigned_at = now() - interval '3 days'   WHERE id = '50000000-0000-0000-0000-000000000005';
+UPDATE orders SET status = 'shipped'    WHERE id IN ('50000000-0000-0000-0000-000000000004','50000000-0000-0000-0000-000000000005');
+UPDATE orders SET status = 'delivered', payment_status = 'paid' WHERE id = '50000000-0000-0000-0000-000000000005';
+UPDATE orders SET status = 'cancelled', cancel_reason = 'طلب العميلة الإلغاء' WHERE id = '50000000-0000-0000-0000-000000000006';
 
 COMMIT;

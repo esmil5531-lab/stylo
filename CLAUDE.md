@@ -33,6 +33,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 ```
 /
 ├── CLAUDE.md                  ← this file
+├── admin/                     ← back office web app (Vite + React + TS), RTL — see admin/README.md
 ├── api/                       ← HTTP API (Node 20+, Fastify 5, pg, zod) — see api/README.md
 │   ├── src/app.ts             ← app factory: CORS, dev auth, error handler, /v1 routes
 │   ├── src/modules/<area>/    ← <area>.routes.ts (HTTP + validation) + <area>.service.ts (SQL + rules)
@@ -90,7 +91,19 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - Before declaring work done, run from `mobile/`: `npm run typecheck` and `npm run lint`.
 - `ios/` and `android/` are generated (CNG). Never commit or hand-edit them; configure via `app.json` / config plugins.
 
-## 5. API rules
+## 5. Back office (لوحة الإدارة) rules
+
+- Separate app in `admin/` (Vite + React 19 + React Router 7 + React Query), port 5174. It never talks to PostgreSQL directly: everything goes through `/v1/admin/*`.
+- **Permissions are enforced by the API**, never only by hiding UI. Every admin route calls `can(req, '<permission>')`. Permission keys live in `api/src/modules/admin/permissions.ts`; roles (`staff_roles`) are lists of those keys.
+- Store-scoped staff (`staff_members.store_id` set, e.g. `store_manager`) only ever see their store: scope every new admin query with the staff context. They may move orders to `confirmed`/`processing`/`cancelled` only; `shipped`/`delivered` are Stylo operations.
+- No privilege escalation: nobody can grant or edit a role with permissions they don't hold, and nobody can deactivate or re-role themselves.
+- Order status changes go through `changeOrderStatus` (sets `stylo.actor_id` so history records who did it). `shipped` requires an assigned driver (also a DB CHECK). Cancelling requires a reason and restocks the items. Driver status follows automatically: `busy` while they have a shipped order, `available` after.
+- Update (PATCH) schemas must not contain zod `.default()`s — `.partial()` keeps defaults and would silently reset fields the client didn't send. Defaults belong on create schemas only.
+- Money inputs are typed in د.ل by staff and sent to the API in dirhams (`parseLYD` in `admin/src/lib/format.ts`).
+- Order numbers next to Arabic text must be direction-isolated: `<OrderNo>` in admin, `\u2066…\u2069` in mobile strings — otherwise "#100001" renders as "100001#".
+- The «وضع التطوير — الدخول كـ» identity switcher exists only in dev builds; it is temporary until staff login exists.
+
+## 6. API rules
 
 - Routes are versioned under `/v1`. Each area = `*.routes.ts` (parse input with zod, call the service) + `*.service.ts` (SQL and business rules). Services take a `Ctx` (`db`, `config`, `userId`, `now`) — never read globals, so tests can inject a clock.
 - Errors: throw `AppError` helpers from `src/lib/errors.ts` with an **Arabic, user-safe message**; the global handler returns `{ error: { code, message, details } }`. Zod errors → 400, malformed UUIDs → 400.
@@ -100,7 +113,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - **Auth is temporary**: outside production the `x-user-id` header (or `DEV_USER_ID`) selects the user; in production no user is set and user routes return 401. Replace with real auth before any public deployment.
 - Every new endpoint gets an integration test in `api/test/`. Run `npm test` from `api/` before declaring work done (needs PostgreSQL; uses `stylo_test`).
 
-## 6. Database rules
+## 7. Database rules
 
 - Migrations are **numbered, forward-only, immutable once committed/applied**: `NNNN_short_name.sql`, wrapped in `BEGIN; … COMMIT;`. To change the schema, add a new migration — never edit an applied one. Apply with `npm run db:migrate` (tracked in `schema_migrations`).
 - IDs: `UUID DEFAULT gen_random_uuid()`. Timestamps: `TIMESTAMPTZ`. Money: `BIGINT` minor units + `currency CHAR(3)` (default `LYD`). Never floats for money.
@@ -136,9 +149,10 @@ delivered, cancelled → (terminal)
 - `stores` belong to a `users` row with role `vendor`. Products belong to a store. Stores carry delivery settings: `city`, `prep_hours`, `delivery_fee`.
 - **Single-store carts (migration 0003)**: `carts(user_id PK, store_id)` binds each user's cart to one store; trigger `cart_items_same_store` (constraint name `cart_single_store`) refuses items from another store, and the cart row is dropped automatically when its last item is removed. The API answers `409 cart_store_conflict` with `details: { currentStore, requestedStore, itemsCount }`; the client repeats the call with `replaceCart: true` only after the customer chooses «ابدئي سلة جديدة».
 - Checkout creates **one `orders` row** for the cart's store with `delivery_mode` `fastest` | `standard` (CHECK `orders_delivery_mode_single_store`). `unified` stays in the enum only for historical orders.
+- Back office (migration 0004): `staff_roles(key, name_ar, permissions[], store_scoped)`, `staff_members(user_id, role_key, store_id?, is_active)` (trigger `staff_store_scope`), `drivers(user_id, city, vehicle, status available|busy|offline, is_active)`, `orders.driver_id/assigned_at` with CHECK `orders_shipped_needs_driver`. `user_role` gained `staff` and `driver`.
 - Looks: `looks.store_id` + `look_items` (trigger `look_single_store`: products from the look's store only). Shared carts: `shared_carts` (token, `store_id`, 30-day expiry) + `shared_cart_items` (snapshot).
 
-## 7. Local development
+## 8. Local development
 
 ```bash
 # Database (once)
@@ -152,8 +166,11 @@ cd api && cp .env.example .env && npm install && npm run db:reset && npm run dev
 
 # Mobile (terminal 2)
 cd mobile && npm install && npx expo start
+
+# Back office (terminal 3) — http://localhost:5174
+cd admin && npm install && npm run dev
 ```
 
-## 8. Not built yet (next steps)
+## 9. Not built yet (next steps)
 
-Real authentication (replace dev `x-user-id`), address management UI, payments, product photo upload/storage, vendor dashboard (status transitions), admin panel, push notifications, personalised «لأجلك» feed (currently featured + rating).
+Real authentication for customers and staff (replace dev `x-user-id` + admin identity switcher), address management UI, payments, product management + photo upload/storage in the back office, driver app, push notifications, audit log for admin edits (stores/staff), personalised «لأجلك» feed (currently featured + rating).

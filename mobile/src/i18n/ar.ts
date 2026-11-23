@@ -1,5 +1,6 @@
 // All user-facing Arabic text. Keep screens free of inline strings.
-const orderNumber = (n: number) => `طلب #${n}`;
+// \u2066…\u2069 (LRI…PDI) isolates "#100001" so RTL text doesn't render it as "100001#".
+const orderNumber = (n: number) => `طلب \u2066#${n}\u2069`;
 
 export const ar = {
   common: {

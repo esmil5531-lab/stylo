@@ -218,9 +218,10 @@ describe('looks, sharing and checkout', () => {
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM carts WHERE user_id = $1', [SARA])).rows[0].n, 0);
 
     const orders = (await req('GET', '/orders')).json().items;
-    assert.equal(orders.length, 1);
-    assert.equal(orders[0].deliveryMode, 'standard');
-    const detail = (await req('GET', `/orders/${orders[0].id}`)).json();
+    const mine = orders.find((o: { id: string }) => o.id === order.id);
+    assert.equal(mine.deliveryMode, 'standard');
+    assert.equal(mine.status, 'pending');
+    const detail = (await req('GET', `/orders/${order.id}`)).json();
     assert.deepEqual(detail.history.map((h: { to: string }) => h.to), ['pending']);
     assert.equal(detail.items.length, 4);
   });

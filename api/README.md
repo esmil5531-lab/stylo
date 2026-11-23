@@ -52,6 +52,24 @@ npm run dev           # http://localhost:4000  (watch mode)
 
 الأخطاء دائماً: `{ "error": { "code": "insufficient_stock", "message": "المتوفر 3 فقط", "details": … } }`.
 
+## لوحة الإدارة (`/v1/admin`)
+
+كل مسار يحمّل بيانات الموظف أولاً: غير الموظف أو الموظف المعطّل ⇒ 403. ثم يتحقق من صلاحية واحدة. موظف المتجر يُقيَّد تلقائياً بمتجره.
+
+| Method | Path | الصلاحية | الوصف |
+|---|---|---|---|
+| GET | `/admin/me` | — | الموظف ودوره وصلاحياته |
+| GET | `/admin/dashboard` | `dashboard.view` | الطلبات حسب الحالة، مبيعات اليوم، المتاجر، السائقون |
+| GET · POST · PATCH | `/admin/stores` · `/admin/stores/:id` | `stores.read` / `stores.write` | المتاجر. الإضافة تتضمن صاحب المتجر `owner: { fullName, phone }`، والرسوم `deliveryFee` بالدرهم |
+| GET | `/admin/roles` | `staff.read` | الأدوار وصلاحياتها |
+| GET · POST · PATCH | `/admin/staff` · `/admin/staff/:id` | `staff.read` / `staff.write` | الموظفون. لا يمكن منح دور أعلى من صلاحياتك |
+| GET · POST · PATCH | `/admin/drivers` · `/admin/drivers/:id` | `drivers.read` / `drivers.write` | السائقون وحالة التوفر |
+| GET | `/admin/orders?status=&q=&storeId=` · `/admin/orders/:id` | `orders.read` | الطلبات والتفاصيل وسجل الحالات و`allowedNext` |
+| POST | `/admin/orders/:id/status` | `orders.update_status` | `{ to, note?, cancelReason? }` |
+| POST | `/admin/orders/:id/driver` | `orders.assign_driver` | `{ driverId }`. للطلبات المؤكدة أو قيد التجهيز |
+
+قواعد الحالات: الانتقالات المسموحة هي نفسها المفروضة في قاعدة البيانات. «تم الشحن» يتطلب سائقاً، والإلغاء يتطلب سبباً ويعيد المخزون. يُسجَّل اسم من غيّر الحالة في `order_status_history.changed_by`.
+
 ## سلة من متجر واحد
 
 كل سلة وكل طلب من متجر واحد فقط (جدول `carts`، migration 0003، ومحمي أيضاً بـ trigger في قاعدة البيانات).
