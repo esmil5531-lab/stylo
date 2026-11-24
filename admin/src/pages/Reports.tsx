@@ -42,7 +42,7 @@ export function ReportsPage() {
   const [storeId, setStoreId] = useState('');
   const range = rangeFor(preset, custom);
   const report = useReport({ ...range, storeId: storeId || undefined });
-  const stores = useStores();
+  const stores = useStores({}, useCan('stores.read'));
   const canReadStores = useCan('stores.read');
 
   return (
@@ -114,7 +114,7 @@ function ReportBody({ report: r, storeView }: { report: Report; storeView: boole
   return (
     <>
       <div className="muted small">
-        الفترة: <Num>{r.range.from}</Num> → <Num>{r.range.to}</Num> (<Num>{r.range.days}</Num> يوماً)
+        الفترة: من <Num>{r.range.from}</Num> إلى <Num>{r.range.to}</Num> (<Num>{r.range.days}</Num> يوماً)
       </div>
 
       <div className="kpi-grid">

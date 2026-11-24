@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { useState } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { lighten, luminance } from '@/lib/color';
+import { darken, lighten, luminance } from '@/lib/color';
 import { colors } from '@/theme';
 
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
@@ -59,7 +59,8 @@ export function ProductImage({ uri, colorHex, category, name, style, iconSize = 
     );
   }
 
-  const iconColor = luminance(base) > 0.75 ? colors.inkFaint : base;
+  // Light product colours (beige, white…) would vanish on their own tint: darken the icon.
+  const iconColor = luminance(base) > 0.75 ? colors.inkFaint : luminance(base) > 0.35 ? darken(base, 0.45) : base;
   return (
     <View style={[styles.fill, styles.placeholder, { backgroundColor: lighten(base, 0.86) }, style]}>
       <MaterialCommunityIcons name={iconFor(category, name)} size={iconSize} color={iconColor} />

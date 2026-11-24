@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router';
 import { useMe, useProducts, useStores } from '@/api/hooks';
 import type { ProductStatus } from '@/api/types';
 import { Money, Num } from '@/components/inputs';
-import { Can } from '@/components/Layout';
+import { Can, useCan } from '@/components/Layout';
 import { Async, Badge, Empty, Icon, PageHead } from '@/components/ui';
 import { LOW_STOCK, PRODUCT_STATUS } from '@/lib/sizes';
 
@@ -18,7 +18,7 @@ export function ProductsPage() {
   const [q, setQ] = useState('');
   const [lowStock, setLowStock] = useState(false);
   const products = useProducts({ status, q: q || undefined, storeId: storeId || undefined, lowStock });
-  const stores = useStores();
+  const stores = useStores({}, useCan('stores.read'));
   const navigate = useNavigate();
   const platform = !me?.store;
 

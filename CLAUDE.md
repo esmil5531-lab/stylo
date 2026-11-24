@@ -103,6 +103,26 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - Order numbers next to Arabic text must be direction-isolated: `<OrderNo>` in admin, `\u2066…\u2069` in mobile strings — otherwise "#100001" renders as "100001#".
 - The «وضع التطوير — الدخول كـ» identity switcher exists only in dev builds; it is temporary until staff login exists.
 
+### Store panel (لوحة المتجر)
+- Stores manage themselves **inside the same back office**, scoped to their store: role `store_owner` («مالك المتجر», products + orders + settings + reports) and `store_manager`. Creating a store gives its owner `store_owner` automatically. One staff account = one store (an owner of several stores needs separate accounts until store switching exists).
+- A store edits its own profile at `/my-store` (names, logo text, phone, district, address, prep hours). **Delivery fee, status and commission are Stylo decisions** (Stylo runs the drivers) and are read-only there.
+- Store staff can never mark products «مميز»; `isFeatured` from store staff is ignored.
+
+### Products & sizes
+- Sizes/colours are `product_variants` rows: one per (size, colour) — unique index `product_variants_size_color_uniq` — each with its own stock and optional price override, ordered by `position` (the order the store picked). Products without sizes have one variant with `size = NULL` («مقاس واحد»).
+- The product form (`admin/src/pages/ProductForm.tsx`) builds the size × colour matrix from presets in `admin/src/lib/sizes.ts`; SKUs are generated (`<STORE3>-<6 hex>`) when left empty. Saving sends all variants: listed ids are updated, new ones inserted, missing ones deleted (past orders keep their snapshot).
+- Customers pick size and colour separately (`mobile/src/components/product/VariantPicker.tsx`); a sold-out size gets a «نفد» caption — never a strike-through (it turns "L" into "Ł").
+
+### Reports, profit & commission
+- Commission is basis points on the **merchandise subtotal** (not delivery): `stores.commission_bps` (default 1000 = 10%). Each order snapshots `orders.commission_bps` at checkout and stores `commission_amount` (generated, rounded half-up), so changing a rate never rewrites history. Only `stores.commission` (super admin) may change a rate.
+- Definitions used everywhere (`api/src/modules/admin/reports.admin.ts`): **المبيعات** = Σ subtotal of non-cancelled orders · **عمولة ستايلو** = Σ commission_amount · **مستحقات المتجر** = sales − commission · **إيراد ستايلو** = commission + delivery fees · "realised" = delivered only. Days are Libya calendar days (`Africa/Tripoli`).
+- The daily chart follows the dataviz rules: one series in the brand colour, no legend, rounded data-end on the baseline, hover tooltip, «عرض كجدول» table view.
+
+### Numbers in RTL (admin)
+- Show numbers through `<Num>`, `<Money>`, `<Phone>`, `<Count>`, `<Percent>` (`admin/src/components/inputs.tsx`) — they isolate digits as LTR and use tabular figures. Phones display as `+218 91 234 5678`.
+- Enter numbers through `MoneyInput` (د.ل), `PhoneInput` (+218), `IntInput` (units like قطعة/ساعة), `PercentInput`. They are LTR inside, accept Arabic-Indic digits (٠-٩), and keep raw text; parse with `parseLYD`, `normaliseLibyanPhone`, `parseIntInput`, `parsePercent` before sending. The API also accepts Arabic-Indic digits in phone numbers.
+- Forms validate on submit and show the error under the field (`<Field required error>`); required fields carry `*`.
+
 ## 6. API rules
 
 - Routes are versioned under `/v1`. Each area = `*.routes.ts` (parse input with zod, call the service) + `*.service.ts` (SQL and business rules). Services take a `Ctx` (`db`, `config`, `userId`, `now`) — never read globals, so tests can inject a clock.
@@ -149,6 +169,7 @@ delivered, cancelled → (terminal)
 - `stores` belong to a `users` row with role `vendor`. Products belong to a store. Stores carry delivery settings: `city`, `prep_hours`, `delivery_fee`.
 - **Single-store carts (migration 0003)**: `carts(user_id PK, store_id)` binds each user's cart to one store; trigger `cart_items_same_store` (constraint name `cart_single_store`) refuses items from another store, and the cart row is dropped automatically when its last item is removed. The API answers `409 cart_store_conflict` with `details: { currentStore, requestedStore, itemsCount }`; the client repeats the call with `replaceCart: true` only after the customer chooses «ابدئي سلة جديدة».
 - Checkout creates **one `orders` row** for the cart's store with `delivery_mode` `fastest` | `standard` (CHECK `orders_delivery_mode_single_store`). `unified` stays in the enum only for historical orders.
+- Store panel (migration 0005): roles gained `products.read/write`, `store.profile`, `reports.view`, `stores.commission`; new role `store_owner`; `stores.phone/district/address_line`; `product_variants.position` + one variant per size+colour; `orders.commission_bps` + generated `commission_amount`.
 - Back office (migration 0004): `staff_roles(key, name_ar, permissions[], store_scoped)`, `staff_members(user_id, role_key, store_id?, is_active)` (trigger `staff_store_scope`), `drivers(user_id, city, vehicle, status available|busy|offline, is_active)`, `orders.driver_id/assigned_at` with CHECK `orders_shipped_needs_driver`. `user_role` gained `staff` and `driver`.
 - Looks: `looks.store_id` + `look_items` (trigger `look_single_store`: products from the look's store only). Shared carts: `shared_carts` (token, `store_id`, 30-day expiry) + `shared_cart_items` (snapshot).
 
@@ -173,4 +194,4 @@ cd admin && npm install && npm run dev
 
 ## 9. Not built yet (next steps)
 
-Real authentication for customers and staff (replace dev `x-user-id` + admin identity switcher), address management UI, payments, product management + photo upload/storage in the back office, driver app, push notifications, audit log for admin edits (stores/staff), personalised «لأجلك» feed (currently featured + rating).
+Real authentication for customers and staff (replace dev `x-user-id` + admin identity switcher), address management UI, payments + store payout settlement (mark commissions/payouts as paid), product photo upload/storage (currently image URLs), store switching for owners of several stores, driver app, push notifications, audit log for admin edits, personalised «لأجلك» feed (currently featured + rating).

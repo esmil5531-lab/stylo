@@ -34,7 +34,7 @@ export function ProductFormPage() {
 function ProductEditor({ initial }: { initial?: AdminProductDetail }) {
   const me = useMe().data;
   const categories = useCategories();
-  const stores = useStores();
+  const stores = useStores({}, useCan('stores.read'));
   const canWrite = useCan('products.write');
   const save = useSaveProduct(initial?.id);
   const navigate = useNavigate();

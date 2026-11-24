@@ -85,8 +85,10 @@ export function VariantPicker({
                   accessibilityLabel={out ? `${s} ${ar.product.soldOut}` : s}
                   style={[styles.chip, active && styles.chipActive, out && styles.out]}
                 >
-                  {/* Sizes are Latin (S, M, 38, 6Y): keep them LTR. */}
-                  <Text style={[styles.chipText, active && styles.chipTextActive, out && styles.struck]}>{s}</Text>
+                  {/* Sizes are Latin (S, M, 38, 6Y): keep them LTR. A strike-through would turn
+                      "L" into "Ł", so sold-out sizes get a small «نفد» caption instead. */}
+                  <Text style={[styles.chipText, active && styles.chipTextActive, out && styles.outText]}>{s}</Text>
+                  {out && <Text style={styles.soldOut}>{ar.product.soldOut}</Text>}
                 </Pressable>
               );
             })}
@@ -122,8 +124,9 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   chipText: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink, writingDirection: 'ltr' },
   chipTextActive: { color: colors.primary },
-  struck: { textDecorationLine: 'line-through', color: colors.inkMuted },
-  out: { opacity: 0.45 },
+  outText: { color: colors.inkMuted },
+  soldOut: { fontFamily: fonts.semiBold, fontSize: 10, lineHeight: 14, color: colors.inkMuted },
+  out: { backgroundColor: colors.surfaceMuted, borderStyle: 'dashed' },
   swatchRing: { padding: 3, borderRadius: 20, borderWidth: 2, borderColor: 'transparent' },
   swatchRingActive: { borderColor: colors.primary },
   swatch: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: colors.border },

@@ -70,8 +70,10 @@ export const useAssignDriver = (id: string) =>
   );
 
 // ---------------------------------------------------------------- stores
-export const useStores = (f: { status?: StoreStatus; q?: string } = {}) =>
+/** `enabled: false` for screens shown to staff without `stores.read` (e.g. store owners). */
+export const useStores = (f: { status?: StoreStatus; q?: string } = {}, enabled = true) =>
   useQuery({
+    enabled,
     queryKey: ['stores', f],
     queryFn: () => get<{ items: AdminStore[] }>(`/admin/stores${qs(f)}`).then((r) => r.items),
   });
