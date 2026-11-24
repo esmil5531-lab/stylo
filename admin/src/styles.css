@@ -408,3 +408,53 @@ table.table { width: 100%; border-collapse: collapse; }
 .look-pick-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .swatch-dot { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px var(--border); }
 @media (max-width: 700px) { .banner-list { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------- photo upload */
+.upload { display: flex; flex-direction: column; gap: 8px; }
+.upload-box {
+  position: relative; border: 1.5px dashed var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); overflow: hidden; display: grid; place-items: center;
+}
+.upload-box.over, .gallery.over { border-color: var(--primary); background: var(--primary-soft); }
+.upload-wide { aspect-ratio: 16 / 7; width: 100%; }
+.upload-square { aspect-ratio: 1; width: 132px; }
+.upload-portrait { aspect-ratio: 4 / 5; width: 180px; }
+.upload-box img { width: 100%; height: 100%; object-fit: cover; }
+.upload-empty {
+  all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  color: var(--muted); font-size: 13px; line-height: 1.6; text-align: center; padding: 12px;
+}
+.upload-empty:focus-visible, .gallery-add:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.upload-hint { color: var(--muted); font-size: 12px; }
+.upload-busy { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(255 255 255 / 0.7); }
+.upload-actions { gap: 6px; align-items: center; }
+.link-btn { all: unset; cursor: pointer; color: var(--primary); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.link-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.gallery {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px;
+  border: 1.5px dashed transparent; border-radius: var(--radius-sm); padding: 2px;
+}
+.gallery-item { position: relative; margin: 0; aspect-ratio: 4 / 5; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); border: 1px solid var(--border); }
+.gallery-item img { width: 100%; height: 100%; object-fit: cover; }
+.gallery-main {
+  position: absolute; top: 6px; inset-inline-start: 6px; background: var(--primary); color: #fff;
+  font-size: 11px; line-height: 1.6; padding: 0 8px; border-radius: 99px;
+}
+.gallery-tools {
+  position: absolute; bottom: 0; inset-inline: 0; display: flex; justify-content: center; gap: 4px;
+  padding: 6px; background: linear-gradient(transparent, rgb(26 26 28 / 0.55));
+}
+.gallery-tools button {
+  all: unset; cursor: pointer; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: #fff; color: var(--ink); font-size: 10px;
+}
+.gallery-tools button:disabled { opacity: 0.4; cursor: default; }
+.gallery-tools button:focus-visible { outline: 2px solid var(--primary); }
+.gallery-add {
+  all: unset; cursor: pointer; aspect-ratio: 4 / 5; border: 1.5px dashed var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; color: var(--muted); font-size: 13px;
+}
+.gallery-add:hover, .upload-empty:hover { color: var(--primary); }
+.gallery-add .spinner { width: 20px; height: 20px; margin: 0; }

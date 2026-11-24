@@ -28,7 +28,8 @@ import {
   updateCategory,
 } from './categories.admin.js';
 import { CATEGORY_ICONS } from '../../lib/category-icons.js';
-import { forbidden } from '../../lib/errors.js';
+import { isMediaUrl, storeImage, type MediaPurpose } from '../../lib/media.js';
+import { badRequest, forbidden } from '../../lib/errors.js';
 import { BANNER_LINK, createBanner, deleteBanner, listBanners, reorderBanners, updateBanner } from './banners.admin.js';
 import {
   createLook,
@@ -121,6 +122,9 @@ const StoreProfile = StoreFields.pick({
   prepHours: true,
 }).partial();
 
+/** An uploaded photo (/uploads/…webp) or an http(s) link. */
+const MediaUrl = z.string().trim().max(500).refine(isMediaUrl, 'رابط صورة غير صالح');
+
 // Categories: update schema without defaults (see the note above).
 const CategoryFields = z.object({
   nameAr: z.string().trim().min(2, 'اسم القسم قصير جداً').max(40),
@@ -138,7 +142,7 @@ const CategoryFields = z.object({
     .string()
     .regex(/^#[0-9A-Fa-f]{6}$/)
     .nullish(),
-  imageUrl: z.string().trim().url().max(500).nullish().or(z.literal('')),
+  imageUrl: MediaUrl.nullish().or(z.literal('')),
   isActive: z.boolean(),
 });
 const CategoryCreate = CategoryFields.extend({ isActive: z.boolean().default(true) });
@@ -150,7 +154,7 @@ const BannerFields = z.object({
   title: z.string().trim().min(2, 'اكتبي عنوان البنر').max(60),
   subtitle: z.string().trim().max(90).nullish(),
   cta: z.string().trim().max(24).nullish(),
-  imageUrl: z.string().trim().url().max(500).nullish().or(z.literal('')),
+  imageUrl: MediaUrl.nullish().or(z.literal('')),
   link: z
     .string()
     .trim()
@@ -168,7 +172,7 @@ const LookFields = z.object({
   storeId: Id.optional(),
   title: z.string().trim().min(2, 'اكتبي اسم اللوك').max(60),
   subtitle: z.string().trim().max(90).nullish(),
-  coverUrl: z.string().trim().url().max(500).nullish().or(z.literal('')),
+  coverUrl: MediaUrl.nullish().or(z.literal('')),
   isActive: z.boolean(),
   isFeatured: z.boolean().optional(),
   productIds: z.array(Id).min(1).max(LOOK_MAX_ITEMS),
@@ -187,7 +191,7 @@ const ProductBody = z.object({
   compareAtPrice: z.number().int().min(1).max(100_000_000).nullish(),
   status: z.enum(PRODUCT_STATUSES),
   isFeatured: z.boolean().optional(),
-  images: z.array(z.string().trim().url().max(500)).max(8).default([]),
+  images: z.array(MediaUrl).max(8).default([]),
   variants: z
     .array(
       z.object({
@@ -300,6 +304,35 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // ------------------------------------------------------------ products & sizes
+  // ------------------------------------------------------------ photo uploads
+  // The body is the image itself (Content-Type: image/*), not multipart: simpler for the browser and
+  // no file parsing library. The purpose decides the permission.
+  app.addContentTypeParser(/^image\//, { parseAs: 'buffer', bodyLimit: app.config.media.maxBytes + 1 }, (_req, body, done) =>
+    done(null, body),
+  );
+  const UPLOAD_PERMISSION: Record<MediaPurpose, Permission> = {
+    product: 'products.write',
+    banner: 'banners.manage',
+    look: 'looks.manage',
+    category: 'categories.manage',
+  };
+  app.post('/uploads', async (req, reply) => {
+    const { purpose } = z.object({ purpose: z.enum(['product', 'banner', 'look', 'category']) }).parse(req.query);
+    const staff = can(req, UPLOAD_PERMISSION[purpose]);
+    if (!Buffer.isBuffer(req.body)) {
+      throw badRequest('image_required', 'أرسلي الصورة نفسها (JPG أو PNG أو WebP)');
+    }
+    const ctx = app.ctx(req);
+    const img = await storeImage(app.media, req.body, purpose, ctx.now, app.config.media.maxBytes);
+    const { rows } = await ctx.db.query(
+      `INSERT INTO media (purpose, store_id, storage, key, url, width, height, bytes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [purpose, staff.storeId, app.media.driver, img.key, img.url, img.width, img.height, img.bytes, staff.userId],
+    );
+    reply.status(201);
+    return { id: rows[0].id as string, ...img };
+  });
+
   // ------------------------------------------------------------ banners (البنرات)
   app.get('/banners', async (req) => {
     can(req, 'banners.manage');

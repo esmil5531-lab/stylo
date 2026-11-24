@@ -4,6 +4,8 @@ import { useCategories, useDeleteCategory, useReorderCategories, useSaveCategory
 import type { Category } from '@/api/types';
 import { Count } from '@/components/inputs';
 import { Async, Badge, Empty, ErrorAlert, Field, Icon, Modal, PageHead } from '@/components/ui';
+import { ImageUpload } from '@/components/ImageUpload';
+import { isImageUrl, mediaVariant } from '@/lib/media';
 import { CATEGORY_COLORS, CATEGORY_ICONS, iconPath, tileBackground, tileIconColor } from '@/lib/categoryIcons';
 
 /**
@@ -104,7 +106,7 @@ export function CategoriesPage() {
 function Tile({ category, size = 44 }: { category: Pick<Category, 'icon' | 'color' | 'imageUrl'>; size?: number }) {
   const color = category.color ?? '#5B0E2D';
   if (category.imageUrl) {
-    return <img className="cat-tile" src={category.imageUrl} alt="" style={{ width: size, height: size }} />;
+    return <img className="cat-tile" src={mediaVariant(category.imageUrl, 320)} alt="" style={{ width: size, height: size }} />;
   }
   return (
     <span className="cat-tile" style={{ width: size, height: size, background: tileBackground(color) }} aria-hidden>
@@ -216,7 +218,7 @@ function CategoryForm({
     nameAr: f.nameAr.trim().length < 2 ? 'اكتبي اسم القسم' : null,
     slug: f.slug && !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(f.slug) ? 'حروف لاتينية صغيرة وأرقام وشرطات فقط، مثل women-dresses' : null,
     color: !/^#[0-9A-Fa-f]{6}$/.test(f.color) ? 'لون بصيغة #RRGGBB' : null,
-    imageUrl: f.imageUrl && !/^https?:\/\/\S+$/.test(f.imageUrl) ? 'رابط يبدأ بـ https://' : null,
+    imageUrl: f.imageUrl && !isImageUrl(f.imageUrl) ? 'رابط صورة غير صالح' : null,
   };
   const show = (e: string | null) => (submitted ? e : null);
 
@@ -334,8 +336,8 @@ function CategoryForm({
             <input className="input swatch-input" dir="ltr" value={f.color} maxLength={7} onChange={(e) => set('color', e.target.value)} />
           </div>
         </Field>
-        <Field label="صورة بدل الأيقونة" error={show(errors.imageUrl)} hint="اختياري — رابط صورة مربعة">
-          <input className="input" dir="ltr" value={f.imageUrl} onChange={(e) => set('imageUrl', e.target.value)} placeholder="https://…" />
+        <Field label="صورة بدل الأيقونة" error={show(errors.imageUrl)} hint="اختياري — صورة مربعة" group>
+          <ImageUpload purpose="category" shape="square" value={f.imageUrl} onChange={(u) => set('imageUrl', u)} />
         </Field>
 
         <label className="check full">

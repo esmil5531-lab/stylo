@@ -34,6 +34,9 @@ services:
     environment:
       DATABASE_URL: postgresql://stylo:${POSTGRES_PASSWORD}@db:5432/stylo
       TRUST_PROXY: "true"
+    volumes:
+      # Photos uploaded from the back office (MEDIA_STORAGE=local). Back it up with the database.
+      - uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -75,5 +78,6 @@ services:
 
 volumes:
   db-data:
+  uploads:
   caddy-data:
   caddy-config:

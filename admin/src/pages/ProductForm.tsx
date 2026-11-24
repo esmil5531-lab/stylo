@@ -5,6 +5,7 @@ import { useCategories, useMe, useProduct, useSaveProduct, useStores, type Varia
 import type { AdminProductDetail, ProductStatus } from '@/api/types';
 import { IntInput, MoneyInput, Num } from '@/components/inputs';
 import { useCan } from '@/components/Layout';
+import { ImageGallery } from '@/components/ImageUpload';
 import { Async, Badge, ErrorAlert, Field, PageHead } from '@/components/ui';
 import { dirhamsToInput, formatLYD, parseLYD } from '@/lib/format';
 import { parseIntInput } from '@/lib/numbers';
@@ -102,7 +103,6 @@ function ProductEditor({ initial }: { initial?: AdminProductDetail }) {
         : compareAt !== null && basePrice && compareAt <= basePrice
           ? 'يجب أن يكون أعلى من سعر البيع ليظهر كخصم'
           : null,
-    images: images.some((u) => u.trim() && !/^https?:\/\/\S+$/.test(u.trim())) ? 'روابط الصور تبدأ بـ https://' : null,
   };
   const cellErrors = Object.fromEntries(
     matrix.map(({ key }) => {
@@ -326,30 +326,8 @@ function ProductEditor({ initial }: { initial?: AdminProductDetail }) {
           {/* ---------------------------------------------------- images */}
           <section className="card section-card">
             <h2>الصور</h2>
-            <div className="section-sub">روابط صور المنتج (رفع الصور مباشرة قادم لاحقاً). الصورة الأولى هي الرئيسية.</div>
-            {images.map((url, i) => (
-              <div key={i} className="row" style={{ flexWrap: 'nowrap' }}>
-                <span className="thumb" style={{ background: 'var(--surface-2)' }}>
-                  {/^https?:\/\//.test(url) && <img src={url} alt="" />}
-                </span>
-                <input
-                  className="input"
-                  dir="ltr"
-                  placeholder="https://…"
-                  value={url}
-                  onChange={(e) => setImages((list) => list.map((u, j) => (j === i ? e.target.value : u)))}
-                />
-                <button className="btn btn-ghost btn-sm" onClick={() => setImages((l) => l.filter((_, j) => j !== i))}>
-                  حذف
-                </button>
-              </div>
-            ))}
-            {show(errors.images) && <div className="field-error">{errors.images}</div>}
-            {images.length < 8 && (
-              <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setImages((l) => [...l, ''])}>
-                + إضافة رابط صورة
-              </button>
-            )}
+            <div className="section-sub">حتى 8 صور. الأولى هي الرئيسية في البطاقات؛ رتّبيها بالأسهم. تُضغط تلقائياً وتُزال منها بيانات الهاتف والموقع.</div>
+            <ImageGallery value={images} onChange={setImages} />
           </section>
         </div>
 

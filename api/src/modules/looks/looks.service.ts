@@ -1,3 +1,4 @@
+import { mediaVariant } from '../../lib/media.js';
 import type { Ctx } from '../../lib/context.js';
 import { notFound } from '../../lib/errors.js';
 import { getProductsByIds } from '../catalog/catalog.service.js';
@@ -37,7 +38,7 @@ async function toLook(ctx: Ctx, r: any, city: string): Promise<Look> {
     slug: r.slug,
     title: r.title_ar,
     subtitle: r.subtitle_ar,
-    coverUrl: r.cover_url,
+    coverUrl: mediaVariant(r.cover_url as string | null, 800),
     store: {
       id: r.store_id,
       slug: r.store_slug,

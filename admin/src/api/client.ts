@@ -53,3 +53,33 @@ export function qs(params: Record<string, string | number | undefined>): string 
   const p = Object.entries(params).filter(([, v]) => v !== undefined && v !== '');
   return p.length ? `?${p.map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&')}` : '';
 }
+
+export type UploadPurpose = 'product' | 'banner' | 'look' | 'category';
+export interface UploadedImage {
+  id: string;
+  url: string;
+  urls: { sm: string; md: string; lg: string };
+  width: number;
+  height: number;
+}
+
+/** Sends one photo as-is (raw body, its own content type); the API checks, resizes and stores it. */
+export async function uploadImage(file: File, purpose: UploadPurpose): Promise<UploadedImage> {
+  const headers: Record<string, string> = { accept: 'application/json', 'content-type': file.type || 'application/octet-stream' };
+  const token = getToken();
+  if (token) headers.authorization = `Bearer ${token}`;
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/admin/uploads?purpose=${purpose}`, { method: 'POST', headers, body: file });
+  } catch {
+    throw new ApiError(0, 'network', 'تعذّر رفع الصورة، تحققي من الاتصال');
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    if (res.status === 401 && token) clearToken();
+    const e = data?.error;
+    const fallback = res.status === 413 ? 'حجم الصورة كبير جداً' : 'تعذّر رفع الصورة';
+    throw new ApiError(res.status, e?.code ?? 'http_error', e?.message ?? fallback, e?.details);
+  }
+  return data as UploadedImage;
+}

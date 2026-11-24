@@ -25,6 +25,20 @@
    ```
 7. شغّلي الخادم `npm start` وافتحي `http://localhost:4000/health`: يجب أن يظهر `"database":"connected"`.
 
+## تخزين الصور (اختياري)
+
+الصور المرفوعة من اللوحة تُحفظ افتراضياً على قرص الخادم (`uploads/`). لحفظها في Supabase Storage:
+
+1. **Storage → New bucket**: الاسم `media`، وفعّلي **Public bucket** (الصور تُعرض للزبائن بلا تسجيل دخول).
+2. **Project Settings → API**: انسخي **Project URL** ومفتاح **service_role** (سري: يبقى في `api\.env` على الخادم فقط، ولا يوضع أبداً في التطبيق أو اللوحة).
+3. في `api\.env`:
+   ```
+   MEDIA_STORAGE=supabase
+   SUPABASE_URL=https://<project-ref>.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=<service_role>
+   ```
+4. أعيدي تشغيل الخادم. كل صورة تُرفع بثلاثة أحجام WebP، والروابط العامة تُحفظ في قاعدة البيانات، فلا تتأثر الصور القديمة إن غيّرتِ الإعداد لاحقاً.
+
 ## SSL
 يتصل الخادم بـ Supabase بشكل مشفّر تلقائياً (`DATABASE_SSL=require`). للتحقق الكامل من الشهادة في الإنتاج: نزّلي **SSL certificate** من Database → Settings وضعي مساره في `DATABASE_CA_FILE` (يصبح الوضع `verify`).
 

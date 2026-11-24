@@ -5,3 +5,5 @@ node_modules/
 deploy/.env
 deploy/.env.production
 deploy/backups/
+# Photos uploaded in development (MEDIA_STORAGE=local)
+/uploads/

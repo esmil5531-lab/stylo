@@ -120,6 +120,7 @@ npm run dev           # http://localhost:4000  (watch mode)
 | Method | Path | الصلاحية | الوصف |
 |---|---|---|---|
 | GET | `/admin/me` | — | الموظف ودوره وصلاحياته |
+| POST | `/admin/uploads?purpose=product\|banner\|look\|category` | `products.write` / `banners.manage` / `looks.manage` / `categories.manage` | رفع صورة: الجسم هو ملف الصورة نفسه (`content-type: image/*`، حتى `MEDIA_MAX_MB`). تُفحص أنها صورة حقيقية (≥ 200px)، وتُزال بيانات EXIF/GPS، وتُحفظ WebP بثلاثة أحجام. الرد `{ id, url, urls: { sm, md, lg }, width, height }` — يُحفظ `url` (1600) في المنتج/البنر/اللوك/القسم |
 | GET | `/admin/dashboard` | `dashboard.view` | الطلبات حسب الحالة، مبيعات اليوم، المتاجر، السائقون |
 | GET · POST · PATCH | `/admin/stores` · `/admin/stores/:id` | `stores.read` / `stores.write` | المتاجر. الإضافة تتضمن صاحب المتجر `owner: { fullName, phone }`، والرسوم `deliveryFee` بالدرهم |
 | GET | `/admin/roles` | `staff.read` | الأدوار وصلاحياتها |

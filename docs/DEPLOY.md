@@ -50,6 +50,14 @@ cd stylo && git pull && cd deploy && docker compose up -d --build
 gunzip -c backups/daily/<الملف>.sql.gz | docker compose exec -T db psql -U stylo -d stylo
 ```
 
+**الصور المرفوعة** (`MEDIA_STORAGE=local`) في وحدة التخزين `uploads` وليست في نسخة قاعدة البيانات. انسخيها مع النسخ الاحتياطي:
+
+```bash
+docker run --rm -v deploy_uploads:/u -v "$PWD/backups":/b alpine tar czf /b/uploads-$(date +%F).tar.gz -C /u .
+```
+
+أو اختاري `MEDIA_STORAGE=supabase` فتُحفظ الصور في Supabase Storage خارج الخادم (`docs/SUPABASE.md`).
+
 ## الظهور في Google
 
 ما هو جاهز في الكود:

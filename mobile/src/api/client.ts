@@ -30,6 +30,16 @@ export function resolveApiUrl(): string {
   return Platform.OS === 'android' ? `http://10.0.2.2:${API_PORT}/v1` : `http://localhost:${API_PORT}/v1`;
 }
 
+/**
+ * Photo URL ready for <Image>: photos uploaded from the back office come as `/uploads/…` on the
+ * API server, so the app (a different origin) needs the server's address in front.
+ */
+export function mediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (!url.startsWith('/')) return url;
+  return resolveApiUrl().replace(/\/v1$/, '') + url;
+}
+
 if (__DEV__ && Platform.OS !== 'web') {
   const url = resolveApiUrl();
   // Shown in the Metro terminal: the first thing to check when the app says it can't reach the server.

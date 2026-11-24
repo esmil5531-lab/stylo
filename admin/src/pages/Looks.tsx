@@ -5,6 +5,8 @@ import type { AdminLook, AdminProduct } from '@/api/types';
 import { Count, Money } from '@/components/inputs';
 import { useCan } from '@/components/Layout';
 import { Async, Badge, Empty, ErrorAlert, Field, Icon, Modal, PageHead } from '@/components/ui';
+import { ImageUpload } from '@/components/ImageUpload';
+import { isImageUrl } from '@/lib/media';
 
 const MIN_ITEMS = 2;
 const MAX_ITEMS = 8;
@@ -235,7 +237,7 @@ function LookFormBody({
     storeId: !f.storeId ? 'اختاري المتجر' : null,
     title: f.title.trim().length < 2 ? 'اكتبي اسم اللوك' : null,
     items: f.items.length < MIN_ITEMS ? `اختاري ${MIN_ITEMS} قطع على الأقل من المتجر` : null,
-    coverUrl: f.coverUrl && !/^https?:\/\/\S+$/.test(f.coverUrl) ? 'رابط يبدأ بـ https://' : null,
+    coverUrl: f.coverUrl && !isImageUrl(f.coverUrl) ? 'رابط صورة غير صالح' : null,
   };
   const show = (e: string | null) => (submitted ? e : null);
 
@@ -305,8 +307,8 @@ function LookFormBody({
         <Field label="وصف قصير" hint="مثل: فستان، حقيبة، نظارة وساعة">
           <input className="input" value={f.subtitle} maxLength={90} onChange={(e) => set('subtitle', e.target.value)} />
         </Field>
-        <Field label="صورة الغلاف" error={show(errors.coverUrl)} hint="اختياري">
-          <input className="input" dir="ltr" value={f.coverUrl} onChange={(e) => set('coverUrl', e.target.value)} placeholder="https://…" />
+        <Field label="صورة الغلاف" error={show(errors.coverUrl)} hint="اختياري — بدونها تظهر صور القطع" group>
+          <ImageUpload purpose="look" shape="portrait" value={f.coverUrl} onChange={(u) => set('coverUrl', u)} />
         </Field>
 
         <div className="form-section">

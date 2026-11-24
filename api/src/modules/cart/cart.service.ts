@@ -1,3 +1,4 @@
+import { mediaVariant } from '../../lib/media.js';
 import { randomBytes } from 'node:crypto';
 
 import { inTransaction, type Queryable } from '../../db.js';
@@ -110,7 +111,7 @@ export function buildCartView(rows: LineRow[], customerCity: string, ctx: Ctx): 
     variantId: r.variant_id,
     productId: r.product_id,
     name: r.name_ar,
-    imageUrl: r.image_url,
+    imageUrl: mediaVariant(r.image_url, 800),
     colorHex: r.color_hex,
     colorName: r.color_name_ar,
     size: r.size,

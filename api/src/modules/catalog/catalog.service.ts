@@ -1,5 +1,6 @@
 import type { Ctx } from '../../lib/context.js';
 import { notFound } from '../../lib/errors.js';
+import { mediaVariant } from '../../lib/media.js';
 import { getCustomerCity } from '../users/users.service.js';
 import { mapProductSummary, PRODUCT_SUMMARY_SELECT, type ProductSummary } from './product-summary.js';
 
@@ -162,7 +163,7 @@ export async function listCategories(ctx: Ctx): Promise<CategoryNode[]> {
       parentId: r.parent_id,
       icon: r.icon,
       color: r.color,
-      imageUrl: r.image_url,
+      imageUrl: mediaVariant(r.image_url as string | null, 800),
       productCount: r.product_count,
       children: [],
     }),

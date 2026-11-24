@@ -61,6 +61,15 @@ const EnvSchema = z.object({
   TRUST_PROXY: bool,
   /** Extra origins allowed to call the API from a browser (comma-separated). Same-origin needs none. */
   CORS_ORIGINS: z.string().optional(),
+  /** Where uploaded photos go: 'local' (UPLOADS_DIR, served at /uploads/) or 'supabase' (Storage). */
+  MEDIA_STORAGE: z.enum(['local', 'supabase']).default('local'),
+  UPLOADS_DIR: z.string().optional(),
+  /** Max size of one uploaded photo in MB (before compression). */
+  MEDIA_MAX_MB: z.coerce.number().positive().max(50).default(10),
+  SUPABASE_URL: z.string().url().optional(),
+  /** Supabase "service_role" key — server only, never in the app or the admin site. */
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
+  SUPABASE_STORAGE_BUCKET: z.string().regex(/^[a-z0-9-]{3,63}$/).default('media'),
   DEFAULT_CITY: z.string().default('طرابلس'),
   // Delivery rules (amounts in LYD dirhams: 1 د.ل = 1000)
   EXPRESS_SURCHARGE: z.coerce.number().int().nonnegative().default(5000),
@@ -113,6 +122,14 @@ export interface MessagingConfig {
   notifyOrderStatus: boolean;
 }
 
+export interface MediaConfig {
+  driver: 'local' | 'supabase';
+  /** Folder for 'local' (always set: tests use a temp folder). */
+  localDir: string;
+  maxBytes: number;
+  supabase?: { url: string; serviceKey: string; bucket: string };
+}
+
 export interface Config {
   env: 'development' | 'test' | 'production';
   databaseUrl: string;
@@ -123,6 +140,7 @@ export interface Config {
   auth: AuthConfig;
   messaging: MessagingConfig;
   web: { customerDir?: string; adminDir?: string };
+  media: MediaConfig;
   seo: SeoConfig;
   trustProxy: boolean;
   /** true = reflect any origin (development); otherwise the listed origins only. */
@@ -150,6 +168,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   if (e.MESSAGING_PROVIDER === 'whatsapp' && (!e.WHATSAPP_TOKEN || !e.WHATSAPP_PHONE_NUMBER_ID)) {
     throw new Error('MESSAGING_PROVIDER=whatsapp needs WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID');
+  }
+  if (e.MEDIA_STORAGE === 'supabase' && (!e.SUPABASE_URL || !e.SUPABASE_SERVICE_ROLE_KEY)) {
+    throw new Error('MEDIA_STORAGE=supabase needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
   }
   if (e.MESSAGING_PROVIDER === 'sms_http' && !e.SMS_HTTP_URL) {
     throw new Error('MESSAGING_PROVIDER=sms_http needs SMS_HTTP_URL');
@@ -197,6 +218,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     web: {
       customerDir: e.CUSTOMER_WEB_DIR ?? (e.NODE_ENV === 'test' ? undefined : REPO_DIR('mobile/dist')),
       adminDir: e.ADMIN_WEB_DIR ?? (e.NODE_ENV === 'test' ? undefined : REPO_DIR('admin/dist')),
+    },
+    media: {
+      driver: e.MEDIA_STORAGE,
+      localDir: e.UPLOADS_DIR ?? REPO_DIR('uploads'),
+      maxBytes: Math.round(e.MEDIA_MAX_MB * 1_048_576),
+      supabase:
+        e.SUPABASE_URL && e.SUPABASE_SERVICE_ROLE_KEY
+          ? { url: e.SUPABASE_URL.replace(/\/$/, ''), serviceKey: e.SUPABASE_SERVICE_ROLE_KEY, bucket: e.SUPABASE_STORAGE_BUCKET }
+          : undefined,
     },
     seo: {
       siteUrl: e.PUBLIC_SITE_URL?.replace(/\/$/, ''),

@@ -8,6 +8,9 @@ import type { Ctx } from './lib/context.js';
 import { diagnoseDbError } from './lib/database.js';
 import { AppError } from './lib/errors.js';
 import { createMessenger, type FetchLike, type Messenger } from './lib/messaging.js';
+import { createStorage, type MediaStorage } from './lib/media.js';
+import fastifyStatic from '@fastify/static';
+import { mkdirSync } from 'node:fs';
 import { robotsTxt, sitemapXml } from './seo.js';
 import { registerWebsites } from './web.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
@@ -30,6 +33,8 @@ declare module 'fastify' {
     ctx(req: FastifyRequest): Ctx;
     /** WhatsApp (or SMS / console) — OTP codes and order status updates. */
     messenger: Messenger;
+    /** Where uploaded photos are stored (disk or Supabase Storage). */
+    media: MediaStorage;
   }
   interface FastifyRequest {
     userId: string | null;
@@ -46,9 +51,11 @@ export interface BuildAppOptions {
   logger?: boolean;
   /** Tests: replace the network call to WhatsApp / SMS. */
   fetch?: FetchLike;
+  /** Tests: replace the network call to Supabase Storage. */
+  mediaFetch?: FetchLike;
 }
 
-export async function buildApp({ pool, config, now = () => new Date(), logger = true, fetch }: BuildAppOptions) {
+export async function buildApp({ pool, config, now = () => new Date(), logger = true, fetch, mediaFetch }: BuildAppOptions) {
   const app: FastifyInstance = Fastify({
     logger: logger ? { level: config.logLevel } : false,
     trustProxy: config.trustProxy,
@@ -59,6 +66,7 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
   app.decorate('ctx', (req: FastifyRequest): Ctx => ({ db: pool, config, userId: req.userId, now: now() }));
   app.decorateRequest('userId', null);
   app.decorate('messenger', createMessenger(config.messaging, { db: pool, log: (m) => app.log.info(m), fetch }));
+  app.decorate('media', createStorage(config.media, mediaFetch));
 
   // The websites call /v1 on the same origin and the native app sends no Origin, so production
   // needs no CORS at all unless CORS_ORIGINS lists another site.
@@ -189,6 +197,22 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
     },
     { prefix: '/v1' },
   );
+
+  // Uploaded photos on this server's disk (MEDIA_STORAGE=local). File names are random and never
+  // change, so they are cached for a year.
+  if (config.media.driver === 'local') {
+    mkdirSync(config.media.localDir, { recursive: true });
+    await app.register(fastifyStatic, {
+      root: config.media.localDir,
+      prefix: '/uploads/',
+      decorateReply: false,
+      wildcard: true,
+      index: false,
+      cacheControl: false,
+      allowedPath: (p) => p.endsWith('.webp'),
+      setHeaders: (res) => res.setHeader('cache-control', 'public, max-age=31536000, immutable'),
+    });
+  }
 
   // robots.txt + sitemap.xml for Google (see seo.ts).
   const origin = (req: FastifyRequest) => config.seo.siteUrl ?? `${req.protocol}://${req.host}`;

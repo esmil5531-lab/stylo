@@ -6,6 +6,7 @@ import type { ProductStatus } from '@/api/types';
 import { Money, Num } from '@/components/inputs';
 import { Can, useCan } from '@/components/Layout';
 import { Async, Badge, Empty, Icon, PageHead } from '@/components/ui';
+import { mediaVariant } from '@/lib/media';
 import { LOW_STOCK, PRODUCT_STATUS } from '@/lib/sizes';
 
 const STATUSES = Object.keys(PRODUCT_STATUS) as ProductStatus[];
@@ -104,7 +105,7 @@ export function ProductsPage() {
                         <td>
                           <div className="row" style={{ flexWrap: 'nowrap' }}>
                             <span className="thumb" style={{ background: tint(p.colorHex) }}>
-                              {p.imageUrl ? <img src={p.imageUrl} alt="" /> : null}
+                              {p.imageUrl ? <img src={mediaVariant(p.imageUrl, 320)} alt="" /> : null}
                             </span>
                             <div>
                               <div className="cell-title">{p.nameAr}</div>

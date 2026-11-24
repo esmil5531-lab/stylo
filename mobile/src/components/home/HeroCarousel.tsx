@@ -1,3 +1,4 @@
+import { mediaUrl } from '@/api/client';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
@@ -40,7 +41,7 @@ export function HeroCarousel({ banners }: { banners: Banner[] }) {
         </View>
         <View style={styles.visual}>
           {b.imageUrl ? (
-            <Image source={{ uri: b.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            <Image source={{ uri: mediaUrl(b.imageUrl) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" />
           ) : (
             <>
               <View style={[styles.blob, styles.blobLarge]} />

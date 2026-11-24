@@ -1,3 +1,4 @@
+import { mediaUrl } from '@/api/client';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -33,7 +34,7 @@ export function StoreAvatar({
       ]}
     >
       {logoUrl ? (
-        <Image source={{ uri: logoUrl }} style={{ width: size, height: size }} contentFit="cover" />
+        <Image source={{ uri: mediaUrl(logoUrl) ?? undefined }} style={{ width: size, height: size }} contentFit="cover" />
       ) : (
         <Text
           style={[

@@ -1,3 +1,4 @@
+import { mediaUrl } from '@/api/client';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useState } from 'react';
@@ -54,7 +55,7 @@ export function ProductImage({ uri, colorHex, category, icon, name, style, iconS
   if (uri && !failed) {
     return (
       <Image
-        source={{ uri }}
+        source={{ uri: mediaUrl(uri) ?? undefined }}
         style={[styles.fill, style as object]}
         contentFit="cover"
         transition={150}

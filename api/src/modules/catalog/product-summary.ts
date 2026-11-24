@@ -1,4 +1,5 @@
 import type { Ctx } from '../../lib/context.js';
+import { mediaVariant } from '../../lib/media.js';
 import { dayOffset, estimateArrival } from '../delivery/delivery.js';
 
 /**
@@ -60,7 +61,8 @@ export function mapProductSummary(r: any, ctx: Ctx, customerCity: string): Produ
     currency: r.currency,
     rating: r.rating_avg,
     ratingCount: r.rating_count,
-    imageUrl: r.image_url,
+    // Cards are ~half the screen wide: the 800 px size (uploaded photos; external links unchanged).
+    imageUrl: mediaVariant(r.image_url as string | null, 800),
     colorHex: r.color_hex,
     category: r.category_slug,
     categoryIcon: r.category_icon ?? null,

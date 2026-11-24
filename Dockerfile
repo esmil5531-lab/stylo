@@ -28,7 +28,8 @@ ENV NODE_ENV=production \
     PORT=4000 \
     HOST=0.0.0.0 \
     CUSTOMER_WEB_DIR=/app/mobile/dist \
-    ADMIN_WEB_DIR=/app/admin/dist
+    ADMIN_WEB_DIR=/app/admin/dist \
+    UPLOADS_DIR=/app/uploads
 
 COPY --from=build /app/api/package.json api/package.json
 COPY --from=build /app/api/node_modules api/node_modules
@@ -36,6 +37,8 @@ COPY --from=build /app/api/dist api/dist
 COPY --from=build /app/database/migrations database/migrations
 COPY --from=build /app/admin/dist admin/dist
 COPY --from=build /app/mobile/dist mobile/dist
+# Uploaded photos (MEDIA_STORAGE=local): a volume in deploy/docker-compose.yml, owned by the app user.
+RUN mkdir -p /app/uploads && chown node:node /app/uploads
 
 USER node
 WORKDIR /app/api

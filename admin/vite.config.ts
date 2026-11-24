@@ -13,10 +13,10 @@ export default defineConfig({
   server: {
     port: 5174,
     host: true,
-    proxy: { '/v1': process.env.STYLO_API_URL ?? 'http://localhost:4000' },
+    proxy: { '/v1': process.env.STYLO_API_URL ?? 'http://localhost:4000', '/uploads': process.env.STYLO_API_URL ?? 'http://localhost:4000' },
   },
   preview: {
     port: 5174,
-    proxy: { '/v1': process.env.STYLO_API_URL ?? 'http://localhost:4000' },
+    proxy: { '/v1': process.env.STYLO_API_URL ?? 'http://localhost:4000', '/uploads': process.env.STYLO_API_URL ?? 'http://localhost:4000' },
   },
 });

@@ -12,6 +12,8 @@ import {
 } from '@/api/hooks';
 import type { Banner, BannerState } from '@/api/types';
 import { Async, Badge, Empty, ErrorAlert, Field, Icon, Modal, PageHead } from '@/components/ui';
+import { ImageUpload } from '@/components/ImageUpload';
+import { isImageUrl, mediaVariant } from '@/lib/media';
 import { iconPath } from '@/lib/categoryIcons';
 import { formatDateTime } from '@/lib/format';
 
@@ -122,7 +124,7 @@ function HeroPreview({ banner: b }: { banner: Pick<Banner, 'title' | 'subtitle' 
       </div>
       <div className="hero-visual">
         {b.imageUrl ? (
-          <img src={b.imageUrl} alt="" />
+          <img src={mediaVariant(b.imageUrl, 800)} alt="" />
         ) : (
           <span className="hero-ring">
             <svg viewBox="0 0 24 24" width={34} height={34}>
@@ -238,7 +240,7 @@ function BannerForm({ banner, onClose }: { banner: Banner | null; onClose: () =>
   const errors = {
     title: f.title.trim().length < 2 ? 'اكتبي عنوان البنر' : null,
     link: f.linkKind !== 'none' && f.linkKind !== 'categories' && !f.linkValue ? 'اختاري الصفحة التي يفتحها الزر' : null,
-    imageUrl: f.imageUrl && !/^https?:\/\/\S+$/.test(f.imageUrl) ? 'رابط يبدأ بـ https://' : null,
+    imageUrl: f.imageUrl && !isImageUrl(f.imageUrl) ? 'رابط صورة غير صالح' : null,
     endsAt: f.startsAt && f.endsAt && f.endsAt <= f.startsAt ? 'الانتهاء بعد البداية' : null,
   };
   const show = (e: string | null) => (submitted ? e : null);
@@ -287,7 +289,7 @@ function BannerForm({ banner, onClose }: { banner: Banner | null; onClose: () =>
         </>
       }
     >
-      <HeroPreview banner={{ title: f.title, subtitle: f.subtitle, cta: f.cta, imageUrl: /^https?:\/\//.test(f.imageUrl) ? f.imageUrl : null }} />
+      <HeroPreview banner={{ title: f.title, subtitle: f.subtitle, cta: f.cta, imageUrl: isImageUrl(f.imageUrl) ? f.imageUrl : null }} />
       <div className="form-grid" style={{ marginTop: 14 }}>
         <Field label="العنوان" required error={show(errors.title)} full>
           <input className="input" value={f.title} maxLength={60} onChange={(e) => set('title', e.target.value)} autoFocus />
@@ -378,8 +380,8 @@ function BannerForm({ banner, onClose }: { banner: Banner | null; onClose: () =>
         </Field>
 
         <div className="form-section">الصورة والجدولة</div>
-        <Field label="صورة البنر" error={show(errors.imageUrl)} hint="اختياري — بدونها يظهر الرسم الوردي" full>
-          <input className="input" dir="ltr" value={f.imageUrl} onChange={(e) => set('imageUrl', e.target.value)} placeholder="https://…" />
+        <Field label="صورة البنر" error={show(errors.imageUrl)} hint="اختياري — بدونها يظهر الرسم الوردي. صورة عرضية (1600×700 تقريباً)" full group>
+          <ImageUpload purpose="banner" shape="wide" value={f.imageUrl} onChange={(u) => set('imageUrl', u)} />
         </Field>
         <Field label="يبدأ في" hint="اختياري">
           <input className="input" type="datetime-local" dir="ltr" value={f.startsAt} onChange={(e) => set('startsAt', e.target.value)} />
