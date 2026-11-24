@@ -83,7 +83,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - All server calls go through `src/api/hooks.ts` (React Query). Screens render loading / error-with-retry through `<QueryState>`; mutation errors show `errorMessage(err)` (the API's Arabic message).
 - Cart mutations return the whole cart and write it into the `['cart']` cache — don't refetch manually.
 - Anything that adds to the cart (product, look, shared cart) must go through `useStoreConflictGuard()` (`components/cart/StoreConflictDialog.tsx`) so a store conflict opens the two-choice dialog instead of an error.
-- API URL: `EXPO_PUBLIC_API_URL`, else derived from the Metro host (port 4000). See `src/api/client.ts`.
+- API URL (`src/api/client.ts`): native = `EXPO_PUBLIC_API_URL` from `mobile/.env` (see `mobile/.env.example`; e.g. `http://<LAN IP>:4000/v1`), else the Metro host on port 4000 (LAN mode — a tunnel does not carry the API). **Web always uses its own origin** and ignores the variable, so a phone setting can never leak into the website build. In dev the network error shows the URL that failed and Metro logs `[stylo] API: …`.
 - In SDK 57, `<Link asChild>` throws if the child gets an **array** style. Use `Pressable` + `router.push(...)` for styled tappable cards.
 - Product/banner photos come from the API (`product_images`, `banners.image_url`). Without a photo, `ProductImage` draws a tinted tile with a garment icon — keep that fallback.
 
