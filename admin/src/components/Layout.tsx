@@ -22,6 +22,8 @@ const NAV: {
   { to: '/orders', label: 'الطلبات', icon: 'orders', permission: 'orders.read' },
   { to: '/products', label: 'المنتجات والمقاسات', icon: 'products', permission: 'products.read' },
   { to: '/categories', label: 'الأقسام', icon: 'categories', permission: 'categories.manage' },
+  { to: '/looks', label: 'كمّل اللوك', icon: 'looks', permission: 'looks.manage' },
+  { to: '/banners', label: 'بنرات الرئيسية', icon: 'banners', permission: 'banners.manage' },
   { to: '/reports', label: 'التقارير والأرباح', icon: 'reports', permission: 'reports.view' },
   { to: '/payouts', label: 'مستحقات المتاجر', icon: 'payouts', permission: 'payouts.read' },
   { to: '/custody', label: 'عُهدة المناديب', icon: 'custody', permission: 'custody.read' },

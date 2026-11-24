@@ -13,7 +13,12 @@ import type {
   AdminOrder,
   AdminProduct,
   AdminProductDetail,
+  AdminLook,
+  AdminLookDetail,
+  Banner,
+  BannerInput,
   Category,
+  LookInput,
   CategoryInput,
   ProductStatus,
   Report,
@@ -367,3 +372,48 @@ export const useSettleCustody = () =>
       request<SettlementDetail>('POST', `/admin/custody/${driverId}/settle`, v),
     [['custody'], ['drivers']],
   );
+
+// ---------------------------------------------------------------- banners (البنرات)
+export const useBanners = () =>
+  useQuery({ queryKey: ['banners'], queryFn: () => get<{ items: Banner[] }>('/admin/banners').then((r) => r.items) });
+
+export const useSaveBanner = () =>
+  useInvalidating(
+    ({ id, ...body }: Partial<BannerInput> & { id?: string }) =>
+      id ? request<Banner>('PATCH', `/admin/banners/${id}`, body) : request<Banner>('POST', '/admin/banners', body),
+    [['banners']],
+  );
+
+export const useDeleteBanner = () =>
+  useInvalidating((id: string) => request<{ id: string }>('DELETE', `/admin/banners/${id}`), [['banners']]);
+
+export const useReorderBanners = () =>
+  useInvalidating((ids: string[]) => request<{ items: Banner[] }>('POST', '/admin/banners/reorder', { ids }), [['banners']]);
+
+// ---------------------------------------------------------------- looks («كمّل اللوك»)
+export const useAdminLooks = (f: { storeId?: string } = {}, enabled = true) =>
+  useQuery({
+    enabled,
+    queryKey: ['looks', f],
+    queryFn: () => get<{ items: AdminLook[] }>(`/admin/looks${qs(f)}`).then((r) => r.items),
+  });
+
+export const useAdminLook = (id: string | null) =>
+  useQuery({
+    queryKey: ['looks', 'one', id],
+    queryFn: () => get<AdminLookDetail>(`/admin/looks/${id}`),
+    enabled: !!id,
+  });
+
+export const useSaveLook = () =>
+  useInvalidating(
+    ({ id, ...body }: Partial<LookInput> & { id?: string }) =>
+      id ? request<AdminLookDetail>('PATCH', `/admin/looks/${id}`, body) : request<AdminLookDetail>('POST', '/admin/looks', body),
+    [['looks']],
+  );
+
+export const useDeleteLook = () =>
+  useInvalidating((id: string) => request<{ id: string }>('DELETE', `/admin/looks/${id}`), [['looks']]);
+
+export const useReorderLooks = () =>
+  useInvalidating((ids: string[]) => request<{ items: AdminLook[] }>('POST', '/admin/looks/reorder', { ids }), [['looks']]);

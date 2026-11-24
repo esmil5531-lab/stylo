@@ -124,6 +124,11 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
         error: { code: 'invalid_parent', message: 'الأقسام مستويان فقط: قسم رئيسي وأقسام فرعية تحته' },
       });
     }
+    if (pgCode === '23514' && (err as { constraint?: string }).constraint === 'look_single_store') {
+      return reply.status(400).send({
+        error: { code: 'look_single_store', message: 'كل قطع اللوك من نفس المتجر، حتى يُضاف كاملاً لسلة واحدة' },
+      });
+    }
     if (pgCode === '23514' && (err as { constraint?: string }).constraint === 'orders_shipped_needs_driver') {
       return reply.status(400).send({ error: { code: 'driver_required', message: 'أسندي الطلب لسائق أولاً' } });
     }

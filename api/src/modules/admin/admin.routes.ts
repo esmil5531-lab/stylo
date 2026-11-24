@@ -28,6 +28,17 @@ import {
   updateCategory,
 } from './categories.admin.js';
 import { CATEGORY_ICONS } from '../../lib/category-icons.js';
+import { forbidden } from '../../lib/errors.js';
+import { BANNER_LINK, createBanner, deleteBanner, listBanners, reorderBanners, updateBanner } from './banners.admin.js';
+import {
+  createLook,
+  deleteLook,
+  getAdminLook,
+  listAdminLooks,
+  LOOK_MAX_ITEMS,
+  reorderLooks,
+  updateLook,
+} from './looks.admin.js';
 import { getDriverCustody, getSettlement, listCustody, listSettlements, settleCustody } from './custody.admin.js';
 import { notifyOrderStatus } from '../orders/notify.js';
 import {
@@ -132,6 +143,38 @@ const CategoryFields = z.object({
 });
 const CategoryCreate = CategoryFields.extend({ isActive: z.boolean().default(true) });
 const CategoryUpdate = CategoryFields.partial();
+
+// Banners & looks: update schemas without defaults (see the note above).
+const IsoDate = z.iso.datetime({ offset: true });
+const BannerFields = z.object({
+  title: z.string().trim().min(2, 'اكتبي عنوان البنر').max(60),
+  subtitle: z.string().trim().max(90).nullish(),
+  cta: z.string().trim().max(24).nullish(),
+  imageUrl: z.string().trim().url().max(500).nullish().or(z.literal('')),
+  link: z
+    .string()
+    .trim()
+    .regex(BANNER_LINK, 'الرابط يجب أن يفتح صفحة داخل التطبيق')
+    .nullish()
+    .or(z.literal('')),
+  isActive: z.boolean(),
+  startsAt: IsoDate.nullish(),
+  endsAt: IsoDate.nullish(),
+});
+const BannerCreate = BannerFields.extend({ isActive: z.boolean().default(true) });
+const BannerUpdate = BannerFields.partial();
+
+const LookFields = z.object({
+  storeId: Id.optional(),
+  title: z.string().trim().min(2, 'اكتبي اسم اللوك').max(60),
+  subtitle: z.string().trim().max(90).nullish(),
+  coverUrl: z.string().trim().url().max(500).nullish().or(z.literal('')),
+  isActive: z.boolean(),
+  isFeatured: z.boolean().optional(),
+  productIds: z.array(Id).min(1).max(LOOK_MAX_ITEMS),
+});
+const LookCreate = LookFields.extend({ isActive: z.boolean().default(true) });
+const LookUpdate = LookFields.partial();
 
 const ProductBody = z.object({
   storeId: Id.optional(),
@@ -257,6 +300,65 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // ------------------------------------------------------------ products & sizes
+  // ------------------------------------------------------------ banners (البنرات)
+  app.get('/banners', async (req) => {
+    can(req, 'banners.manage');
+    return { items: await listBanners(app.ctx(req)) };
+  });
+  app.post('/banners', async (req, reply) => {
+    const staff = can(req, 'banners.manage');
+    reply.status(201);
+    return createBanner(app.ctx(req), staff, BannerCreate.parse(req.body));
+  });
+  app.patch('/banners/:id', async (req) => {
+    can(req, 'banners.manage');
+    const { id } = IdParams.parse(req.params);
+    return updateBanner(app.ctx(req), id, BannerUpdate.parse(req.body));
+  });
+  app.delete('/banners/:id', async (req) => {
+    can(req, 'banners.manage');
+    const { id } = IdParams.parse(req.params);
+    return deleteBanner(app.ctx(req), id);
+  });
+  app.post('/banners/reorder', async (req) => {
+    can(req, 'banners.manage');
+    const { ids } = z.object({ ids: z.array(Id).min(1).max(100) }).parse(req.body);
+    return { items: await reorderBanners(app.ctx(req), ids) };
+  });
+
+  // ------------------------------------------------------------ looks («كمّل اللوك»)
+  app.get('/looks', async (req) => {
+    const staff = can(req, 'looks.manage');
+    const q = z.object({ storeId: Id.optional() }).parse(req.query);
+    return { items: await listAdminLooks(app.ctx(req), staff, q) };
+  });
+  app.get('/looks/:id', async (req) => {
+    const staff = can(req, 'looks.manage');
+    const { id } = IdParams.parse(req.params);
+    return getAdminLook(app.ctx(req), staff, id);
+  });
+  app.post('/looks', async (req, reply) => {
+    const staff = can(req, 'looks.manage');
+    reply.status(201);
+    return createLook(app.ctx(req), staff, LookCreate.parse(req.body));
+  });
+  app.patch('/looks/:id', async (req) => {
+    const staff = can(req, 'looks.manage');
+    const { id } = IdParams.parse(req.params);
+    return updateLook(app.ctx(req), staff, id, LookUpdate.parse(req.body));
+  });
+  app.delete('/looks/:id', async (req) => {
+    const staff = can(req, 'looks.manage');
+    const { id } = IdParams.parse(req.params);
+    return deleteLook(app.ctx(req), staff, id);
+  });
+  app.post('/looks/reorder', async (req) => {
+    const staff = can(req, 'looks.manage');
+    if (staff.storeId) throw forbidden('ترتيب اللوكات في الصفحة الرئيسية من فريق ستايلو');
+    const { ids } = z.object({ ids: z.array(Id).min(1).max(500) }).parse(req.body);
+    return { items: await reorderLooks(app.ctx(req), staff, ids) };
+  });
+
   // ------------------------------------------------------------ categories (الأقسام)
   app.get('/categories', async (req) => {
     // Managers see every category; staff filing products see the visible ones.

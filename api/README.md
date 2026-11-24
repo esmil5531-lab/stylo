@@ -131,6 +131,10 @@ npm run dev           # http://localhost:4000  (watch mode)
 | GET · PATCH | `/admin/my-store` | `store.profile` | إعدادات متجر الموظف (الأسماء، الهاتف، العنوان، وقت التجهيز) |
 | GET | `/admin/categories` | `categories.manage` أو `products.read` | كل الأقسام (رئيسية ثم فرعية) لمن يدير الأقسام، والظاهرة فقط لموظفي المتاجر |
 | POST · PATCH · DELETE | `/admin/categories` · `/admin/categories/:id` | `categories.manage` | `{ nameAr, nameEn?, slug?, parentId?, icon?, color?, imageUrl?, isActive }`. الحذف للقسم الفارغ فقط |
+| GET · POST · PATCH · DELETE | `/admin/banners` · `/admin/banners/:id` | `banners.manage` | `{ title, subtitle?, cta?, imageUrl?, link?, isActive, startsAt?, endsAt? }` — الرابط صفحة داخل التطبيق فقط. القائمة تعيد `state` (live/scheduled/expired/hidden) و`onHome` |
+| POST | `/admin/banners/reorder` | `banners.manage` | `{ ids: [...] }` كل البنرات بالترتيب الجديد |
+| GET · POST · PATCH · DELETE | `/admin/looks` · `/admin/looks/:id` | `looks.manage` (موظف المتجر: متجره فقط) | `{ storeId?, title, subtitle?, coverUrl?, isActive, isFeatured?, productIds: [2..8] }` — `isFeatured` لفريق ستايلو فقط. القائمة تعيد `visibleToCustomers` و`hiddenReason` |
+| POST | `/admin/looks/reorder` | `looks.manage` (فريق ستايلو) | `{ ids: [...] }` ترتيب اللوكات |
 | POST | `/admin/categories/reorder` | `categories.manage` | `{ parentId: null \| id, ids: [...] }` كل أقسام المستوى بالترتيب الجديد |
 | GET | `/admin/products?status=&q=&storeId=&lowStock=true` | `products.read` | المنتجات مع المقاسات والمخزون (موظف المتجر: متجره فقط) |
 | GET · POST · PUT | `/admin/products/:id` · `/admin/products` | `products.read` / `products.write` | منتج كامل مع `variants: [{ id?, size, colorName, colorHex, sku?, price?, stock }]` |

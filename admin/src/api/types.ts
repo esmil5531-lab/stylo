@@ -24,6 +24,8 @@ export type Permission =
   | 'payouts.read'
   | 'payouts.manage'
   | 'categories.manage'
+  | 'banners.manage'
+  | 'looks.manage'
   | 'custody.read'
   | 'custody.manage'
   | 'finance.view';
@@ -362,3 +364,69 @@ export interface Settlement {
 }
 
 export type SettlementDetail = Settlement & CustodyBreakdown;
+
+// ---------------------------------------------------------------- 0010: banners & looks
+
+export type BannerState = 'live' | 'scheduled' | 'expired' | 'hidden';
+
+export interface Banner {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  cta: string | null;
+  imageUrl: string | null;
+  /** In-app route, e.g. /products?feed=offers, /store/laura, /look/…, /product/<id>. */
+  link: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  state: BannerState;
+  /** Among the first 5 live banners actually shown on the home screen. */
+  onHome: boolean;
+  createdBy: string | null;
+  updatedAt: string;
+}
+
+export interface BannerInput {
+  title: string;
+  subtitle?: string | null;
+  cta?: string | null;
+  imageUrl?: string | null;
+  link?: string | null;
+  isActive?: boolean;
+  startsAt?: string | null;
+  endsAt?: string | null;
+}
+
+export interface AdminLook {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  coverUrl: string | null;
+  isActive: boolean;
+  isFeatured: boolean;
+  sortOrder: number;
+  updatedAt: string;
+  store: { id: string; name: string };
+  itemsCount: number;
+  visibleItems: number;
+  totalPrice: number;
+  visibleToCustomers: boolean;
+  hiddenReason: string | null;
+}
+
+export interface AdminLookDetail extends AdminLook {
+  items: { id: string; name: string; price: number; status: string; imageUrl: string | null; colorHex: string | null; stock: number }[];
+}
+
+export interface LookInput {
+  storeId?: string;
+  title: string;
+  subtitle?: string | null;
+  coverUrl?: string | null;
+  isActive?: boolean;
+  isFeatured?: boolean;
+  productIds: string[];
+}

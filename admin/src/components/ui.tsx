@@ -250,6 +250,22 @@ const PATHS = {
       <path d="M14 15.5h7M14 19.5h5" />
     </>
   ),
+  looks: (
+    <>
+      <path d="M8 3l-5 3 2 4 2-1v6h6V9l2 1 2-4-5-3" />
+      <path d="M8 3a3 3 0 0 0 6 0" />
+      <rect x="15" y="14" width="6" height="7" rx="1.5" />
+    </>
+  ),
+  banners: (
+    <>
+      <rect x="2.5" y="5" width="19" height="12" rx="2" />
+      <path d="M6 9.5h6M6 12.5h4" />
+      <circle cx="9" cy="20" r="1" />
+      <circle cx="12" cy="20" r="1" />
+      <circle cx="15" cy="20" r="1" />
+    </>
+  ),
   plus: <path d="M12 5v14M5 12h14" />,
   check: <path d="M5 12l5 5 9-10" />,
   x: <path d="M6 6l12 12M18 6L6 18" />,

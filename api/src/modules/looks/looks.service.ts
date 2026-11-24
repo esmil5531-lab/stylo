@@ -23,7 +23,11 @@ const LOOK_SELECT = `
          array_agg(li.product_id ORDER BY li.position) AS product_ids
     FROM looks l
     JOIN stores s ON s.id = l.store_id AND s.status = 'active'
-    JOIN look_items li ON li.look_id = l.id`;
+    JOIN look_items li ON li.look_id = l.id
+    JOIN products p ON p.id = li.product_id AND p.status = 'active'`;
+
+/** A look is shown only while at least two of its pieces are on sale (archived products drop out). */
+const MIN_VISIBLE_ITEMS = 2;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function toLook(ctx: Ctx, r: any, city: string): Promise<Look> {
@@ -58,6 +62,7 @@ export async function listLooks(
     `${LOOK_SELECT}
       WHERE ${filters.join(' AND ')}
       GROUP BY l.id, s.id
+      HAVING count(*) >= ${MIN_VISIBLE_ITEMS}
       ORDER BY l.is_featured DESC, l.sort_order, l.created_at DESC
       LIMIT $1`,
     params,
@@ -68,7 +73,8 @@ export async function listLooks(
 
 export async function getLook(ctx: Ctx, idOrSlug: string): Promise<Look> {
   const { rows } = await ctx.db.query(
-    `${LOOK_SELECT} WHERE l.is_active AND (l.id::text = $1 OR l.slug = $1) GROUP BY l.id, s.id`,
+    `${LOOK_SELECT} WHERE l.is_active AND (l.id::text = $1 OR l.slug = $1) GROUP BY l.id, s.id
+      HAVING count(*) >= ${MIN_VISIBLE_ITEMS}`,
     [idOrSlug],
   );
   if (!rows[0]) throw notFound('اللوك');
