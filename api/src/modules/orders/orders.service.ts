@@ -22,12 +22,13 @@ export async function checkout(pool: Pool, baseCtx: Ctx, input: CheckoutInput) {
     const ctx: Ctx = { ...baseCtx, db: client };
 
     const addr = await client.query(
-      `SELECT id, recipient_name, phone, country_code, city, district, street, building, postal_code
+      `SELECT id, label, recipient_name, phone, country_code, city, district, street, building, landmark, postal_code
          FROM addresses WHERE user_id = $1 AND ($2::uuid IS NULL OR id = $2::uuid)
-        ORDER BY is_default DESC, created_at LIMIT 1`,
+        ORDER BY is_default DESC, updated_at DESC LIMIT 1`,
       [userId, input.addressId ?? null],
     );
     const address = addr.rows[0];
+    if (!address && input.addressId) throw notFound('العنوان');
     if (!address) throw badRequest('address_required', 'أضيفي عنوان توصيل لإتمام الطلب');
 
     const rows = await loadLines(client, { kind: 'cart', userId }, true);

@@ -195,7 +195,15 @@ export interface OrderSummary {
 }
 
 export interface OrderDetail extends OrderSummary {
-  shippingAddress: { recipient_name: string; city: string; district?: string; street: string; phone: string };
+  shippingAddress: {
+    recipient_name: string;
+    city: string;
+    district?: string | null;
+    street: string;
+    building?: string | null;
+    landmark?: string | null;
+    phone: string;
+  };
   items: {
     id: string;
     productId: string | null;
@@ -223,13 +231,29 @@ export interface CheckoutResult {
   estimatedDeliveryAt: string;
 }
 
+export interface Address {
+  id: string;
+  label: string | null;
+  recipientName: string;
+  phone: string;
+  city: string;
+  district: string | null;
+  street: string;
+  building: string | null;
+  landmark: string | null;
+  isDefault: boolean;
+}
+
+export type AddressInput = Omit<Address, 'id' | 'isDefault'> & { isDefault?: boolean };
+
 export interface Me {
   id: string;
   fullName: string;
   email: string | null;
   phone: string | null;
   role: string;
-  defaultAddress: { id: string; label: string | null; city: string; district: string | null; street: string } | null;
+  defaultAddress: Address | null;
+  addressesCount: number;
 }
 
 export interface List<T> {
@@ -260,7 +284,15 @@ export interface DriverOrder {
   placedAt: string;
   estimatedDeliveryAt: string | null;
   pickup: { storeName: string; phone: string | null; city: string; district: string | null; address: string | null };
-  dropoff: { name: string; phone: string | null; city: string | null; district: string | null; street: string | null };
+  dropoff: {
+    name: string;
+    phone: string | null;
+    city: string | null;
+    district: string | null;
+    street: string | null;
+    building: string | null;
+    landmark: string | null;
+  };
   items: { name: string; size: string | null; color: string | null; quantity: number }[];
   canPickUp: boolean;
   canDeliver: boolean;

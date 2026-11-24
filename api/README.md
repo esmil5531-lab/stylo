@@ -45,7 +45,11 @@ npm run dev           # http://localhost:4000  (watch mode)
 | POST | `/checkout` | `{ deliveryMode: 'fastest' \| 'standard', addressId? }` → طلب واحد للمتجر |
 | GET | `/orders` · `/orders/:id` | الطلبات / التفاصيل مع سجل الحالات |
 | GET / PUT / DELETE | `/wishlist` · `/wishlist/:productId` | المفضلة |
-| GET | `/me` | المستخدم وعنوانه الافتراضي |
+| GET · PATCH | `/me` | المستخدم وعنوانه الأساسي وعدد عناوينه · تعديل الاسم `{ fullName }` |
+| GET | `/cities` | المدن التي يوصل لها ستايلو (مدينة العنوان من هذه القائمة) |
+| GET · POST | `/me/addresses` | «عناويني» · إضافة `{ label?, recipientName, phone, city, district?, street, building?, landmark?, isDefault? }` (أول عنوان أساسي تلقائياً، 10 كحد أقصى) |
+| PATCH · DELETE | `/me/addresses/:id` | تعديل ما يُرسل فقط · حذف (حذف الأساسي يجعل آخر عنوان مستخدم أساسياً) |
+| POST | `/me/addresses/:id/default` | جعله العنوان الأساسي — هو الذي يحدد رسوم التوصيل وموعده في السلة والمنتجات |
 | GET | `/health` | فحص الخادم وقاعدة البيانات |
 
 الأخطاء دائماً: `{ "error": { "code": "insufficient_stock", "message": "المتوفر 3 فقط", "details": … } }`.

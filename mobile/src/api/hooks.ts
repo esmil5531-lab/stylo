@@ -17,6 +17,8 @@ import type {
   DriverOrders,
   DriverStatus,
   Me,
+  Address,
+  AddressInput,
   OrderDetail,
   OrderSummary,
   ProductDetail,
@@ -41,6 +43,8 @@ export const queryKeys = {
   wishlist: ['wishlist'] as const,
   me: ['me'] as const,
   driver: ['driver'] as const,
+  addresses: ['addresses'] as const,
+  cities: ['cities'] as const,
 };
 
 export interface ProductQuery {
@@ -152,7 +156,7 @@ export const useShareCart = () => useMutation({ mutationFn: () => api.post<Share
 export function useCheckout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { deliveryMode: DeliveryMode }) => api.post<CheckoutResult>('/checkout', v),
+    mutationFn: (v: { deliveryMode: DeliveryMode; addressId?: string }) => api.post<CheckoutResult>('/checkout', v),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.cart });
       qc.invalidateQueries({ queryKey: queryKeys.orders });
@@ -205,3 +209,54 @@ export const useDriverDeliver = () =>
   useDriverMutation((id: string) => api.post<DriverOrder>(`/driver/orders/${id}/delivered`));
 export const useDriverStatus = () =>
   useDriverMutation((status: Exclude<DriverStatus, 'busy'>) => api.patch<DriverHome>('/driver/me/status', { status }));
+
+// ---------------------------------------------------------------- «عناويني» and profile
+export const useAddresses = () =>
+  useQuery({
+    enabled: useSession().signedIn,
+    queryKey: queryKeys.addresses,
+    queryFn: () => api.get<List<Address>>('/me/addresses').then((r) => r.items),
+  });
+
+/** Cities Stylo delivers to (the address city is picked from this list). */
+export const useCities = () =>
+  useQuery({
+    queryKey: queryKeys.cities,
+    queryFn: () => api.get<{ items: string[] }>('/cities').then((r) => r.items),
+    staleTime: 60 * 60_000,
+  });
+
+/**
+ * The default address prices delivery everywhere (cart, product cards, looks), so any change to
+ * addresses refreshes those too.
+ */
+function useAddressMutation<V, R>(fn: (v: V) => Promise<R>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      for (const key of [queryKeys.addresses, queryKeys.me, queryKeys.cart, ['products'], ['product'], ['home'], ['look']]) {
+        qc.invalidateQueries({ queryKey: key });
+      }
+    },
+  });
+}
+
+export const useSaveAddress = () =>
+  useAddressMutation(({ id, ...body }: Partial<AddressInput> & { id?: string }) =>
+    id ? api.patch<Address>(`/me/addresses/${id}`, body) : api.post<Address>('/me/addresses', body),
+  );
+
+export const useDeleteAddress = () =>
+  useAddressMutation((id: string) => api.delete<List<Address>>(`/me/addresses/${id}`));
+
+export const useSetDefaultAddress = () =>
+  useAddressMutation((id: string) => api.post<List<Address>>(`/me/addresses/${id}/default`));
+
+export function useUpdateName() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fullName: string) => api.patch<Me>('/me', { fullName }),
+    onSuccess: (me) => qc.setQueryData(queryKeys.me, me),
+  });
+}

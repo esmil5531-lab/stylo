@@ -40,9 +40,9 @@ const DEFAULT_DESCRIPTION =
   'ستايلو — كل ستايل في مكان واحد. تسوّقي أزياء النساء والأحذية والحقائب من أفضل المتاجر الليبية في مكان واحد، بالدينار الليبي، مع توصيل سريع في طرابلس وبنغازي والدفع عند الاستلام.';
 
 /** Pages that belong to one person: never indexed. */
-const PRIVATE = /^(cart|wishlist|account|login|orders(\/.*)?|driver|shared-cart\/.+)$/;
+const PRIVATE = /^(cart|wishlist|account|login|profile|addresses(\/.*)?|orders(\/.*)?|driver|shared-cart\/.+)$/;
 
-export const DISALLOWED_PATHS = ['/admin/', '/v1/', '/cart', '/wishlist', '/account', '/login', '/orders', '/driver', '/shared-cart/'];
+export const DISALLOWED_PATHS = ['/admin/', '/v1/', '/cart', '/wishlist', '/account', '/login', '/orders', '/driver', '/addresses', '/profile', '/shared-cart/'];
 
 function lyd(dirhams: number): string {
   const v = (dirhams / 1000).toFixed(3).replace(/\.?0+$/, '');

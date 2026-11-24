@@ -168,7 +168,15 @@ function OrderCard({ order }: { order: DriverOrder }) {
         icon="location-outline"
         title={t.dropoff}
         name={order.dropoff.name}
-        address={[order.dropoff.district, order.dropoff.street, order.dropoff.city].filter(Boolean).join('، ')}
+        address={[
+          order.dropoff.district,
+          order.dropoff.street,
+          order.dropoff.building,
+          order.dropoff.landmark,
+          order.dropoff.city,
+        ]
+          .filter(Boolean)
+          .join('، ')}
         phone={order.dropoff.phone}
       />
 

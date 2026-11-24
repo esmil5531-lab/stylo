@@ -67,7 +67,7 @@ describe('robots.txt & sitemap.xml', () => {
     const res = await app.inject('/robots.txt');
     assert.equal(res.statusCode, 200);
     assert.match(res.body, /^User-agent: \*\nAllow: \//);
-    for (const p of ['/admin/', '/v1/', '/cart', '/driver', '/account']) assert.ok(res.body.includes(`Disallow: ${p}`), p);
+    for (const p of ['/admin/', '/v1/', '/cart', '/driver', '/account', '/addresses', '/profile']) assert.ok(res.body.includes(`Disallow: ${p}`), p);
     assert.ok(res.body.includes(`Sitemap: ${SITE}/sitemap.xml`));
   });
 

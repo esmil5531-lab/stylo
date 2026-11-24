@@ -2,16 +2,17 @@ import { useSession } from '@/lib/session';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useState } from 'react';
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
-import { useCart, useCheckout, useSetCartQuantity, useShareCart } from '@/api/hooks';
+import { useCart, useCheckout, useMe, useSetCartQuantity, useShareCart } from '@/api/hooks';
 import type { Cart, CheckoutResult, DeliveryMode } from '@/api/types';
 import { Button } from '@/components/Button';
 import { CartGroupCard } from '@/components/cart/CartGroupCard';
+import { addressLine } from '@/components/address/AddressCard';
 import { DeliveryOptionCard } from '@/components/DeliveryOptionCard';
 import { EmptyState, QueryState } from '@/components/QueryState';
 import { ar } from '@/i18n/ar';
@@ -101,6 +102,9 @@ function CartContent({
   const [mode, setMode] = useState<DeliveryMode>('fastest');
   const setQty = useSetCartQuantity();
   const checkout = useCheckout();
+  // The default address prices delivery in this quote (city → same-city or intercity).
+  const me = useMe();
+  const address = me.data?.defaultAddress ?? null;
 
   // Non-empty carts always have a store, delivery quote and totals.
   if (!cart.store || !cart.delivery || !cart.totals) return null;
@@ -130,6 +134,40 @@ function CartContent({
         />
         {setQty.isError && <Text style={styles.error}>{errorMessage(setQty.error)}</Text>}
 
+        <Text style={styles.section}>{ar.cart.deliverTo}</Text>
+        {address ? (
+          <Pressable
+            style={styles.addressCard}
+            onPress={() => router.push('/addresses?select=1' as Href)}
+            accessibilityRole="button"
+            accessibilityLabel={`${ar.cart.deliverTo}: ${addressLine(address)}. ${ar.cart.change}`}
+          >
+            <Ionicons name="location" size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.addressTitle}>{address.label ?? address.recipientName}</Text>
+              <Text style={styles.addressLine} numberOfLines={2}>
+                {addressLine(address)}
+                {address.landmark ? ` · ${address.landmark}` : ''}
+              </Text>
+            </View>
+            <Text style={styles.change}>{ar.cart.change}</Text>
+          </Pressable>
+        ) : (
+          me.data && (
+            <Pressable
+              style={[styles.addressCard, styles.addressMissing]}
+              onPress={() => router.push('/addresses/new?select=1' as Href)}
+              accessibilityRole="button"
+            >
+              <Ionicons name="add-circle" size={22} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addressTitle}>{ar.cart.addAddress}</Text>
+                <Text style={styles.addressLine}>{ar.cart.addAddressHint}</Text>
+              </View>
+            </Pressable>
+          )
+        )}
+
         <Text style={styles.section}>{ar.delivery.chooseTitle}</Text>
         <View style={{ gap: spacing.sm }}>
           {MODES.map((m) => (
@@ -156,12 +194,15 @@ function CartContent({
 
       <View style={styles.footer}>
         {cart.hasIssues && <Text style={styles.error}>{ar.cart.fixIssues}</Text>}
+        {me.data && !address && <Text style={styles.error}>{ar.cart.addAddress}</Text>}
         {checkout.isError && <Text style={styles.error}>{errorMessage(checkout.error)}</Text>}
         <Button
           title={`${ar.cart.checkout} · ${formatPrice(total, cart.currency)}`}
           loading={checkout.isPending}
-          disabled={cart.hasIssues}
-          onPress={() => checkout.mutate({ deliveryMode: mode }, { onSuccess: onPlaced })}
+          disabled={cart.hasIssues || !address}
+          onPress={() =>
+            address && checkout.mutate({ deliveryMode: mode, addressId: address.id }, { onSuccess: onPlaced })
+          }
         />
       </View>
     </>
@@ -242,6 +283,19 @@ const styles = StyleSheet.create({
   rowValue: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
   strong: { fontFamily: fonts.extraBold, fontSize: 16, color: colors.ink },
   divider: { height: 1, backgroundColor: colors.border },
+  addressCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  addressMissing: { borderStyle: 'dashed', borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  addressTitle: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 22, color: colors.ink },
+  addressLine: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, color: colors.inkMuted },
+  change: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 22, color: colors.primary },
   footer: {
     padding: spacing.md,
     gap: spacing.sm,

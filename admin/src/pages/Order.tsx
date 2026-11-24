@@ -184,6 +184,11 @@ function OrderView({ order }: { order: AdminOrderDetail }) {
                 {[order.shippingAddress.city, order.shippingAddress.district, order.shippingAddress.street]
                   .filter(Boolean)
                   .join('، ')}
+                {(order.shippingAddress.building || order.shippingAddress.landmark) && (
+                  <div className="cell-sub">
+                    {[order.shippingAddress.building, order.shippingAddress.landmark].filter(Boolean).join(' · ')}
+                  </div>
+                )}
               </dd>
               {order.cancelReason && (
                 <>

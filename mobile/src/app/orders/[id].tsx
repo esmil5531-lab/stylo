@@ -104,6 +104,11 @@ function OrderBody({ order }: { order: OrderDetail }) {
             .filter(Boolean)
             .join('، ')}
         </Text>
+        {(order.shippingAddress.building || order.shippingAddress.landmark) && (
+          <Text style={styles.meta}>
+            {[order.shippingAddress.building, order.shippingAddress.landmark].filter(Boolean).join(' · ')}
+          </Text>
+        )}
       </View>
     </ScrollView>
   );

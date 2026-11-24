@@ -134,6 +134,8 @@ function mapDriverOrder(r: any) {
       city: addr.city ?? null,
       district: addr.district ?? null,
       street: addr.street ?? null,
+      building: addr.building ?? null,
+      landmark: addr.landmark ?? null,
     },
     items: r.items as { name: string; size: string | null; color: string | null; quantity: number }[],
     canPickUp: r.status === 'processing',

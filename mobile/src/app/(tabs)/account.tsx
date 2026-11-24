@@ -8,6 +8,7 @@ import { useMe } from '@/api/hooks';
 import { Button } from '@/components/Button';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { QueryState } from '@/components/QueryState';
+import { addressLine } from '@/components/address/AddressCard';
 import { BRAND } from '@/constants/brand';
 import { ar } from '@/i18n/ar';
 import { directionalIcons } from '@/i18n/rtl';
@@ -40,7 +41,7 @@ export default function AccountScreen() {
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>{user.fullName.charAt(0)}</Text>
                 </View>
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.name}>{user.fullName}</Text>
                   {/* +218 91 234 5678 — keep the number left-to-right */}
                   <Text style={[styles.muted, { writingDirection: 'ltr' }]}>{formatPhone(user.phone)}</Text>
@@ -62,9 +63,16 @@ export default function AccountScreen() {
                   label={ar.account.address}
                   value={
                     user.defaultAddress
-                      ? `${user.defaultAddress.city} · ${user.defaultAddress.district ?? user.defaultAddress.street}`
+                      ? `${ar.account.addressesCount(user.addressesCount)} · ${addressLine(user.defaultAddress)}`
                       : ar.account.noAddress
                   }
+                  onPress={() => router.push('/addresses' as Href)}
+                />
+                <Row
+                  icon="person-outline"
+                  label={ar.account.editName}
+                  value={user.fullName}
+                  onPress={() => router.push('/profile' as Href)}
                 />
               </View>
               <Button title={ar.auth.signOut} variant="outline" onPress={() => void signOut()} />
