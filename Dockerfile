@@ -16,7 +16,7 @@ COPY . .
 # Customer site = Expo web static export; it calls /v1 on its own origin.
 RUN npm --prefix api run build \
  && npm --prefix admin run build \
- && cd mobile && npx expo export --platform web --output-dir dist
+ && npm --prefix mobile run export:web
 
 # Production dependencies of the API only.
 RUN cd api && npm ci --omit=dev

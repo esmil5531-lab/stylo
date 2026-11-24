@@ -7,7 +7,7 @@
     "db:reset": "npm --prefix api run db:reset",
     "dev:api": "npm --prefix api run dev",
     "dev:mobile": "npm --prefix mobile run start:lan",
-    "build:customer": "cd mobile && npx expo export --platform web --output-dir dist",
+    "build:customer": "cd mobile && npm run export:web",
     "build:admin": "npm --prefix admin run build",
     "build:api": "npm --prefix api run build",
     "build": "npm run build:api && npm run build:customer && npm run build:admin",

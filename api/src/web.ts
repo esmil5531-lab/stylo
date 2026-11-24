@@ -97,8 +97,11 @@ export async function registerWebsites(
 
     const check = checkCustomerBuild(customerDir);
     if (!check.ok) app.log.error(`customer site build problem: ${check.problem}`);
-    else if (check.repairedScript) {
-      app.log.warn(`customer index.html has no bundle <script>; serving it with ${check.repairedScript}`);
+    else if (check.repairedScripts) {
+      app.log.warn(
+        `customer index.html has no bundle <script> (broken export); serving pages with ${check.repairedScripts.join(', ')}. ` +
+          'Rebuild with `npm run build:customer` to fix the files.',
+      );
     }
 
     // Re-read a page when its file changes (rebuilds), and make sure it loads the JS bundle.
@@ -217,27 +220,45 @@ function notBuiltPage(site: 'customer' | 'admin', production: boolean, incomplet
 
 const BUNDLE_SRC = /<script[^>]+src="\/?_expo\/static\/js\/web\/[^"]+\.js"/;
 
-/** The newest web entry bundle in the export (Expo empties dist/ on each export, but be safe). */
-function findEntryBundle(customerDir: string): string | null {
+/** The newest file with this prefix in the web bundle folder (Expo empties dist/ on export; be safe). */
+function newestBundle(customerDir: string, prefix: string): string | null {
   const dir = join(customerDir, '_expo', 'static', 'js', 'web');
   if (!existsSync(dir)) return null;
-  const entries = readdirSync(dir)
-    .filter((f) => /^entry-[\w-]+\.js$/.test(f))
+  const files = readdirSync(dir)
+    .filter((f) => f.startsWith(prefix) && f.endsWith('.js'))
     .map((f) => ({ f, t: statSync(join(dir, f)).mtimeMs }))
     .sort((a, b) => b.t - a.t);
-  return entries[0] ? `/_expo/static/js/web/${entries[0].f}` : null;
+  return files[0] ? `/_expo/static/js/web/${files[0].f}` : null;
+}
+
+function findEntryBundle(customerDir: string): string | null {
+  return newestBundle(customerDir, 'entry-');
+}
+
+/**
+ * The synchronous scripts a page needs, in Expo's order. A split build (route chunks) has a
+ * module runtime and a shared chunk that must load before the entry; a single build has the entry only.
+ */
+export function bundleScripts(customerDir: string): string[] {
+  const entry = findEntryBundle(customerDir);
+  if (!entry) return [];
+  return [newestBundle(customerDir, '__expo-metro-runtime-'), newestBundle(customerDir, '__common-'), entry].filter(
+    (s): s is string => !!s,
+  );
 }
 
 /**
  * An exported page must load the JS bundle, or the browser shows an empty page with no error.
- * If a page has no bundle <script> (seen with some local builds), add the entry bundle.
+ * If a page has no bundle <script> (seen with Windows builds), add the bundle scripts.
+ * (`mobile/scripts/fix-web-export.mjs` does the same to the files at build time.)
  */
 export function ensureBundleScript(html: string, customerDir: string): string {
   if (BUNDLE_SRC.test(html)) return html;
-  const src = findEntryBundle(customerDir);
-  if (!src) return html;
-  const tag = `<script src="${src}" defer></script>`;
-  return html.includes('</body>') ? html.replace('</body>', `${tag}</body>`) : html + tag;
+  const tags = bundleScripts(customerDir)
+    .map((src) => `<script src="${src}" defer></script>`)
+    .join('');
+  if (!tags) return html;
+  return html.includes('</body>') ? html.replace('</body>', `${tags}</body>`) : html + tags;
 }
 
 export interface BuildCheck {
@@ -247,7 +268,8 @@ export interface BuildCheck {
   indexBytes: number;
   scriptsInIndex: { src: string; exists: boolean }[];
   entryBundle: string | null;
-  repairedScript?: string;
+  /** Scripts the server adds because index.html has none (a broken export). */
+  repairedScripts?: string[];
 }
 
 /** Inspects the customer build: is there a JS bundle, and does index.html point at files that exist? */
@@ -269,7 +291,7 @@ export function checkCustomerBuild(customerDir: string): BuildCheck {
   if (missing.length) {
     return { ...base, ok: false, problem: `index.html points to missing files: ${missing.map((m) => m.src).join(', ')}` };
   }
-  return BUNDLE_SRC.test(html) ? { ...base, ok: true } : { ...base, ok: true, repairedScript: entryBundle };
+  return BUNDLE_SRC.test(html) ? { ...base, ok: true } : { ...base, ok: true, repairedScripts: bundleScripts(customerDir) };
 }
 
 interface RouteTable {

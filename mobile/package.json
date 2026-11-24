@@ -38,6 +38,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "export:web": "expo export --platform web --output-dir dist && node scripts/fix-web-export.mjs dist",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint"
   },

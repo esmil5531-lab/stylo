@@ -91,6 +91,21 @@ async function appFor(dir: string) {
 }
 
 describe('customer build problems', () => {
+  it('a split build (route chunks) gets runtime → common → entry, in that order', async () => {
+    const dir = site({ script: false, bundle: true });
+    writeFileSync(join(dir, '_expo/static/js/web/__expo-metro-runtime-aaa.js'), '');
+    writeFileSync(join(dir, '_expo/static/js/web/__common-bbb.js'), '');
+    writeFileSync(join(dir, '_expo/static/js/web/cart-ccc.js'), '');
+    const a = await appFor(dir);
+    try {
+      const html = (await a.inject('/')).body;
+      const order = [...html.matchAll(/<script src="\/_expo\/static\/js\/web\/([^"]+)"/g)].map((m) => m[1]);
+      assert.deepEqual(order, ['__expo-metro-runtime-aaa.js', '__common-bbb.js', 'entry-111aaa.js']);
+    } finally {
+      await a.close();
+    }
+  });
+
   it('a page without its bundle <script> gets it added (no more blank page)', async () => {
     const dir = site({ script: false, bundle: true });
     const a = await appFor(dir);
@@ -103,7 +118,7 @@ describe('customer build problems', () => {
       assert.match(js.headers['content-type'] as string, /javascript/);
       const report = (await a.inject('/__stylo/site')).json();
       assert.equal(report.ok, true);
-      assert.equal(report.repairedScript, '/_expo/static/js/web/entry-111aaa.js');
+      assert.deepEqual(report.repairedScripts, ['/_expo/static/js/web/entry-111aaa.js']);
     } finally {
       await a.close();
     }
