@@ -11,10 +11,11 @@ interface RequestResult {
   expiresInSeconds: number;
   resendInSeconds: number;
   devCode?: string;
+  channel?: 'whatsapp' | 'sms' | 'console';
 }
 
 /**
- * Back-office sign-in: Libyan mobile number → 6-digit code by SMS.
+ * Back-office sign-in: Libyan mobile number → 6-digit code on WhatsApp.
  * Only numbers registered as active Stylo staff or store owners get in.
  */
 export function LoginPage({ notice }: { notice?: string | null }) {
@@ -112,11 +113,13 @@ export function LoginPage({ notice }: { notice?: string | null }) {
             }}
           >
             <p style={{ margin: 0 }}>
-              أرسلنا رمزاً من 6 أرقام إلى <Num>{formatPhone(sent?.phone)}</Num>
+              {sent?.channel === 'sms' ? 'أرسلنا رسالة نصية برمز من 6 أرقام إلى' : 'أرسلنا رمزاً من 6 أرقام عبر واتساب إلى'}{' '}
+              <Num>{formatPhone(sent?.phone)}</Num>
             </p>
             {sent?.devCode && (
               <div className="alert dev-note">
-                وضع التطوير — لا توجد رسائل SMS بعد. الرمز: <Num>{sent.devCode}</Num>
+                وضع التطوير — {sent.channel === 'console' ? 'واتساب غير مربوط بعد' : 'الرمز يظهر هنا أيضاً'}. الرمز:{' '}
+                <Num>{sent.devCode}</Num>
               </div>
             )}
             <Field label="رمز الدخول" required>

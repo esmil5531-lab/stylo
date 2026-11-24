@@ -14,6 +14,7 @@ interface Sent {
   phone: string;
   resendInSeconds: number;
   devCode?: string;
+  channel?: 'whatsapp' | 'sms' | 'console';
 }
 
 const toWestern = (s: string) => s.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
@@ -78,14 +79,16 @@ export default function LoginScreen() {
     setBusy(true);
     setError(null);
     try {
-      const r = await api.post<{ token: string }>('/auth/otp/verify', {
+      const r = await api.post<{ token: string; user: { role: string } }>('/auth/otp/verify', {
         phone: sent.phone,
         code,
         app: 'customer',
         fullName: needsName ? name.trim() : undefined,
       });
       await setSession(r.token);
-      router.replace((next && next.startsWith('/') && next !== '/login' ? next : '/') as Href);
+      // Drivers land on their own panel («لوحة المندوب»).
+      const home = r.user.role === 'driver' ? '/driver' : '/';
+      router.replace((next && next.startsWith('/') && next !== '/login' ? next : home) as Href);
     } catch (e) {
       if (e instanceof ApiError && e.code === 'name_required') {
         setNeedsName(true);
@@ -135,11 +138,11 @@ export default function LoginScreen() {
         ) : (
           <View style={styles.form}>
             <Text style={styles.sub}>
-              {ar.auth.codeSentTo} <Text style={styles.ltr}>{sent ? prettyPhone(sent.phone) : ''}</Text>
+              {sent?.channel === 'sms' ? ar.auth.codeSentToSms : ar.auth.codeSentTo} <Text style={styles.ltr}>{sent ? prettyPhone(sent.phone) : ''}</Text>
             </Text>
             {sent?.devCode && (
               <View style={styles.dev}>
-                <Text style={styles.devText}>{ar.auth.devCode(sent.devCode)}</Text>
+                <Text style={styles.devText}>{ar.auth.devCode(sent.devCode, sent.channel === 'whatsapp')}</Text>
               </View>
             )}
             <Text style={styles.label}>{ar.auth.code}</Text>

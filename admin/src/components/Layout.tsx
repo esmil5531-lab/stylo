@@ -23,6 +23,7 @@ const NAV: {
   { to: '/products', label: 'المنتجات والمقاسات', icon: 'products', permission: 'products.read' },
   { to: '/reports', label: 'التقارير والأرباح', icon: 'reports', permission: 'reports.view' },
   { to: '/payouts', label: 'مستحقات المتاجر', icon: 'payouts', permission: 'payouts.read' },
+  { to: '/custody', label: 'عُهدة المناديب', icon: 'custody', permission: 'custody.read' },
   { to: '/my-store', label: 'إعدادات متجري', icon: 'settings', permission: 'store.profile', storeOnly: true },
   { to: '/stores', label: 'المتاجر', icon: 'stores', permission: 'stores.read' },
   { to: '/staff', label: 'الموظفون والصلاحيات', icon: 'staff', permission: 'staff.read' },

@@ -14,6 +14,7 @@ import { ApiError } from './api/client';
 import { Layout } from './components/Layout';
 import { Empty } from './components/ui';
 import { DashboardPage } from './pages/Dashboard';
+import { CustodyPage } from './pages/Custody';
 import { DriversPage } from './pages/Drivers';
 import { OrderPage } from './pages/Order';
 import { MyStorePage } from './pages/MyStore';
@@ -49,6 +50,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="products/:id" element={<ProductFormPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="payouts" element={<PayoutsPage />} />
+            <Route path="custody" element={<CustodyPage />} />
             <Route path="my-store" element={<MyStorePage />} />
             <Route path="stores" element={<StoresPage />} />
             <Route path="staff" element={<StaffPage />} />

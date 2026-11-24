@@ -16,12 +16,13 @@ export function StoresPage() {
   const stores = useStores({ status });
   const [editing, setEditing] = useState<AdminStore | 'new' | null>(null);
   const canWrite = useCan('stores.write');
+  const finance = useCan('finance.view');
 
   return (
     <div className="stack">
       <PageHead
         title="المتاجر"
-        subtitle="المنطقة، رسوم التوصيل المباشر ونسبة العمولة بالدينار الليبي، وحالة كل متجر"
+        subtitle={`المنطقة، رسوم التوصيل المباشر${finance ? ' ونسبة العمولة' : ''} بالدينار الليبي، وحالة كل متجر`}
         actions={
           <Can permission="stores.write">
             <button className="btn btn-primary" onClick={() => setEditing('new')}>
@@ -56,7 +57,7 @@ export function StoresPage() {
                       <th>المتجر</th>
                       <th>المنطقة</th>
                       <th>رسوم التوصيل المباشر</th>
-                      <th>العمولة</th>
+                      {finance && <th>العمولة</th>}
                       <th>التجهيز</th>
                       <th>المنتجات</th>
                       <th>طلبات مفتوحة</th>
@@ -86,9 +87,11 @@ export function StoresPage() {
                         <td className="strong">
                           <Money value={s.deliveryFee} />
                         </td>
-                        <td>
-                          <Percent bps={s.commissionBps} />
-                        </td>
+                        {finance && (
+                          <td>
+                            <Percent bps={s.commissionBps ?? 0} />
+                          </td>
+                        )}
                         <td>
                           <Count value={s.prepHours} /> ساعة
                         </td>
@@ -273,13 +276,7 @@ function StoreForm({ store, onClose }: { store: AdminStore | null; onClose: () =
           >
             <PercentInput value={f.commission} onChange={(v) => set('commission', v)} />
           </Field>
-        ) : (
-          <Field label="نسبة عمولة ستايلو" hint="يحددها المدير العام">
-            <div className="readonly-value">
-              <Percent bps={store?.commissionBps ?? 1000} />
-            </div>
-          </Field>
-        )}
+        ) : null}
         <label className="check full">
           <input type="checkbox" checked={f.isFeatured} onChange={(e) => set('isFeatured', e.target.checked)} />
           متجر مميز في الرئيسية («متاجر مختارة لك»)

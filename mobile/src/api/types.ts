@@ -235,3 +235,38 @@ export interface Me {
 export interface List<T> {
   items: T[];
 }
+
+// ---------------------------------------------------------------- driver mode (/v1/driver)
+// Drivers never receive commission or store dues — only what to collect.
+
+export type DriverStatus = 'available' | 'busy' | 'offline';
+
+export interface DriverHome {
+  driver: { id: string; name: string; phone: string | null; city: string; vehicle: string; status: DriverStatus };
+  custody: { ordersCount: number; amount: number; since: string | null };
+  today: { delivered: number; active: number };
+  lastSettlement: { at: string; amountReceived: number; receivedBy: string } | null;
+}
+
+export interface DriverOrder {
+  id: string;
+  orderNumber: number;
+  status: OrderStatusValue;
+  statusLabel: string;
+  deliveryMode: 'fastest' | 'standard' | 'unified';
+  paymentMethod: 'cod' | 'online';
+  amountToCollect: number;
+  cashCollectedAt: string | null;
+  placedAt: string;
+  estimatedDeliveryAt: string | null;
+  pickup: { storeName: string; phone: string | null; city: string; district: string | null; address: string | null };
+  dropoff: { name: string; phone: string | null; city: string | null; district: string | null; street: string | null };
+  items: { name: string; size: string | null; color: string | null; quantity: number }[];
+  canPickUp: boolean;
+  canDeliver: boolean;
+}
+
+export interface DriverOrders {
+  active: DriverOrder[];
+  deliveredToday: DriverOrder[];
+}

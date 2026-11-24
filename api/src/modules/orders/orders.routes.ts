@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { Id, IdParams, Pagination } from '../../lib/validation.js';
 import { DELIVERY_MODES } from '../delivery/delivery.js';
+import { notifyOrderStatus } from './notify.js';
 import { checkout, getOrder, listOrders } from './orders.service.js';
 
 export async function ordersRoutes(app: FastifyInstance) {
@@ -11,6 +12,7 @@ export async function ordersRoutes(app: FastifyInstance) {
       .object({ deliveryMode: z.enum(DELIVERY_MODES), addressId: Id.optional() })
       .parse(req.body);
     const result = await checkout(app.db, app.ctx(req), body);
+    notifyOrderStatus(app, result.id);
     reply.status(201);
     return result;
   });

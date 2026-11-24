@@ -32,6 +32,7 @@ function libyaToday(): string {
 export function PayoutsPage() {
   const me = useMe().data;
   const canManage = useCan('payouts.manage');
+  const finance = useCan('finance.view');
   const balances = useBalances();
   const [status, setStatus] = useState<'pending' | 'paid' | undefined>();
   const payouts = usePayouts({ status });
@@ -42,7 +43,11 @@ export function PayoutsPage() {
     <div className="stack">
       <PageHead
         title={me?.store ? `مستحقات «${me.store.name}»` : 'مستحقات المتاجر والتسويات'}
-        subtitle="المستحق = قيمة المنتجات في الطلبات المسلّمة ناقص عمولة ستايلو. رسوم التوصيل لستايلو."
+        subtitle={
+          finance
+            ? 'المستحق = قيمة المنتجات في الطلبات المسلّمة ناقص عمولة ستايلو. رسوم التوصيل لستايلو.'
+            : 'المبالغ المستحقة عن الطلبات المسلّمة وسجل التحويلات.'
+        }
       />
 
       <section className="card">
@@ -59,10 +64,10 @@ export function PayoutsPage() {
                 <thead>
                   <tr>
                     <th>المتجر</th>
-                    <th>العمولة</th>
+                    {finance && <th>العمولة</th>}
                     <th>طلبات مسلّمة</th>
                     <th>المبيعات</th>
-                    <th>عمولة ستايلو</th>
+                    {finance && <th>عمولة ستايلو</th>}
                     <th>المستحق للمتجر</th>
                     <th>الفترة</th>
                     <th>معلّق للتحويل</th>
@@ -73,18 +78,22 @@ export function PayoutsPage() {
                   {items.map((b) => (
                     <tr key={b.storeId}>
                       <td className="cell-title">{b.storeName}</td>
-                      <td>
-                        <Percent bps={b.commissionBps} />
-                      </td>
+                      {finance && (
+                        <td>
+                          <Percent bps={b.commissionBps ?? 0} />
+                        </td>
+                      )}
                       <td>
                         <Count value={b.unsettled.orders} />
                       </td>
                       <td>
                         <Money value={b.unsettled.sales} />
                       </td>
-                      <td>
-                        <Money value={b.unsettled.commission} />
-                      </td>
+                      {finance && (
+                        <td>
+                          <Money value={b.unsettled.commission ?? 0} />
+                        </td>
+                      )}
                       <td className="strong">
                         <Money value={b.unsettled.payout} />
                       </td>
@@ -150,7 +159,7 @@ export function PayoutsPage() {
                       <th>الفترة</th>
                       <th>الطلبات</th>
                       <th>المبيعات</th>
-                      <th>العمولة</th>
+                      {finance && <th>العمولة</th>}
                       <th>المستحق</th>
                       <th>الحالة</th>
                     </tr>
@@ -174,9 +183,11 @@ export function PayoutsPage() {
                         <td>
                           <Money value={p.sales} />
                         </td>
-                        <td>
-                          <Money value={p.commission} />
-                        </td>
+                        {finance && (
+                          <td>
+                            <Money value={p.commission ?? 0} />
+                          </td>
+                        )}
                         <td className="strong">
                           <Money value={p.payoutAmount} />
                         </td>
@@ -213,6 +224,7 @@ function SettleDialog({
   onClose: () => void;
   onCreated: (id: string) => void;
 }) {
+  const finance = useCan('finance.view');
   const [from, setFrom] = useState(balance.unsettled.firstDay ?? libyaToday());
   const [to, setTo] = useState(balance.unsettled.lastDay ?? libyaToday());
   const [note, setNote] = useState('');
@@ -273,10 +285,14 @@ function SettleDialog({
               <dd>
                 <Money value={p.sales} />
               </dd>
-              <dt>عمولة ستايلو</dt>
-              <dd>
-                <Money value={p.commission} />
-              </dd>
+              {finance && (
+                <>
+                  <dt>عمولة ستايلو</dt>
+                  <dd>
+                    <Money value={p.commission ?? 0} />
+                  </dd>
+                </>
+              )}
               <dt>المستحق للمتجر</dt>
               <dd className="strong">
                 <Money value={p.payout} />
@@ -297,6 +313,7 @@ function PayoutDialog({ id, canManage, onClose }: { id: string; canManage: boole
   const payout = usePayout(id);
   const markPaid = useMarkPaid();
   const cancel = useCancelPayout();
+  const finance = useCan('finance.view');
   const [reference, setReference] = useState('');
 
   return (
@@ -343,7 +360,7 @@ function PayoutDialog({ id, canManage, onClose }: { id: string; canManage: boole
                 <tr>
                   <th>الطلب</th>
                   <th>قيمة المنتجات</th>
-                  <th>العمولة</th>
+                  {finance && <th>العمولة</th>}
                   <th>المستحق</th>
                 </tr>
               </thead>
@@ -356,9 +373,14 @@ function PayoutDialog({ id, canManage, onClose }: { id: string; canManage: boole
                     <td>
                       <Money value={o.subtotal} />
                     </td>
-                    <td>
-                      <Money value={o.commission} /> <span className="muted small">(<Percent bps={o.commissionBps} />)</span>
-                    </td>
+                    {finance && (
+                      <td>
+                        <Money value={o.commission ?? 0} />{' '}
+                        <span className="muted small">
+                          (<Percent bps={o.commissionBps ?? 0} />)
+                        </span>
+                      </td>
+                    )}
                     <td>
                       <Money value={o.payout} />
                     </td>
@@ -375,6 +397,7 @@ function PayoutDialog({ id, canManage, onClose }: { id: string; canManage: boole
 }
 
 function PayoutSummary({ p }: { p: Payout }) {
+  const finance = useCan('finance.view');
   return (
     <dl className="kv">
       <dt>الحالة</dt>
@@ -389,10 +412,14 @@ function PayoutSummary({ p }: { p: Payout }) {
       <dd>
         <Money value={p.sales} />
       </dd>
-      <dt>عمولة ستايلو</dt>
-      <dd>
-        <Money value={p.commission} />
-      </dd>
+      {finance && (
+        <>
+          <dt>عمولة ستايلو</dt>
+          <dd>
+            <Money value={p.commission ?? 0} />
+          </dd>
+        </>
+      )}
       <dt>المستحق للمتجر</dt>
       <dd className="strong">
         <Money value={p.payoutAmount} />

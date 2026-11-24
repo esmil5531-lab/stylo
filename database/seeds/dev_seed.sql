@@ -5,7 +5,7 @@
 BEGIN;
 
 TRUNCATE users, stores, categories, products, banners, looks, shared_carts, carts, staff_members, drivers,
-         otp_codes, payouts RESTART IDENTITY CASCADE;
+         otp_codes, payouts, driver_settlements, message_log RESTART IDENTITY CASCADE;
 
 -- ---------------------------------------------------------------- users
 INSERT INTO users (id, email, full_name, role) VALUES
@@ -285,5 +285,72 @@ UPDATE order_status_history h
        END
   FROM orders o
  WHERE o.id = h.order_id;
+
+-- ---------------------------------------------------------------- driver cash custody (عُهدة المناديب)
+-- Today: محمد الككلي delivered 4 cash-on-delivery orders from 4 different stores and still holds the cash.
+DO $$
+DECLARE
+  st UUID;
+  r RECORD;
+  oid UUID;
+  n INT := 0;
+BEGIN
+  FOREACH st IN ARRAY ARRAY['10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002',
+                            '10000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000004']::uuid[] LOOP
+    n := n + 1;
+    SELECT pv.id AS variant_id, pv.sku, pv.size, pv.color_name_ar, p.name_ar,
+           COALESCE(pv.price, p.base_price) AS price, s.delivery_fee, s.commission_bps
+      INTO r
+      FROM product_variants pv JOIN products p ON p.id = pv.product_id JOIN stores s ON s.id = p.store_id
+     WHERE p.store_id = st ORDER BY p.created_at, pv.position LIMIT 1;
+    INSERT INTO orders (checkout_id, customer_id, store_id, subtotal, shipping_fee, commission_bps,
+                        shipping_address, delivery_mode, placed_at)
+    VALUES (gen_random_uuid(), '00000000-0000-0000-0000-000000000004', st, r.price, r.delivery_fee, r.commission_bps,
+            '{"recipient_name":"سارة أحمد","phone":"+218910000004","city":"طرابلس","district":"حي الأندلس","street":"شارع جرابة"}',
+            'standard', now() - (n * interval '50 minutes') - interval '4 hours')
+    RETURNING id INTO oid;
+    INSERT INTO order_items (order_id, variant_id, product_name_ar, sku, size, color_name_ar, unit_price, quantity)
+    VALUES (oid, r.variant_id, r.name_ar, r.sku, r.size, r.color_name_ar, r.price, 1);
+    UPDATE orders SET status = 'confirmed' WHERE id = oid;
+    UPDATE orders SET status = 'processing' WHERE id = oid;
+    UPDATE orders SET driver_id = '00000000-0000-0000-0000-000000000011', assigned_at = now() WHERE id = oid;
+    UPDATE orders SET status = 'shipped' WHERE id = oid;
+    UPDATE orders SET status = 'delivered', payment_status = 'paid' WHERE id = oid;
+    UPDATE order_status_history SET changed_at = now() - (n * interval '50 minutes') - interval '4 hours' + CASE to_status
+         WHEN 'pending' THEN interval '0' WHEN 'confirmed' THEN interval '20 minutes'
+         WHEN 'processing' THEN interval '1 hour' WHEN 'shipped' THEN interval '2 hours'
+         ELSE interval '3 hours' END
+     WHERE order_id = oid;
+  END LOOP;
+END;
+$$;
+
+-- Cash on delivery: the driver collected the money when the order was delivered.
+UPDATE orders o
+   SET cash_collected_at = (SELECT max(h.changed_at) FROM order_status_history h
+                             WHERE h.order_id = o.id AND h.to_status = 'delivered')
+ WHERE o.status = 'delivered' AND o.payment_method = 'cod' AND o.driver_id IS NOT NULL;
+
+-- Earlier days were handed over every evening to أحمد الزوي (one settlement per driver per day);
+-- only deliveries of the last two days are still in custody.
+WITH days AS (
+  SELECT driver_id, (cash_collected_at AT TIME ZONE 'Africa/Tripoli')::date AS day,
+         count(*)::int AS n, sum(total) AS amount
+    FROM orders
+   WHERE cash_collected_at IS NOT NULL
+     AND cash_collected_at < (date_trunc('day', now() AT TIME ZONE 'Africa/Tripoli') - interval '1 day') AT TIME ZONE 'Africa/Tripoli'
+   GROUP BY 1, 2
+), ins AS (
+  INSERT INTO driver_settlements (driver_id, orders_count, amount_expected, amount_received, received_by, settled_at, note)
+  SELECT driver_id, n, amount, amount, '00000000-0000-0000-0000-000000000006',
+         (day + time '21:30') AT TIME ZONE 'Africa/Tripoli', 'تقفيل نهاية اليوم'
+    FROM days ORDER BY day, driver_id
+  RETURNING id, driver_id, settled_at
+)
+INSERT INTO driver_settlement_orders (settlement_id, order_id, amount)
+SELECT ins.id, o.id, o.total
+  FROM ins JOIN orders o ON o.driver_id = ins.driver_id
+   AND (o.cash_collected_at AT TIME ZONE 'Africa/Tripoli')::date = (ins.settled_at AT TIME ZONE 'Africa/Tripoli')::date
+   AND o.cash_collected_at IS NOT NULL;
 
 COMMIT;

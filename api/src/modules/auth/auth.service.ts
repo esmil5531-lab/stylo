@@ -5,13 +5,13 @@ import { inTransaction } from '../../db.js';
 import type { Ctx } from '../../lib/context.js';
 import { AppError, badRequest, forbidden } from '../../lib/errors.js';
 import { normalisePhone } from '../../lib/phone.js';
-import type { SmsSender } from '../../lib/sms.js';
+import type { Messenger } from '../../lib/messaging.js';
 
 /**
  * Sign-in with a Libyan mobile number + one-time code, for every kind of user:
  * customers (app 'customer'), and staff / store owners (app 'admin').
  *
- *  1. POST /auth/otp/request { phone }       → a 6-digit code by SMS (valid 5 min)
+ *  1. POST /auth/otp/request { phone }       → a 6-digit code by WhatsApp (valid 5 min)
  *  2. POST /auth/otp/verify  { phone, code } → { token } (opaque bearer token)
  *
  * Only hashes are stored: sha256(pepper:phone:code) for codes, sha256(token) for sessions.
@@ -36,7 +36,7 @@ function sameHash(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-export async function requestOtp(ctx: Ctx, sms: SmsSender, rawPhone: string) {
+export async function requestOtp(ctx: Ctx, messenger: Messenger, rawPhone: string) {
   const cfg = ctx.config.auth;
   const phone = normalisePhone(rawPhone);
 
@@ -62,13 +62,15 @@ export async function requestOtp(ctx: Ctx, sms: SmsSender, rawPhone: string) {
     `INSERT INTO otp_codes (phone, code_hash, expires_at, created_at) VALUES ($1, $2, $3, $4)`,
     [phone, hashCode(cfg.otpPepper, phone, code), expiresAt, ctx.now],
   );
-  await sms.send(phone, `رمز الدخول إلى ستايلو: ${code}\nصالح لمدة 5 دقائق. لا تشاركيه مع أحد.`);
+  await messenger.sendOtp(phone, code);
 
   return {
     phone,
+    /** Where the code was sent: 'whatsapp' | 'sms' | 'console' (development). */
+    channel: messenger.channel,
     expiresInSeconds: cfg.otpTtlSeconds,
     resendInSeconds: cfg.otpResendSeconds,
-    // Development only: there is no SMS gateway, so the code comes back in the response.
+    // Development only: the code also comes back in the response and is shown on screen.
     ...(cfg.otpDevEcho ? { devCode: code } : {}),
   };
 }

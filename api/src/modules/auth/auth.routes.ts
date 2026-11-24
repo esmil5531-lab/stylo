@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 import { unauthorized } from '../../lib/errors.js';
-import { createSmsSender } from '../../lib/sms.js';
 import { requestOtp, revokeSession, verifyOtp } from './auth.service.js';
 
 const Phone = z.string().trim().min(9).max(20);
@@ -13,11 +12,9 @@ export function bearerToken(header: string | undefined): string | null {
 }
 
 export async function authRoutes(app: FastifyInstance) {
-  const sms = createSmsSender(app.config.sms, (msg) => app.log.info(msg));
-
   app.post('/auth/otp/request', async (req) => {
     const { phone } = z.object({ phone: Phone }).parse(req.body);
-    return requestOtp(app.ctx(req), sms, phone);
+    return requestOtp(app.ctx(req), app.messenger, phone);
   });
 
   app.post('/auth/otp/verify', async (req) => {

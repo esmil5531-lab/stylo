@@ -23,6 +23,9 @@ export const PERMISSIONS = {
   'stores.commission': 'تحديد نسبة عمولة المتاجر',
   'payouts.read': 'عرض مستحقات المتاجر والتسويات',
   'payouts.manage': 'إنشاء التسويات وتسجيل الدفع',
+  'custody.read': 'عرض عُهدة المناديب النقدية',
+  'custody.manage': 'تقفيل عُهدة المناديب واستلام المبالغ',
+  'finance.view': 'رؤية العمولات وإيراد ستايلو (المدير العام)',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -66,4 +69,28 @@ export async function loadStaff(ctx: Ctx): Promise<StaffContext> {
 
 export function requirePermission(staff: StaffContext, permission: Permission): void {
   if (!staff.permissions.has(permission)) throw forbidden();
+}
+
+/**
+ * Commission is visible to the general manager only (`finance.view`). For everyone else — store
+ * owners, operations, dispatchers — these keys are removed from every back-office response.
+ */
+export const FINANCE_KEYS = new Set([
+  'commission',
+  'commissionBps',
+  'commissionAmount',
+  'currentCommissionBps',
+  'effectiveCommissionBps',
+  'realisedCommission',
+  'styloRevenue',
+]);
+
+export function redactFinance<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(redactFinance) as T;
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) if (!FINANCE_KEYS.has(k)) out[k] = redactFinance(v);
+    return out as T;
+  }
+  return value;
 }

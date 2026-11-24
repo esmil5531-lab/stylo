@@ -155,7 +155,7 @@ export async function getOrder(ctx: Ctx, staff: StaffContext, id: string) {
 }
 
 /** Driver is free again once none of their orders are still out for delivery. */
-async function refreshDriverStatus(db: Queryable, driverId: string) {
+export async function refreshDriverStatus(db: Queryable, driverId: string) {
   await db.query(
     `UPDATE drivers SET status = CASE
         WHEN EXISTS (SELECT 1 FROM orders WHERE driver_id = $1 AND status = 'shipped') THEN 'busy'::driver_status
@@ -198,9 +198,13 @@ export async function changeOrderStatus(
       `UPDATE orders SET status = $2::order_status,
               cancel_reason = CASE WHEN $2::order_status = 'cancelled' THEN $3::text ELSE cancel_reason END,
               payment_status = CASE WHEN $2::order_status = 'delivered' AND payment_status = 'unpaid'
-                                    THEN 'paid'::payment_status ELSE payment_status END
+                                    THEN 'paid'::payment_status ELSE payment_status END,
+              -- Cash on delivery: the driver now holds the money (driver custody) until it is handed over.
+              cash_collected_at = CASE WHEN $2::order_status = 'delivered' AND payment_method = 'cod'
+                                        AND driver_id IS NOT NULL AND cash_collected_at IS NULL
+                                       THEN $4::timestamptz ELSE cash_collected_at END
         WHERE id = $1`,
-      [id, input.to, input.cancelReason?.trim() ?? null],
+      [id, input.to, input.cancelReason?.trim() ?? null, ctx.now],
     );
 
     if (input.to === 'cancelled') {

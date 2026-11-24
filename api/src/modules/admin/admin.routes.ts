@@ -21,6 +21,8 @@ import {
   previewPayout,
 } from './payouts.admin.js';
 import { getReport } from './reports.admin.js';
+import { getDriverCustody, getSettlement, listCustody, listSettlements, settleCustody } from './custody.admin.js';
+import { notifyOrderStatus } from '../orders/notify.js';
 import {
   createDriver,
   createStaff,
@@ -39,7 +41,14 @@ import {
   updateStore,
   VEHICLES,
 } from './people.admin.js';
-import { loadStaff, PERMISSIONS, requirePermission, type Permission, type StaffContext } from './permissions.js';
+import {
+  loadStaff,
+  PERMISSIONS,
+  redactFinance,
+  requirePermission,
+  type Permission,
+  type StaffContext,
+} from './permissions.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -162,6 +171,12 @@ export async function adminRoutes(app: FastifyInstance) {
   app.decorateRequest('staff', null);
   app.addHook('preHandler', async (req) => {
     req.staff = await loadStaff(app.ctx(req));
+  });
+  // Commission figures are for the general manager only: strip them for everyone else.
+  app.addHook('preSerialization', async (req, _reply, payload) => {
+    const staff = req.staff;
+    if (!staff || staff.permissions.has('finance.view')) return payload;
+    return redactFinance(payload);
   });
 
   const can = (req: FastifyRequest, permission: Permission) => {
@@ -286,6 +301,42 @@ export async function adminRoutes(app: FastifyInstance) {
     return cancelPayout(app.ctx(req), id);
   });
 
+  // ------------------------------------------------------------ driver cash custody (عُهدة المناديب)
+  app.get('/custody', async (req) => {
+    can(req, 'custody.read');
+    return listCustody(app.ctx(req));
+  });
+  app.get('/custody/settlements', async (req) => {
+    can(req, 'custody.read');
+    const q = z
+      .object({ driverId: Id.optional(), limit: z.coerce.number().int().min(1).max(200).default(50) })
+      .parse(req.query);
+    return { items: await listSettlements(app.ctx(req), q) };
+  });
+  app.get('/custody/settlements/:id', async (req) => {
+    const staff = can(req, 'custody.read');
+    const { id } = IdParams.parse(req.params);
+    return getSettlement(app.ctx(req), staff, id);
+  });
+  app.get('/custody/:id', async (req) => {
+    const staff = can(req, 'custody.read');
+    const { id } = IdParams.parse(req.params);
+    return getDriverCustody(app.ctx(req), staff, id);
+  });
+  app.post('/custody/:id/settle', async (req, reply) => {
+    const staff = can(req, 'custody.manage');
+    const { id } = IdParams.parse(req.params);
+    const body = z
+      .object({
+        amountReceived: z.number().int().min(0).max(1_000_000_000),
+        expectedAmount: z.number().int().min(0).optional(),
+        note: z.string().trim().max(300).optional(),
+      })
+      .parse(req.body);
+    reply.status(201);
+    return settleCustody(app.ctx(req), staff, { driverId: id, ...body });
+  });
+
   // ------------------------------------------------------------ reports
   app.get('/reports', async (req) => {
     const staff = can(req, 'reports.view');
@@ -367,7 +418,9 @@ export async function adminRoutes(app: FastifyInstance) {
         cancelReason: z.string().trim().max(200).optional(),
       })
       .parse(req.body);
-    return changeOrderStatus(app.ctx(req), staff, id, body);
+    const order = await changeOrderStatus(app.ctx(req), staff, id, body);
+    notifyOrderStatus(app, id);
+    return order;
   });
   app.post('/orders/:id/driver', async (req) => {
     const staff = can(req, 'orders.assign_driver');

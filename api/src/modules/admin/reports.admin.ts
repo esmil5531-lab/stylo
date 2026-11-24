@@ -106,7 +106,10 @@ export async function getReport(ctx: Ctx, staff: StaffContext, q: ReportQuery) {
 
   const s = summary.rows[0];
   const nonCancelled = s.orders - s.cancelled;
-  return {
+  // Commission is the general manager's (finance.view). A store sees its own dues; platform staff
+  // without finance.view see neither the commission nor the dues (sales − dues would reveal it).
+  const showDues = staff.permissions.has('finance.view') || !!staff.storeId;
+  const report = {
     range,
     scope: storeId ? { storeId } : null,
     currency: 'LYD',
@@ -152,5 +155,11 @@ export async function getReport(ctx: Ctx, staff: StaffContext, q: ReportQuery) {
       quantity: r.quantity as number,
       sales: r.sales as number,
     })),
+  };
+  if (showDues) return report;
+  return {
+    ...report,
+    summary: { ...report.summary, storePayout: undefined },
+    byStore: report.byStore.map((b) => ({ ...b, payout: undefined })),
   };
 }

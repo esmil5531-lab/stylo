@@ -6,10 +6,12 @@ import type { Config } from './config.js';
 import type { Pool } from './db.js';
 import type { Ctx } from './lib/context.js';
 import { AppError } from './lib/errors.js';
+import { createMessenger, type FetchLike, type Messenger } from './lib/messaging.js';
 import { registerWebsites } from './web.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { authRoutes, bearerToken } from './modules/auth/auth.routes.js';
 import { resolveSession } from './modules/auth/auth.service.js';
+import { driverRoutes } from './modules/driver/driver.routes.js';
 import { cartRoutes } from './modules/cart/cart.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { homeRoutes } from './modules/home/home.routes.js';
@@ -24,6 +26,8 @@ declare module 'fastify' {
     db: Pool;
     config: Config;
     ctx(req: FastifyRequest): Ctx;
+    /** WhatsApp (or SMS / console) — OTP codes and order status updates. */
+    messenger: Messenger;
   }
   interface FastifyRequest {
     userId: string | null;
@@ -38,9 +42,11 @@ export interface BuildAppOptions {
   /** Injectable clock for tests. */
   now?: () => Date;
   logger?: boolean;
+  /** Tests: replace the network call to WhatsApp / SMS. */
+  fetch?: FetchLike;
 }
 
-export async function buildApp({ pool, config, now = () => new Date(), logger = true }: BuildAppOptions) {
+export async function buildApp({ pool, config, now = () => new Date(), logger = true, fetch }: BuildAppOptions) {
   const app: FastifyInstance = Fastify({
     logger: logger ? { level: config.logLevel } : false,
   });
@@ -49,6 +55,7 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
   app.decorate('config', config);
   app.decorate('ctx', (req: FastifyRequest): Ctx => ({ db: pool, config, userId: req.userId, now: now() }));
   app.decorateRequest('userId', null);
+  app.decorate('messenger', createMessenger(config.messaging, { db: pool, log: (m) => app.log.info(m), fetch }));
 
   await app.register(cors, { origin: true });
 
@@ -126,6 +133,7 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
       await v1.register(wishlistRoutes);
       await v1.register(usersRoutes);
       await v1.register(adminRoutes, { prefix: '/admin' });
+      await v1.register(driverRoutes, { prefix: '/driver' });
     },
     { prefix: '/v1' },
   );

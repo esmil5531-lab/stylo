@@ -44,6 +44,8 @@ export function ReportsPage() {
   const report = useReport({ ...range, storeId: storeId || undefined });
   const stores = useStores({}, useCan('stores.read'));
   const canReadStores = useCan('stores.read');
+  // Commission is visible to the general manager only (the API strips it for everyone else).
+  const finance = useCan('finance.view');
 
   return (
     <div className="stack">
@@ -103,13 +105,15 @@ export function ReportsPage() {
         )}
       </div>
 
-      <Async query={report}>{(r) => <ReportBody report={r} storeView={!platform} />}</Async>
+      <Async query={report}>{(r) => <ReportBody report={r} storeView={!platform} finance={finance} />}</Async>
     </div>
   );
 }
 
-function ReportBody({ report: r, storeView }: { report: Report; storeView: boolean }) {
+function ReportBody({ report: r, storeView, finance }: { report: Report; storeView: boolean; finance: boolean }) {
   const s = r.summary;
+  // Store dues: a store sees its own; platform staff only with finance.view.
+  const dues = finance || storeView;
   const [asTable, setAsTable] = useState(false);
   return (
     <>
@@ -119,20 +123,27 @@ function ReportBody({ report: r, storeView }: { report: Report; storeView: boole
 
       <div className="kpi-grid">
         {storeView ? (
-          <Kpi emph label="صافي مستحقاتك" value={<Money value={s.storePayout} />} hint="المبيعات ناقص عمولة ستايلو" />
-        ) : (
-          <Kpi emph label="إيراد ستايلو" value={<Money value={s.styloRevenue} />} hint="العمولة + رسوم التوصيل" />
-        )}
-        <Kpi label="المبيعات" value={<Money value={s.sales} />} hint={<>منها تم تسليمه: <Money value={s.realisedSales} /></>} />
+          <Kpi emph label="صافي مستحقاتك" value={<Money value={s.storePayout ?? 0} />} hint="ما يُحوَّل لمتجرك عن هذه الطلبات" />
+        ) : finance ? (
+          <Kpi emph label="إيراد ستايلو" value={<Money value={s.styloRevenue ?? 0} />} hint="العمولة + رسوم التوصيل" />
+        ) : null}
         <Kpi
-          label="عمولة ستايلو"
-          value={<Money value={s.commission} />}
-          hint={<>نسبة فعلية <Percent bps={s.effectiveCommissionBps} /> من المبيعات</>}
+          emph={!storeView && !finance}
+          label="المبيعات"
+          value={<Money value={s.sales} />}
+          hint={<>منها تم تسليمه: <Money value={s.realisedSales} /></>}
         />
+        {finance && (
+          <Kpi
+            label="عمولة ستايلو"
+            value={<Money value={s.commission ?? 0} />}
+            hint={<>نسبة فعلية <Percent bps={s.effectiveCommissionBps ?? 0} /> من المبيعات</>}
+          />
+        )}
         {storeView ? (
           <Kpi label="رسوم التوصيل" value={<Money value={s.deliveryFees} />} hint="يحصّلها ستايلو مقابل التوصيل المباشر" />
         ) : (
-          <Kpi label="مستحقات المتاجر" value={<Money value={s.storePayout} />} hint="المبيعات ناقص العمولة" />
+          finance && <Kpi label="مستحقات المتاجر" value={<Money value={s.storePayout ?? 0} />} hint="المبيعات ناقص العمولة" />
         )}
         <Kpi
           label="الطلبات"
@@ -158,16 +169,16 @@ function ReportBody({ report: r, storeView }: { report: Report; storeView: boole
             {asTable ? 'عرض كرسم' : 'عرض كجدول'}
           </button>
         </div>
-        {asTable ? <DailyTable daily={r.daily} /> : <DailyChart daily={r.daily} />}
+        {asTable ? <DailyTable daily={r.daily} finance={finance} /> : <DailyChart daily={r.daily} finance={finance} />}
       </section>
 
       <section className="card">
         <div className="card-pad row">
           <div className="card-title" style={{ margin: 0 }}>
-            {storeView ? 'ملخص المتجر' : 'المتاجر: المبيعات والعمولات'}
+            {storeView ? 'ملخص المتجر' : finance ? 'المتاجر: المبيعات والعمولات' : 'المتاجر: المبيعات'}
           </div>
           <span className="spacer" />
-          <button className="btn btn-ghost btn-sm" onClick={() => downloadCsv(r)}>
+          <button className="btn btn-ghost btn-sm" onClick={() => downloadCsv(r, finance)}>
             تصدير CSV (Excel)
           </button>
         </div>
@@ -176,13 +187,13 @@ function ReportBody({ report: r, storeView }: { report: Report; storeView: boole
             <thead>
               <tr>
                 <th>المتجر</th>
-                <th>نسبة العمولة</th>
+                {finance && <th>نسبة العمولة</th>}
                 <th>الطلبات</th>
                 <th>الملغاة</th>
                 <th>المبيعات</th>
                 {!storeView && <th>الحصة</th>}
-                <th>العمولة</th>
-                <th>مستحقات المتجر</th>
+                {finance && <th>العمولة</th>}
+                {dues && <th>مستحقات المتجر</th>}
                 <th>رسوم التوصيل</th>
               </tr>
             </thead>
@@ -190,9 +201,11 @@ function ReportBody({ report: r, storeView }: { report: Report; storeView: boole
               {r.byStore.map((b) => (
                 <tr key={b.storeId}>
                   <td className="cell-title">{b.storeName}</td>
-                  <td>
-                    <Percent bps={b.currentCommissionBps} />
-                  </td>
+                  {finance && (
+                    <td>
+                      <Percent bps={b.currentCommissionBps ?? 0} />
+                    </td>
+                  )}
                   <td>
                     <Count value={b.orders} />
                   </td>
@@ -209,12 +222,16 @@ function ReportBody({ report: r, storeView }: { report: Report; storeView: boole
                       </div>
                     </td>
                   )}
-                  <td>
-                    <Money value={b.commission} />
-                  </td>
-                  <td>
-                    <Money value={b.payout} />
-                  </td>
+                  {finance && (
+                    <td>
+                      <Money value={b.commission ?? 0} />
+                    </td>
+                  )}
+                  {dues && (
+                    <td>
+                      <Money value={b.payout ?? 0} />
+                    </td>
+                  )}
                   <td>
                     <Money value={b.deliveryFees} />
                   </td>
@@ -225,9 +242,11 @@ function ReportBody({ report: r, storeView }: { report: Report; storeView: boole
               <tfoot>
                 <tr className="strong">
                   <td>الإجمالي</td>
-                  <td>
-                    <Percent bps={s.effectiveCommissionBps} />
-                  </td>
+                  {finance && (
+                    <td>
+                      <Percent bps={s.effectiveCommissionBps ?? 0} />
+                    </td>
+                  )}
                   <td>
                     <Count value={s.orders} />
                   </td>
@@ -238,12 +257,16 @@ function ReportBody({ report: r, storeView }: { report: Report; storeView: boole
                     <Money value={s.sales} />
                   </td>
                   <td />
-                  <td>
-                    <Money value={s.commission} />
-                  </td>
-                  <td>
-                    <Money value={s.storePayout} />
-                  </td>
+                  {finance && (
+                    <td>
+                      <Money value={s.commission ?? 0} />
+                    </td>
+                  )}
+                  {dues && (
+                    <td>
+                      <Money value={s.storePayout ?? 0} />
+                    </td>
+                  )}
                   <td>
                     <Money value={s.deliveryFees} />
                   </td>
@@ -252,10 +275,12 @@ function ReportBody({ report: r, storeView }: { report: Report; storeView: boole
             )}
           </table>
         </div>
+        {finance && (
         <p className="card-pad muted small" style={{ margin: 0 }}>
           نسبة العمولة المعروضة هي النسبة الحالية للمتجر. عمولة كل طلب تُحسب بالنسبة السارية وقت الشراء، لذلك لا
           تتغير الأرقام السابقة عند تعديل النسبة.
         </p>
+        )}
       </section>
 
       <section className="card">
@@ -298,9 +323,15 @@ function ReportBody({ report: r, storeView }: { report: Report; storeView: boole
         <summary className="strong">كيف تُحسب الأرقام؟</summary>
         <ul className="muted" style={{ marginBottom: 0 }}>
           <li>المبيعات: قيمة المنتجات في الطلبات غير الملغاة، دون رسوم التوصيل.</li>
-          <li>عمولة ستايلو: نسبة المتجر وقت الشراء × قيمة المنتجات.</li>
-          <li>مستحقات المتجر: المبيعات ناقص العمولة.</li>
-          <li>إيراد ستايلو: العمولة + رسوم التوصيل (التوصيل المباشر بسائقي ستايلو).</li>
+          {finance ? (
+            <>
+              <li>عمولة ستايلو: نسبة المتجر وقت الشراء × قيمة المنتجات.</li>
+              <li>مستحقات المتجر: المبيعات ناقص العمولة.</li>
+              <li>إيراد ستايلو: العمولة + رسوم التوصيل (التوصيل المباشر بسائقي ستايلو).</li>
+            </>
+          ) : (
+            <li>مستحقات المتجر: ما يُحوَّل للمتجر عن طلباته المسلّمة.</li>
+          )}
           <li>«تم تسليمه» يشمل الطلبات المسلّمة فقط؛ الطلبات المفتوحة قد تُلغى لاحقاً.</li>
         </ul>
       </details>
@@ -352,7 +383,7 @@ function shortDay(day: string): string {
   return `${Number(d)}/${Number(m)}`;
 }
 
-function DailyChart({ daily }: { daily: Report['daily'] }) {
+function DailyChart({ daily, finance }: { daily: Report['daily']; finance: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
   const max = useMemo(() => niceMax(Math.max(...daily.map((d) => d.sales), 0)), [daily]);
   const innerW = W - PAD.left - PAD.right;
@@ -417,7 +448,8 @@ function DailyChart({ daily }: { daily: Report['daily'] }) {
           </div>
           <div>المبيعات: {formatLYD(h.sales)}</div>
           <div className="muted">
-            الطلبات: <Num>{h.orders}</Num> · العمولة: {formatLYD(h.commission)}
+            الطلبات: <Num>{h.orders}</Num>
+            {finance && <> · العمولة: {formatLYD(h.commission ?? 0)}</>}
           </div>
         </div>
       )}
@@ -431,7 +463,7 @@ function roundedTop(x: number, y: number, w: number, h: number, r: number): stri
   return `M${x},${y + h} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${y + h} Z`;
 }
 
-function DailyTable({ daily }: { daily: Report['daily'] }) {
+function DailyTable({ daily, finance }: { daily: Report['daily']; finance: boolean }) {
   return (
     <div className="table-wrap" style={{ maxHeight: 320, overflow: 'auto' }}>
       <table className="table">
@@ -440,7 +472,7 @@ function DailyTable({ daily }: { daily: Report['daily'] }) {
             <th>اليوم</th>
             <th>الطلبات</th>
             <th>المبيعات</th>
-            <th>العمولة</th>
+            {finance && <th>العمولة</th>}
           </tr>
         </thead>
         <tbody>
@@ -455,9 +487,11 @@ function DailyTable({ daily }: { daily: Report['daily'] }) {
               <td>
                 <Money value={d.sales} />
               </td>
-              <td>
-                <Money value={d.commission} />
-              </td>
+              {finance && (
+                <td>
+                  <Money value={d.commission ?? 0} />
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -466,21 +500,33 @@ function DailyTable({ daily }: { daily: Report['daily'] }) {
   );
 }
 
-function downloadCsv(r: Report) {
+function downloadCsv(r: Report, finance: boolean) {
   const lyd = (v: number) => (v / 1000).toFixed(3);
-  const rows = [
-    ['المتجر', 'نسبة العمولة %', 'الطلبات', 'الملغاة', 'المبيعات (د.ل)', 'العمولة (د.ل)', 'مستحقات المتجر (د.ل)', 'رسوم التوصيل (د.ل)'],
-    ...r.byStore.map((b) => [
-      b.storeName,
-      (b.currentCommissionBps / 100).toString(),
-      String(b.orders),
-      String(b.cancelled),
-      lyd(b.sales),
-      lyd(b.commission),
-      lyd(b.payout),
-      lyd(b.deliveryFees),
-    ]),
-  ];
+  const rows = finance
+    ? [
+        ['المتجر', 'نسبة العمولة %', 'الطلبات', 'الملغاة', 'المبيعات (د.ل)', 'العمولة (د.ل)', 'مستحقات المتجر (د.ل)', 'رسوم التوصيل (د.ل)'],
+        ...r.byStore.map((b) => [
+          b.storeName,
+          ((b.currentCommissionBps ?? 0) / 100).toString(),
+          String(b.orders),
+          String(b.cancelled),
+          lyd(b.sales),
+          lyd(b.commission ?? 0),
+          lyd(b.payout ?? 0),
+          lyd(b.deliveryFees),
+        ]),
+      ]
+    : [
+        ['المتجر', 'الطلبات', 'الملغاة', 'المبيعات (د.ل)', ...(r.byStore[0]?.payout !== undefined ? ['مستحقات المتجر (د.ل)'] : []), 'رسوم التوصيل (د.ل)'],
+        ...r.byStore.map((b) => [
+          b.storeName,
+          String(b.orders),
+          String(b.cancelled),
+          lyd(b.sales),
+          ...(b.payout !== undefined ? [lyd(b.payout)] : []),
+          lyd(b.deliveryFees),
+        ]),
+      ];
   const csv = rows.map((row) => row.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\r\n');
   // BOM so Excel opens Arabic text correctly.
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });

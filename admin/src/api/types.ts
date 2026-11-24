@@ -22,7 +22,10 @@ export type Permission =
   | 'reports.view'
   | 'stores.commission'
   | 'payouts.read'
-  | 'payouts.manage';
+  | 'payouts.manage'
+  | 'custody.read'
+  | 'custody.manage'
+  | 'finance.view';
 
 export interface Me {
   id: string;
@@ -55,7 +58,7 @@ export interface AdminStore {
   deliveryFee: number;
   status: StoreStatus;
   isFeatured: boolean;
-  commissionBps: number;
+  commissionBps?: number;
   rating: number;
   createdAt: string;
   owner: { id: string; name: string; phone: string | null };
@@ -195,29 +198,30 @@ export interface Report {
     cancelled: number;
     open: number;
     sales: number;
-    commission: number;
+    commission?: number;
     deliveryFees: number;
-    storePayout: number;
-    styloRevenue: number;
+    /** Absent for platform staff without finance.view. */
+    storePayout?: number;
+    styloRevenue?: number;
     realisedSales: number;
-    realisedCommission: number;
+    realisedCommission?: number;
     cancelledSales: number;
     averageOrderValue: number;
-    effectiveCommissionBps: number;
+    effectiveCommissionBps?: number;
     cancellationRateBps: number;
   };
   ordersByStatus: Partial<Record<OrderStatus, number>>;
-  daily: { day: string; orders: number; sales: number; commission: number }[];
+  daily: { day: string; orders: number; sales: number; commission?: number }[];
   byStore: {
     storeId: string;
     storeName: string;
-    currentCommissionBps: number;
+    currentCommissionBps?: number;
     orders: number;
     cancelled: number;
     sales: number;
-    commission: number;
+    commission?: number;
     deliveryFees: number;
-    payout: number;
+    payout?: number;
   }[];
   topProducts: { name: string; storeName: string; quantity: number; sales: number }[];
 }
@@ -227,8 +231,8 @@ export interface Report {
 export interface StoreBalance {
   storeId: string;
   storeName: string;
-  commissionBps: number;
-  unsettled: { orders: number; sales: number; commission: number; payout: number; firstDay: string | null; lastDay: string | null };
+  commissionBps?: number;
+  unsettled: { orders: number; sales: number; commission?: number; payout: number; firstDay: string | null; lastDay: string | null };
   lastSettledTo: string | null;
   pendingAmount: number;
 }
@@ -239,9 +243,9 @@ export interface PayoutPreview {
   to: string;
   ordersCount: number;
   sales: number;
-  commission: number;
+  commission?: number;
   payout: number;
-  orders: { id: string; orderNumber: number; deliveredAt: string; subtotal: number; commissionBps: number; commission: number; payout: number }[];
+  orders: { id: string; orderNumber: number; deliveredAt: string; subtotal: number; commissionBps?: number; commission?: number; payout: number }[];
 }
 
 export interface Payout {
@@ -253,7 +257,7 @@ export interface Payout {
   currency: string;
   ordersCount: number;
   sales: number;
-  commission: number;
+  commission?: number;
   payoutAmount: number;
   status: 'pending' | 'paid';
   note: string | null;
@@ -265,5 +269,73 @@ export interface Payout {
 }
 
 export interface PayoutDetail extends Payout {
-  orders: { id: string; orderNumber: number; placedAt: string; subtotal: number; commissionBps: number; commission: number; payout: number }[];
+  orders: { id: string; orderNumber: number; placedAt: string; subtotal: number; commissionBps?: number; commission?: number; payout: number }[];
 }
+
+// ---------------------------------------------------------------- 0007: driver cash custody
+// Commission fields are only present for the general manager (finance.view).
+
+export interface CustodyDriver {
+  id: string;
+  name: string;
+  phone: string | null;
+  city: string;
+  vehicle: string;
+  status: DriverStatus;
+}
+
+export interface CustodyRow {
+  driver: CustodyDriver;
+  ordersCount: number;
+  storesCount: number;
+  amount: number;
+  since: string | null;
+  lastSettlement: { at: string; amountReceived: number; receivedBy: string | null } | null;
+}
+
+export interface CustodyOrder {
+  id: string;
+  orderNumber: number;
+  store: { id: string; name: string };
+  customerName: string;
+  collectedAt: string;
+  total: number;
+  subtotal?: number;
+  deliveryFee?: number;
+  commission?: number;
+  storeNet: number;
+}
+
+export interface CustodyStoreLine {
+  store: { id: string; name: string };
+  ordersCount: number;
+  collected: number;
+  storeNet: number;
+  deliveryFees?: number;
+  commission?: number;
+}
+
+export interface CustodyBreakdown {
+  orders: CustodyOrder[];
+  byStore: CustodyStoreLine[];
+  totals: { ordersCount: number; amount: number; storeNet: number; deliveryFees?: number; commission?: number };
+}
+
+export interface DriverCustody extends CustodyBreakdown {
+  driver: CustodyDriver;
+}
+
+export interface Settlement {
+  id: string;
+  number: number;
+  driver: { id: string; name: string; phone: string | null };
+  ordersCount: number;
+  amountExpected: number;
+  amountReceived: number;
+  difference: number;
+  note: string | null;
+  receivedBy: { id: string; name: string };
+  settledAt: string;
+}
+
+export type SettlementDetail = Settlement & CustodyBreakdown;

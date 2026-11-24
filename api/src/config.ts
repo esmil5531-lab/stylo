@@ -18,8 +18,21 @@ const EnvSchema = z.object({
   OTP_PEPPER: z.string().min(16).optional(),
   /** Return the code in the API response (development only — there is no SMS here). */
   OTP_DEV_ECHO: bool,
-  /** 'console' logs codes (development); 'http' POSTs { to, text } to SMS_HTTP_URL. */
-  SMS_PROVIDER: z.enum(['console', 'http']).default('console'),
+  /**
+   * How codes and order updates reach people:
+   * 'whatsapp' (WhatsApp Business Cloud API — the main channel), 'sms_http' (optional fallback),
+   * 'console' (development: nothing is sent, the code is shown on screen).
+   */
+  MESSAGING_PROVIDER: z.enum(['console', 'whatsapp', 'sms_http']).default('console'),
+  WHATSAPP_TOKEN: z.string().min(20).optional(),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().regex(/^\d{5,30}$/).optional(),
+  WHATSAPP_API_VERSION: z.string().regex(/^v\d+\.\d+$/).default('v21.0'),
+  WHATSAPP_API_BASE: z.string().url().default('https://graph.facebook.com'),
+  WHATSAPP_OTP_TEMPLATE: z.string().default('stylo_login_code'),
+  WHATSAPP_ORDER_TEMPLATE: z.string().default('stylo_order_status'),
+  WHATSAPP_TEMPLATE_LANG: z.string().default('ar'),
+  /** Send order status updates to customers (WhatsApp/SMS). */
+  NOTIFY_ORDER_STATUS: bool,
   SMS_HTTP_URL: z.string().url().optional(),
   SMS_HTTP_TOKEN: z.string().optional(),
   /** Folder with the built customer site (served at /) — see `npm run build:sites` at the repo root. */
@@ -63,10 +76,19 @@ export interface AuthConfig {
   adminSessionHours: number;
 }
 
-export interface SmsConfig {
-  provider: 'console' | 'http';
-  httpUrl?: string;
-  httpToken?: string;
+export interface MessagingConfig {
+  provider: 'console' | 'whatsapp' | 'sms_http';
+  whatsapp?: {
+    token: string;
+    phoneNumberId: string;
+    apiVersion: string;
+    apiBase: string;
+    otpTemplate: string;
+    orderTemplate: string;
+    templateLang: string;
+  };
+  smsHttp?: { url: string; token?: string };
+  notifyOrderStatus: boolean;
 }
 
 export interface Config {
@@ -76,7 +98,7 @@ export interface Config {
   host: string;
   logLevel: string;
   auth: AuthConfig;
-  sms: SmsConfig;
+  messaging: MessagingConfig;
   web: { customerDir?: string; adminDir?: string };
   defaultCity: string;
   currency: 'LYD';
@@ -85,15 +107,22 @@ export interface Config {
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const e = EnvSchema.parse(env);
+  // Empty values in .env (e.g. `WHATSAPP_TOKEN=`) mean "not set".
+  const e = EnvSchema.parse(Object.fromEntries(Object.entries(env).filter(([, v]) => v !== '')));
   const production = e.NODE_ENV === 'production';
 
   if (production) {
     // Fail fast instead of running an insecure production server.
     if (!e.OTP_PEPPER) throw new Error('OTP_PEPPER is required in production');
-    if (e.SMS_PROVIDER !== 'http' || !e.SMS_HTTP_URL) {
-      throw new Error('Production needs a real SMS provider: SMS_PROVIDER=http and SMS_HTTP_URL');
+    if (e.MESSAGING_PROVIDER === 'console') {
+      throw new Error('Production needs a real channel: MESSAGING_PROVIDER=whatsapp (or sms_http)');
     }
+  }
+  if (e.MESSAGING_PROVIDER === 'whatsapp' && (!e.WHATSAPP_TOKEN || !e.WHATSAPP_PHONE_NUMBER_ID)) {
+    throw new Error('MESSAGING_PROVIDER=whatsapp needs WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID');
+  }
+  if (e.MESSAGING_PROVIDER === 'sms_http' && !e.SMS_HTTP_URL) {
+    throw new Error('MESSAGING_PROVIDER=sms_http needs SMS_HTTP_URL');
   }
 
   return {
@@ -106,6 +135,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       devHeader: !production && (e.AUTH_DEV_HEADER ?? false),
       devUserId: production ? undefined : e.DEV_USER_ID,
       otpPepper: e.OTP_PEPPER ?? 'stylo-dev-pepper-not-for-production',
+      // Development: the code is also shown on screen (even when WhatsApp is configured).
       otpDevEcho: !production && (e.OTP_DEV_ECHO ?? true),
       otpTtlSeconds: 300,
       otpMaxAttempts: 5,
@@ -114,7 +144,23 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       customerSessionDays: 60,
       adminSessionHours: 12,
     },
-    sms: { provider: e.SMS_PROVIDER, httpUrl: e.SMS_HTTP_URL, httpToken: e.SMS_HTTP_TOKEN },
+    messaging: {
+      provider: e.MESSAGING_PROVIDER,
+      whatsapp:
+        e.WHATSAPP_TOKEN && e.WHATSAPP_PHONE_NUMBER_ID
+          ? {
+              token: e.WHATSAPP_TOKEN,
+              phoneNumberId: e.WHATSAPP_PHONE_NUMBER_ID,
+              apiVersion: e.WHATSAPP_API_VERSION,
+              apiBase: e.WHATSAPP_API_BASE.replace(/\/$/, ''),
+              otpTemplate: e.WHATSAPP_OTP_TEMPLATE,
+              orderTemplate: e.WHATSAPP_ORDER_TEMPLATE,
+              templateLang: e.WHATSAPP_TEMPLATE_LANG,
+            }
+          : undefined,
+      smsHttp: e.SMS_HTTP_URL ? { url: e.SMS_HTTP_URL, token: e.SMS_HTTP_TOKEN } : undefined,
+      notifyOrderStatus: e.NOTIFY_ORDER_STATUS ?? e.NODE_ENV !== 'test',
+    },
     web: { customerDir: e.CUSTOMER_WEB_DIR, adminDir: e.ADMIN_WEB_DIR },
     defaultCity: e.DEFAULT_CITY,
     currency: 'LYD',

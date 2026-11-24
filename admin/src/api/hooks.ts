@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { qs, request } from './client';
 import type {
+  CustodyRow,
+  DriverCustody,
+  Settlement,
+  SettlementDetail,
   Payout,
   PayoutDetail,
   PayoutPreview,
@@ -309,3 +313,38 @@ export const useMarkPaid = () =>
 
 export const useCancelPayout = () =>
   useInvalidating((id: string) => request<{ id: string }>('DELETE', `/admin/payouts/${id}`), [['payouts']]);
+
+// ---------------------------------------------------------------- driver cash custody (عُهدة المناديب)
+export const useCustody = () =>
+  useQuery({
+    queryKey: ['custody', 'list'],
+    queryFn: () => get<{ items: CustodyRow[]; total: number }>('/admin/custody'),
+    refetchInterval: 60_000,
+  });
+
+export const useDriverCustody = (driverId: string | null) =>
+  useQuery({
+    queryKey: ['custody', 'driver', driverId],
+    queryFn: () => get<DriverCustody>(`/admin/custody/${driverId}`),
+    enabled: !!driverId,
+  });
+
+export const useSettlements = (f: { driverId?: string } = {}) =>
+  useQuery({
+    queryKey: ['custody', 'settlements', f],
+    queryFn: () => get<{ items: Settlement[] }>(`/admin/custody/settlements${qs(f)}`).then((r) => r.items),
+  });
+
+export const useSettlement = (id: string | null) =>
+  useQuery({
+    queryKey: ['custody', 'settlement', id],
+    queryFn: () => get<SettlementDetail>(`/admin/custody/settlements/${id}`),
+    enabled: !!id,
+  });
+
+export const useSettleCustody = () =>
+  useInvalidating(
+    ({ driverId, ...v }: { driverId: string; amountReceived: number; expectedAmount: number; note?: string }) =>
+      request<SettlementDetail>('POST', `/admin/custody/${driverId}/settle`, v),
+    [['custody'], ['drivers']],
+  );

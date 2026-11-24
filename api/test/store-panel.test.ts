@@ -72,7 +72,10 @@ describe('store owner panel', () => {
     assert.equal(store.phone, '+218912345678');
     assert.equal(store.prepHours, 5);
     assert.equal(store.deliveryFee, 10000);
-    assert.equal(store.commissionBps, 1200);
+    // Commission is the general manager's business only: hidden from the store, unchanged in the DB.
+    assert.equal('commissionBps' in store, false);
+    const db = await pool.query(`SELECT commission_bps FROM stores WHERE id = $1`, [store.id]);
+    assert.equal(db.rows[0].commission_bps, 1200);
   });
 
   it('cannot reach the platform-wide store list for other stores', async () => {

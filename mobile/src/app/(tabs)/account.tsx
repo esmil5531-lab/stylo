@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -48,6 +48,14 @@ export default function AccountScreen() {
               </View>
 
               <View style={styles.list}>
+                {user.role === 'driver' && (
+                  <Row
+                    icon="bicycle-outline"
+                    label={ar.account.driverPanel}
+                    value={ar.account.driverPanelHint}
+                    onPress={() => router.push('/driver' as Href)}
+                  />
+                )}
                 <Row icon="receipt-outline" label={ar.account.orders} onPress={() => router.push('/orders')} />
                 <Row
                   icon="location-outline"

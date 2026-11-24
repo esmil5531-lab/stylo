@@ -60,11 +60,49 @@ npm run dev           # http://localhost:4000  (watch mode)
 
 بعد الدخول تُرسل كل الطلبات مع `Authorization: Bearer <token>`.
 
+## واتساب (الرموز وإشعارات الطلبات)
+
+`src/lib/messaging.ts`. القناة حسب `MESSAGING_PROVIDER`:
+
+| القيمة | ما يحدث |
+|---|---|
+| `console` (التطوير) | لا يُرسل شيء؛ الرمز يظهر على الشاشة (`devCode`) وتُكتب إشعارات الطلبات في السجل |
+| `whatsapp` | WhatsApp Business Cloud API: `POST https://graph.facebook.com/{WHATSAPP_API_VERSION}/{WHATSAPP_PHONE_NUMBER_ID}/messages` بـ `Bearer WHATSAPP_TOKEN` |
+| `sms_http` | بديل اختياري: `POST SMS_HTTP_URL { to, text }` |
+
+- رمز الدخول: قالب **Authentication** (`WHATSAPP_OTP_TEMPLATE`، افتراضياً `stylo_login_code`): `{{1}}` = الرمز + زر «نسخ الرمز».
+- حالة الطلب: قالب **Utility** (`WHATSAPP_ORDER_TEMPLATE`، افتراضياً `stylo_order_status`): `{{1}}` الاسم، `{{2}}` رقم الطلب، `{{3}}` الحالة، `{{4}}` المتجر. يُرسل بعد إتمام الطلب، وتغيير الحالة من اللوحة، وأفعال المندوب.
+- كل إرسال يُسجَّل في `message_log` (دون الرمز). فشل إرسال الرمز ⇐ `503 message_failed`.
+- `/auth/otp/request` يعيد `channel` (`whatsapp` | `sms` | `console`).
+
+## عُهدة المناديب (`/v1/admin/custody`)
+
+| Method | Path | الصلاحية | الوصف |
+|---|---|---|---|
+| GET | `/admin/custody` | `custody.read` | كل مندوب: النقد في عهدته، عدد الطلبات والمتاجر، منذ متى، آخر تقفيل |
+| GET | `/admin/custody/:driverId` | `custody.read` | تفصيل العُهدة: الطلبات، وصافي استحقاق كل متجر |
+| POST | `/admin/custody/:driverId/settle` | `custody.manage` | `{ amountReceived, expectedAmount?, note? }` ⇐ تقفيل العُهدة باسم الموظف ووقته، وتعود العُهدة صفراً. الفرق يتطلب ملاحظة |
+| GET | `/admin/custody/settlements?driverId=` · `/admin/custody/settlements/:id` | `custody.read` | سجل التقفيل وتفاصيله |
+
+العمولة ورسوم التوصيل وقيمة المنتجات تظهر في هذه الردود **للمدير العام فقط** (`finance.view`). الآخرون يرون النقد وصافي كل متجر.
+
+## وضع المندوب (`/v1/driver`)
+
+لحسابات `drivers` المفعّلة فقط (غير ذلك ⇐ 403). لا تحتوي أي رد على العمولة أو مستحقات المتاجر.
+
+| Method | Path | الوصف |
+|---|---|---|
+| GET | `/driver/me` | المندوب، العُهدة النقدية الحالية، طلبات اليوم، آخر تسليم للعُهدة |
+| PATCH | `/driver/me/status` | `{ status: 'available' \| 'offline' }` (لا يمكن إنهاء الدوام وطلب في الطريق) |
+| GET | `/driver/orders` | `{ active, deliveredToday }` مع عنوان المتجر والزبون وهاتفيهما والمبلغ المطلوب تحصيله |
+| POST | `/driver/orders/:id/picked-up` | قيد التجهيز ⇐ تم الشحن (للمندوب المسند فقط) |
+| POST | `/driver/orders/:id/delivered` | تم الشحن ⇐ تم التسليم، ويدخل المبلغ عُهدة المندوب |
+
 ## مستحقات المتاجر (`/v1/admin/payouts`)
 
 | Method | Path | الصلاحية | الوصف |
 |---|---|---|---|
-| GET | `/admin/payouts/balances` | `payouts.read` | المستحق لكل متجر: الطلبات المسلّمة غير المسوّاة |
+| GET | `/admin/payouts/balances` | `payouts.read` (المدير العام، ومالك المتجر لمتجره) | المستحق لكل متجر: الطلبات المسلّمة غير المسوّاة |
 | GET | `/admin/payouts/preview?storeId&from&to` | `payouts.manage` | معاينة التسوية للفترة (حسب يوم التسليم) |
 | POST | `/admin/payouts` | `payouts.manage` | `{ storeId, from, to, note? }` ⇐ تسوية «معلّقة» |
 | POST | `/admin/payouts/:id/paid` | `payouts.manage` | `{ reference }` ⇐ «مدفوعة» مع رقم الحوالة |

@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { useMyStore, useUpdateMyStore } from '@/api/hooks';
 import type { AdminStore } from '@/api/types';
-import { IntInput, Money, Percent, PhoneInput, phoneToInput } from '@/components/inputs';
+import { IntInput, Money, PhoneInput, phoneToInput } from '@/components/inputs';
 import { Async, Badge, Empty, ErrorAlert, Field, PageHead } from '@/components/ui';
 import { STORE_STATUS } from '@/lib/constants';
 import { normaliseLibyanPhone, parseIntInput } from '@/lib/numbers';
@@ -130,10 +130,6 @@ function MyStoreForm({ store }: { store: AdminStore }) {
             <dt>رسوم التوصيل المباشر</dt>
             <dd>
               <Money value={store.deliveryFee} />
-            </dd>
-            <dt>نسبة عمولة ستايلو</dt>
-            <dd>
-              <Percent bps={store.commissionBps} /> <span className="muted small">من قيمة المنتجات</span>
             </dd>
           </dl>
         </aside>

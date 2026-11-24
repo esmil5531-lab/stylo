@@ -225,6 +225,13 @@ const PATHS = {
       <path d="M2.5 10h19M7 15h4" />
     </>
   ),
+  custody: (
+    <>
+      <path d="M3 7h15a3 3 0 0 1 3 3v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+      <path d="M3 7l12-4 1.5 4" />
+      <circle cx="16.5" cy="14" r="1.3" />
+    </>
+  ),
   plus: <path d="M12 5v14M5 12h14" />,
   check: <path d="M5 12l5 5 9-10" />,
   x: <path d="M6 6l12 12M18 6L6 18" />,

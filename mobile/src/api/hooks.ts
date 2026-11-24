@@ -12,6 +12,10 @@ import type {
   Home,
   List,
   Look,
+  DriverHome,
+  DriverOrder,
+  DriverOrders,
+  DriverStatus,
   Me,
   OrderDetail,
   OrderSummary,
@@ -36,6 +40,7 @@ export const queryKeys = {
   order: (id: string) => ['orders', id] as const,
   wishlist: ['wishlist'] as const,
   me: ['me'] as const,
+  driver: ['driver'] as const,
 };
 
 export interface ProductQuery {
@@ -171,3 +176,32 @@ export function useToggleWishlist() {
     },
   });
 }
+
+// ---------------------------------------------------------------- driver mode
+export const useDriverHome = () =>
+  useQuery({
+    enabled: useSession().signedIn,
+    queryKey: [...queryKeys.driver, 'me'],
+    queryFn: () => api.get<DriverHome>('/driver/me'),
+    refetchInterval: 60_000,
+  });
+
+export const useDriverOrders = () =>
+  useQuery({
+    enabled: useSession().signedIn,
+    queryKey: [...queryKeys.driver, 'orders'],
+    queryFn: () => api.get<DriverOrders>('/driver/orders'),
+    refetchInterval: 30_000,
+  });
+
+function useDriverMutation<V, R>(fn: (v: V) => Promise<R>) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: fn, onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.driver }) });
+}
+
+export const useDriverPickUp = () =>
+  useDriverMutation((id: string) => api.post<DriverOrder>(`/driver/orders/${id}/picked-up`));
+export const useDriverDeliver = () =>
+  useDriverMutation((id: string) => api.post<DriverOrder>(`/driver/orders/${id}/delivered`));
+export const useDriverStatus = () =>
+  useDriverMutation((status: Exclude<DriverStatus, 'busy'>) => api.patch<DriverHome>('/driver/me/status', { status }));
