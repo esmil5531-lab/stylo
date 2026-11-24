@@ -39,6 +39,7 @@ export async function registerWebsites(
   app: FastifyInstance,
   dirs: { customerDir?: string; adminDir?: string },
   deps?: SeoDeps,
+  opts: { production?: boolean } = {},
 ) {
   const adminDir = dirs.adminDir && resolve(dirs.adminDir);
   const customerDir = dirs.customerDir && resolve(dirs.customerDir);
@@ -60,6 +61,12 @@ export async function registerWebsites(
       reply.header('cache-control', 'no-cache').type('text/html; charset=utf-8').send(adminIndex),
     );
     app.log.info(`back office served at /admin from ${adminDir}`);
+  } else {
+    // Not built yet: explain instead of a bare 404.
+    const page = notBuiltPage('admin', !!opts.production);
+    app.get('/admin', (_req, reply) => reply.redirect('/admin/'));
+    app.get('/admin/*', (_req, reply) => reply.code(503).type('text/html; charset=utf-8').send(page));
+    app.log.warn(`back office not built (${adminDir ?? 'ADMIN_WEB_DIR not set'}): run \`npm run build:admin\` at the repo root`);
   }
 
   if (customerDir && existsSync(join(customerDir, 'index.html'))) {
@@ -112,7 +119,64 @@ export async function registerWebsites(
     app.get('/', handler);
     app.get('/*', handler);
     app.log.info(`customer site served at / from ${customerDir}`);
+  } else {
+    const page = notBuiltPage('customer', !!opts.production);
+    const send = (_req: FastifyRequest, reply: import('fastify').FastifyReply) =>
+      reply.code(503).header('cache-control', 'no-store').type('text/html; charset=utf-8').send(page);
+    app.get('/', send);
+    app.get('/*', (req, reply) => {
+      const path = (req.params as { '*'?: string })['*'] ?? '';
+      if (path === 'v1' || path.startsWith('v1/')) {
+        return reply.code(404).send({ error: { code: 'not_found', message: 'المسار غير موجود' } });
+      }
+      return send(req, reply);
+    });
+    app.log.warn(`customer site not built (${customerDir ?? 'CUSTOMER_WEB_DIR not set'}): run \`npm run build:customer\` at the repo root`);
   }
+}
+
+/**
+ * Shown at / (or /admin/) while the website has not been built: the API itself is fine, only the
+ * static export is missing. Development explains how to build it; production shows a neutral page.
+ */
+function notBuiltPage(site: 'customer' | 'admin', production: boolean): string {
+  const title = site === 'customer' ? 'موقع الزبائن' : 'لوحة الإدارة والمتاجر';
+  const command = site === 'customer' ? 'npm run build:customer' : 'npm run build:admin';
+  const body = production
+    ? `<p>الموقع قيد التجهيز، نعود قريباً.</p>`
+    : `<p>الخادم يعمل ✓ لكن <b>${title}</b> لم يُبنَ بعد، لذلك لا توجد صفحة لعرضها هنا.</p>
+       <p>من مجلد المشروع شغّلي أحد الأمرين ثم أعيدي تشغيل الخادم:</p>
+       <pre dir="ltr">${command}</pre>
+       <pre dir="ltr">npm run build</pre>
+       <p class="muted">أو جرّبي التطبيق مباشرة: <code dir="ltr">npm run dev:mobile</code> (Expo Go)،
+       ولوحة الإدارة أثناء التطوير: <code dir="ltr">npm --prefix admin run dev</code> ← <span dir="ltr">http://localhost:5174/admin/</span></p>
+       <ul>
+         <li><a href="/health" dir="ltr">/health</a> — فحص الخادم وقاعدة البيانات</li>
+         <li><a href="/v1/home" dir="ltr">/v1/home</a> — بيانات الرئيسية من الـ API</li>
+       </ul>`;
+  return `<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="robots" content="noindex"/><meta name="theme-color" content="#5B0E2D"/>
+<title>ستايلو — ${title}</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       font-family:Cairo,'Segoe UI',Tahoma,sans-serif;background:#F4DFE6;color:#1A1A1C;padding:16px;box-sizing:border-box}
+  main{background:#fff;border-radius:20px;padding:28px 24px;max-width:560px;width:100%;box-shadow:0 4px 18px rgba(91,14,45,.08)}
+  .word{font-family:Cinzel,Georgia,serif;font-size:34px;letter-spacing:4px;color:#5B0E2D;text-align:center;margin:0}
+  .tag{text-align:center;color:#3F0820;font-weight:600;margin:4px 0 20px}
+  p{line-height:1.8;margin:8px 0}
+  pre{background:#F4F1F2;border-radius:10px;padding:10px 14px;font-size:15px;margin:8px 0;overflow-x:auto}
+  code{background:#F4F1F2;border-radius:6px;padding:1px 6px;white-space:nowrap;unicode-bidi:isolate}
+  .muted{color:#625D60;font-size:14px}
+  a{color:#5B0E2D;font-weight:700}
+  ul{padding-inline-start:20px;line-height:1.9}
+</style></head>
+<body><main>
+  <p class="word">STYLO</p>
+  <p class="tag">كل ستايل في مكان واحد</p>
+  ${body}
+</main></body></html>`;
 }
 
 interface RouteTable {

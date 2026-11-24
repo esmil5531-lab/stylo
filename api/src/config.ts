@@ -1,6 +1,11 @@
+import { fileURLToPath } from 'node:url';
+
 import { z } from 'zod';
 
 import type { SeoConfig } from './seo.js';
+
+/** api/src/config.ts and api/dist/config.js are both two levels below the repo root. */
+const REPO_DIR = (path: string) => fileURLToPath(new URL(`../../${path}`, import.meta.url));
 
 const bool = z
   .enum(['true', 'false', '1', '0'])
@@ -180,7 +185,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       smsHttp: e.SMS_HTTP_URL ? { url: e.SMS_HTTP_URL, token: e.SMS_HTTP_TOKEN } : undefined,
       notifyOrderStatus: e.NOTIFY_ORDER_STATUS ?? e.NODE_ENV !== 'test',
     },
-    web: { customerDir: e.CUSTOMER_WEB_DIR, adminDir: e.ADMIN_WEB_DIR },
+    // Defaults (outside tests): the build folders in this repo, wherever the server is started from —
+    // so an older api/.env without these lines still serves both sites after `npm run build`.
+    web: {
+      customerDir: e.CUSTOMER_WEB_DIR ?? (e.NODE_ENV === 'test' ? undefined : REPO_DIR('mobile/dist')),
+      adminDir: e.ADMIN_WEB_DIR ?? (e.NODE_ENV === 'test' ? undefined : REPO_DIR('admin/dist')),
+    },
     seo: {
       siteUrl: e.PUBLIC_SITE_URL?.replace(/\/$/, ''),
       indexing: e.SEO_INDEXING ?? production,

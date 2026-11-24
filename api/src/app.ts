@@ -161,7 +161,7 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
   });
 
   // The customer site (/) and the back office (/admin) when built — see registerWebsites.
-  await registerWebsites(app, config.web, { db: pool, seo: config.seo, origin });
+  await registerWebsites(app, config.web, { db: pool, seo: config.seo, origin }, { production: config.env === 'production' });
 
   return app;
 }
