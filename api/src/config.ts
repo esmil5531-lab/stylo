@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { SeoConfig } from './seo.js';
+
 const bool = z
   .enum(['true', 'false', '1', '0'])
   .optional()
@@ -39,6 +41,16 @@ const EnvSchema = z.object({
   CUSTOMER_WEB_DIR: z.string().optional(),
   /** Folder with the built back office (served at /admin). */
   ADMIN_WEB_DIR: z.string().optional(),
+  /** Public address of the site, e.g. https://stylo.ly (canonical links, sitemap, previews). */
+  PUBLIC_SITE_URL: z.string().url().optional(),
+  /** Let Google index the customer site. Default: on in production only (never index staging). */
+  SEO_INDEXING: bool,
+  /** Content of the google-site-verification meta tag (Google Search Console → HTML tag). */
+  GOOGLE_SITE_VERIFICATION: z.string().regex(/^[A-Za-z0-9_-]{10,100}$/).optional(),
+  /** Behind a reverse proxy (Caddy/Nginx): trust X-Forwarded-* for protocol and client IP. */
+  TRUST_PROXY: bool,
+  /** Extra origins allowed to call the API from a browser (comma-separated). Same-origin needs none. */
+  CORS_ORIGINS: z.string().optional(),
   DEFAULT_CITY: z.string().default('طرابلس'),
   // Delivery rules (amounts in LYD dirhams: 1 د.ل = 1000)
   EXPRESS_SURCHARGE: z.coerce.number().int().nonnegative().default(5000),
@@ -100,6 +112,10 @@ export interface Config {
   auth: AuthConfig;
   messaging: MessagingConfig;
   web: { customerDir?: string; adminDir?: string };
+  seo: SeoConfig;
+  trustProxy: boolean;
+  /** true = reflect any origin (development); otherwise the listed origins only. */
+  corsOrigins: true | string[];
   defaultCity: string;
   currency: 'LYD';
   delivery: DeliveryConfig;
@@ -114,6 +130,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (production) {
     // Fail fast instead of running an insecure production server.
     if (!e.OTP_PEPPER) throw new Error('OTP_PEPPER is required in production');
+    if (!e.PUBLIC_SITE_URL?.startsWith('https://')) {
+      throw new Error('PUBLIC_SITE_URL must be the https:// address of the site in production');
+    }
     if (e.MESSAGING_PROVIDER === 'console') {
       throw new Error('Production needs a real channel: MESSAGING_PROVIDER=whatsapp (or sms_http)');
     }
@@ -162,6 +181,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       notifyOrderStatus: e.NOTIFY_ORDER_STATUS ?? e.NODE_ENV !== 'test',
     },
     web: { customerDir: e.CUSTOMER_WEB_DIR, adminDir: e.ADMIN_WEB_DIR },
+    seo: {
+      siteUrl: e.PUBLIC_SITE_URL?.replace(/\/$/, ''),
+      indexing: e.SEO_INDEXING ?? production,
+      googleSiteVerification: e.GOOGLE_SITE_VERIFICATION,
+    },
+    trustProxy: e.TRUST_PROXY ?? production,
+    corsOrigins: e.CORS_ORIGINS
+      ? e.CORS_ORIGINS.split(',').map((o) => o.trim().replace(/\/$/, '')).filter(Boolean)
+      : production
+        ? []
+        : true,
     defaultCity: e.DEFAULT_CITY,
     currency: 'LYD',
     delivery: {

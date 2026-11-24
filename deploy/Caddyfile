@@ -1,0 +1,15 @@
+# HTTPS is automatic: Caddy gets and renews Let's Encrypt certificates for {$DOMAIN}.
+# DNS: A record of the domain (and www) → this server's IP, before the first start.
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	reverse_proxy app:4000
+}

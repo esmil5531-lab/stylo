@@ -7,6 +7,7 @@ import type { Pool } from './db.js';
 import type { Ctx } from './lib/context.js';
 import { AppError } from './lib/errors.js';
 import { createMessenger, type FetchLike, type Messenger } from './lib/messaging.js';
+import { robotsTxt, sitemapXml } from './seo.js';
 import { registerWebsites } from './web.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { authRoutes, bearerToken } from './modules/auth/auth.routes.js';
@@ -49,6 +50,7 @@ export interface BuildAppOptions {
 export async function buildApp({ pool, config, now = () => new Date(), logger = true, fetch }: BuildAppOptions) {
   const app: FastifyInstance = Fastify({
     logger: logger ? { level: config.logLevel } : false,
+    trustProxy: config.trustProxy,
   });
 
   app.decorate('db', pool);
@@ -57,7 +59,19 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
   app.decorateRequest('userId', null);
   app.decorate('messenger', createMessenger(config.messaging, { db: pool, log: (m) => app.log.info(m), fetch }));
 
-  await app.register(cors, { origin: true });
+  // The websites call /v1 on the same origin and the native app sends no Origin, so production
+  // needs no CORS at all unless CORS_ORIGINS lists another site.
+  await app.register(cors, { origin: config.corsOrigins });
+
+  app.addHook('onSend', async (req, reply, payload) => {
+    reply.header('x-content-type-options', 'nosniff');
+    reply.header('referrer-policy', 'strict-origin-when-cross-origin');
+    const url = req.url;
+    if (url.startsWith('/v1') || url.startsWith('/admin')) reply.header('x-robots-tag', 'noindex, nofollow');
+    if (url.startsWith('/admin')) reply.header('x-frame-options', 'DENY');
+    else reply.header('x-frame-options', 'SAMEORIGIN');
+    return payload;
+  });
 
   /**
    * Who is calling: `Authorization: Bearer <token>` from phone + code sign-in (/v1/auth).
@@ -138,8 +152,16 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
     { prefix: '/v1' },
   );
 
+  // robots.txt + sitemap.xml for Google (see seo.ts).
+  const origin = (req: FastifyRequest) => config.seo.siteUrl ?? `${req.protocol}://${req.host}`;
+  app.get('/robots.txt', async (req, reply) => reply.type('text/plain; charset=utf-8').send(robotsTxt(origin(req), config.seo)));
+  app.get('/sitemap.xml', async (req, reply) => {
+    reply.header('cache-control', 'public, max-age=3600');
+    return reply.type('application/xml; charset=utf-8').send(await sitemapXml(pool, origin(req)));
+  });
+
   // The customer site (/) and the back office (/admin) when built — see registerWebsites.
-  await registerWebsites(app, config.web);
+  await registerWebsites(app, config.web, { db: pool, seo: config.seo, origin });
 
   return app;
 }

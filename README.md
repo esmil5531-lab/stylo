@@ -80,10 +80,13 @@ cd mobile && npx expo start --tunnel        # نافذة ثانية: يظهر ر
 
 ## للنشر على خادم حقيقي
 
+الدليل الكامل خطوة بخطوة (Docker + HTTPS + نسخ احتياطي + Google Search Console) في [docs/DEPLOY.md](docs/DEPLOY.md). الخلاصة:
+
 في `api/.env`:
 
 ```
 NODE_ENV=production
+PUBLIC_SITE_URL=https://<النطاق>
 OTP_PEPPER=<سلسلة عشوائية 32 حرفاً أو أكثر>
 MESSAGING_PROVIDER=whatsapp
 WHATSAPP_TOKEN=<توكن System User من Meta>
