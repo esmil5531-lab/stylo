@@ -2,6 +2,7 @@
  * Store self-management (لوحة المتجر), products & sizes, reports & commission.
  * Rebuilds TEST_DATABASE_URL; test files run one at a time (see package.json).
  */
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { after, before, describe, it } from 'node:test';
@@ -13,7 +14,7 @@ import { loadConfig } from '../src/config.js';
 import { createPool, type Pool } from '../src/db.js';
 
 const TEST_DB = process.env.TEST_DATABASE_URL ?? 'postgresql://stylo:stylo@localhost:5432/stylo_test';
-const ROOT = new URL('../../database/', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('../../database/', import.meta.url));
 const NOW = new Date('2026-11-23T08:00:00Z');
 
 const ADMIN = '00000000-0000-0000-0000-000000000001';

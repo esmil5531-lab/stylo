@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
 
+import type { DatabaseConfig } from './lib/database.js';
 import type { SeoConfig } from './seo.js';
 
 /** api/src/config.ts and api/dist/config.js are both two levels below the repo root. */
@@ -15,6 +16,10 @@ const bool = z
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().default('postgresql://stylo:stylo@localhost:5432/stylo_dev'),
+  /** disable | require | verify — see lib/database.ts (unset = automatic per host). */
+  DATABASE_SSL: z.enum(['disable', 'require', 'verify']).optional(),
+  /** CA certificate file for DATABASE_SSL=verify (e.g. Supabase's prod-ca-2021.crt). */
+  DATABASE_CA_FILE: z.string().optional(),
   PORT: z.coerce.number().int().default(4000),
   HOST: z.string().default('0.0.0.0'),
   LOG_LEVEL: z.string().default('info'),
@@ -111,6 +116,7 @@ export interface MessagingConfig {
 export interface Config {
   env: 'development' | 'test' | 'production';
   databaseUrl: string;
+  database: DatabaseConfig;
   port: number;
   host: string;
   logLevel: string;
@@ -152,6 +158,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     env: e.NODE_ENV,
     databaseUrl: e.DATABASE_URL,
+    database: { url: e.DATABASE_URL, ssl: e.DATABASE_SSL, caFile: e.DATABASE_CA_FILE },
     port: e.PORT,
     host: e.HOST,
     logLevel: e.LOG_LEVEL,

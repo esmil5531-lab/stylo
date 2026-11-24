@@ -1,14 +1,16 @@
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 import { loadConfig } from '../config.js';
 import { createPool } from '../db.js';
 
-const SEED = new URL('../../../database/seeds/dev_seed.sql', import.meta.url).pathname;
+// fileURLToPath, not URL.pathname: on Windows .pathname gives "/C:/…", which fs cannot open.
+const SEED = fileURLToPath(new URL('../../../database/seeds/dev_seed.sql', import.meta.url));
 
 async function main() {
   const config = loadConfig();
   if (config.env === 'production') throw new Error('Refusing to seed a production database');
-  const pool = createPool(config.databaseUrl);
+  const pool = createPool(config.database);
   try {
     await pool.query(await readFile(SEED, 'utf8'));
     console.log('✓ seeded development data');

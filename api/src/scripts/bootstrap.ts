@@ -30,7 +30,7 @@ async function main() {
   }
   const phone = normalisePhone(values.phone);
   const name = values.name.trim();
-  const pool = createPool(loadConfig().databaseUrl);
+  const pool = createPool(loadConfig().database);
   try {
     await withTransaction(pool, async (db) => {
       const user = await db.query(

@@ -1,5 +1,7 @@
 import pg from 'pg';
 
+import { poolOptions, type DatabaseConfig } from './lib/database.js';
+
 // BIGINT (money in dirhams, counters) and NUMERIC (ratings) arrive as strings by default.
 // All our BIGINT values are far below Number.MAX_SAFE_INTEGER.
 pg.types.setTypeParser(pg.types.builtins.INT8, (v) => Number(v));
@@ -10,8 +12,15 @@ pg.types.setTypeParser(pg.types.builtins.DATE, (v) => v);
 export type Pool = pg.Pool;
 export type Queryable = pg.Pool | pg.PoolClient;
 
-export function createPool(connectionString: string): pg.Pool {
-  return new pg.Pool({ connectionString, max: 10 });
+/**
+ * A connection pool. Pass the whole database config (SSL for Supabase & co, see lib/database.ts);
+ * a bare URL is a plain local connection (tests).
+ */
+export function createPool(db: string | DatabaseConfig): pg.Pool {
+  const pool = new pg.Pool(poolOptions(typeof db === 'string' ? { url: db } : db));
+  // An idle client losing its connection (cloud poolers restart) must not crash the process.
+  pool.on('error', () => undefined);
+  return pool;
 }
 
 export async function withTransaction<T>(pool: pg.Pool, fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {

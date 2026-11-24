@@ -1,17 +1,19 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { loadConfig } from '../config.js';
 import { createPool } from '../db.js';
 
-const MIGRATIONS_DIR = new URL('../../../database/migrations/', import.meta.url).pathname;
+// fileURLToPath, not URL.pathname: on Windows .pathname gives "/C:/…", which fs cannot open.
+const MIGRATIONS_DIR = fileURLToPath(new URL('../../../database/migrations/', import.meta.url));
 
 /**
  * Applies database/migrations/NNNN_*.sql in order, once each, tracked in schema_migrations.
  * Each file manages its own BEGIN/COMMIT.
  */
 async function main() {
-  const pool = createPool(loadConfig().databaseUrl);
+  const pool = createPool(loadConfig().database);
   try {
     await pool.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
       version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`);

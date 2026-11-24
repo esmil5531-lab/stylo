@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import type { Config } from './config.js';
 import type { Pool } from './db.js';
 import type { Ctx } from './lib/context.js';
+import { diagnoseDbError } from './lib/database.js';
 import { AppError } from './lib/errors.js';
 import { createMessenger, type FetchLike, type Messenger } from './lib/messaging.js';
 import { robotsTxt, sitemapXml } from './seo.js';
@@ -122,6 +123,22 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
     if (pgCode === '22P02') {
       return reply.status(400).send({ error: { code: 'invalid_id', message: 'معرّف غير صالح' } });
     }
+    // Cannot reach the database (wrong host, Supabase IPv6-only address, password, SSL…):
+    // say so instead of «حدث خطأ غير متوقع», with the fix in development.
+    const dbProblem = diagnoseDbError(err, config.database.url);
+    if (dbProblem) {
+      req.log.error({ err, dbProblem: dbProblem.code }, dbProblem.hint);
+      const dev = config.env !== 'production';
+      return reply.status(503).send({
+        error: {
+          code: 'database_unavailable',
+          message: dev
+            ? `تعذّر الاتصال بقاعدة البيانات. ${dbProblem.hintAr}`
+            : 'الخدمة غير متاحة مؤقتاً، حاولي بعد قليل',
+          details: dev ? { reason: dbProblem.code } : undefined,
+        },
+      });
+    }
     const status = (err as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) {
       return reply.status(status).send({ error: { code: 'bad_request', message: (err as Error).message } });
@@ -130,9 +147,18 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
     return reply.status(500).send({ error: { code: 'internal', message: 'حدث خطأ غير متوقع، حاولي مرة أخرى' } });
   });
 
-  app.get('/health', async () => {
-    await pool.query('SELECT 1');
-    return { ok: true };
+  app.get('/health', async (_req, reply) => {
+    try {
+      await pool.query('SELECT 1');
+      return { ok: true, database: 'connected' };
+    } catch (err) {
+      const problem = diagnoseDbError(err, config.database.url);
+      return reply.status(503).send({
+        ok: false,
+        database: problem?.code ?? 'error',
+        ...(config.env !== 'production' && problem ? { hint: problem.hintAr } : {}),
+      });
+    }
   });
 
   await app.register(

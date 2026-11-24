@@ -2,6 +2,7 @@
  * Phone + one-time-code sign-in (customers, staff, store owners) and store payouts.
  * No dev header here: every request is authenticated with a real bearer token.
  */
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { after, before, describe, it } from 'node:test';
@@ -13,7 +14,7 @@ import { loadConfig } from '../src/config.js';
 import { createPool, type Pool } from '../src/db.js';
 
 const TEST_DB = process.env.TEST_DATABASE_URL ?? 'postgresql://stylo:stylo@localhost:5432/stylo_test';
-const ROOT = new URL('../../database/', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('../../database/', import.meta.url));
 
 let pool: Pool;
 let app: FastifyInstance;

@@ -1,6 +1,7 @@
 /**
  * Google & link previews: robots.txt, sitemap.xml and per-page tags injected into the customer site.
  */
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
@@ -15,7 +16,7 @@ import { loadConfig } from '../src/config.js';
 import { createPool, type Pool } from '../src/db.js';
 
 const TEST_DB = process.env.TEST_DATABASE_URL ?? 'postgresql://stylo:stylo@localhost:5432/stylo_test';
-const ROOT = new URL('../../database/', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('../../database/', import.meta.url));
 const DRESS = '30000000-0000-0000-0000-000000000001';
 const SITE = 'https://stylo.example';
 

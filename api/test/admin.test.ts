@@ -3,6 +3,7 @@
  * and walking an order through the six statuses with a driver.
  * Runs against TEST_DATABASE_URL (rebuilt here), so test files run one at a time (see package.json).
  */
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { after, before, describe, it } from 'node:test';
@@ -14,7 +15,7 @@ import { loadConfig } from '../src/config.js';
 import { createPool, type Pool } from '../src/db.js';
 
 const TEST_DB = process.env.TEST_DATABASE_URL ?? 'postgresql://stylo:stylo@localhost:5432/stylo_test';
-const ROOT = new URL('../../database/', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('../../database/', import.meta.url));
 
 const ADMIN = '00000000-0000-0000-0000-000000000001'; // super_admin
 const OPS = '00000000-0000-0000-0000-000000000006'; // operations_manager

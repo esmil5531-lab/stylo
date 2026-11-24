@@ -2,6 +2,7 @@
  * Integration tests: real PostgreSQL (TEST_DATABASE_URL, default stylo_test), fixed clock.
  * The schema is rebuilt from database/migrations + dev seed before the run.
  */
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { after, before, describe, it } from 'node:test';
@@ -14,7 +15,7 @@ import { createPool, type Pool } from '../src/db.js';
 import { quoteDelivery } from '../src/modules/delivery/delivery.js';
 
 const TEST_DB = process.env.TEST_DATABASE_URL ?? 'postgresql://stylo:stylo@localhost:5432/stylo_test';
-const ROOT = new URL('../../database/', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('../../database/', import.meta.url));
 // 10:00 in Libya (UTC+2) — inside the delivery window, so same-city orders can arrive today.
 const NOW = new Date('2026-11-23T08:00:00Z');
 

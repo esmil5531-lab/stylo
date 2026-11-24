@@ -2,6 +2,7 @@
  * Driver cash custody (عُهدة المناديب), driver mode (/v1/driver), commission visible to the general
  * manager only, and WhatsApp messaging (OTP + order status updates).
  */
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { after, before, describe, it } from 'node:test';
@@ -14,7 +15,7 @@ import { createPool, type Pool } from '../src/db.js';
 import { buildWhatsAppOtpPayload } from '../src/lib/messaging.js';
 
 const TEST_DB = process.env.TEST_DATABASE_URL ?? 'postgresql://stylo:stylo@localhost:5432/stylo_test';
-const ROOT = new URL('../../database/', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('../../database/', import.meta.url));
 
 const ADMIN = '00000000-0000-0000-0000-000000000001'; // مدير عام (finance.view)
 const OPS = '00000000-0000-0000-0000-000000000006'; // أحمد الزوي — مدير عمليات

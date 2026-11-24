@@ -5,6 +5,7 @@
   "scripts": {
     "install:all": "npm --prefix api install && npm --prefix admin install && npm --prefix mobile install",
     "db:reset": "npm --prefix api run db:reset",
+    "db:check": "npm --prefix api run db:check",
     "dev:api": "npm --prefix api run dev",
     "dev:mobile": "npm --prefix mobile run start:lan",
     "build:customer": "cd mobile && npm run export:web",
