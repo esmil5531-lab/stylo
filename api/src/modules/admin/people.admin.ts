@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { inTransaction, type Queryable } from '../../db.js';
 import type { Ctx } from '../../lib/context.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
+import { normalisePhone } from '../../lib/phone.js';
 import { PERMISSIONS, requirePermission, type Permission, type StaffContext } from './permissions.js';
 
 /**
@@ -14,20 +15,7 @@ export const STORE_STATUSES = ['pending_review', 'active', 'suspended'] as const
 export const DRIVER_STATUSES = ['available', 'busy', 'offline'] as const;
 export const VEHICLES = ['motorcycle', 'car', 'van'] as const;
 
-/** Libyan phone numbers, normalised to +218XXXXXXXXX. */
-export function normalisePhone(raw: string): string {
-  // Accept Arabic-Indic (٠-٩) and Persian (۰-۹) digits as typed on Arabic keyboards.
-  const western = raw
-    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
-  const digits = western.replace(/[^\d+]/g, '');
-  let local = digits.replace(/^\+?218/, '').replace(/^0/, '');
-  if (!/^9[1-5]\d{7}$/.test(local)) {
-    throw badRequest('invalid_phone', 'رقم الهاتف غير صحيح. مثال: 0912345678');
-  }
-  local = `+218${local}`;
-  return local;
-}
+export { normalisePhone };
 
 async function assertPhoneFree(db: Queryable, phone: string, email?: string | null) {
   const { rows } = await db.query(

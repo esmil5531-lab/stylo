@@ -21,6 +21,8 @@ export const PERMISSIONS = {
   'store.profile': 'تعديل إعدادات متجره',
   'reports.view': 'عرض التقارير والأرباح',
   'stores.commission': 'تحديد نسبة عمولة المتاجر',
+  'payouts.read': 'عرض مستحقات المتاجر والتسويات',
+  'payouts.manage': 'إنشاء التسويات وتسجيل الدفع',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;

@@ -39,7 +39,7 @@ before(async () => {
   await pool.query(await readFile(`${ROOT}seeds/dev_seed.sql`, 'utf8'));
   app = await buildApp({
     pool,
-    config: loadConfig({ NODE_ENV: 'test', DATABASE_URL: TEST_DB }),
+    config: loadConfig({ NODE_ENV: 'test', AUTH_DEV_HEADER: 'true', DATABASE_URL: TEST_DB }),
     now: () => NOW,
     logger: false,
   });

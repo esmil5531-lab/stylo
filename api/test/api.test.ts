@@ -42,7 +42,7 @@ function req(method: 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT', url: string, b
 before(async () => {
   pool = createPool(TEST_DB);
   await resetDatabase(pool);
-  const config = loadConfig({ NODE_ENV: 'test', DATABASE_URL: TEST_DB, DEV_USER_ID: SARA });
+  const config = loadConfig({ NODE_ENV: 'test', AUTH_DEV_HEADER: 'true', DATABASE_URL: TEST_DB, DEV_USER_ID: SARA });
   app = await buildApp({ pool, config, now: () => NOW, logger: false });
   const { rows } = await pool.query('SELECT id, sku FROM product_variants');
   for (const r of rows) variantIds[r.sku] = r.id;

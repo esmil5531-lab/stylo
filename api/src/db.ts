@@ -4,6 +4,8 @@ import pg from 'pg';
 // All our BIGINT values are far below Number.MAX_SAFE_INTEGER.
 pg.types.setTypeParser(pg.types.builtins.INT8, (v) => Number(v));
 pg.types.setTypeParser(pg.types.builtins.NUMERIC, (v) => Number(v));
+// DATE stays 'YYYY-MM-DD' (a calendar day, e.g. a payout period) — never shifted by the server time zone.
+pg.types.setTypeParser(pg.types.builtins.DATE, (v) => v);
 
 export type Pool = pg.Pool;
 export type Queryable = pg.Pool | pg.PoolClient;

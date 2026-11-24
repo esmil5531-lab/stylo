@@ -6,7 +6,10 @@ import type { Config } from './config.js';
 import type { Pool } from './db.js';
 import type { Ctx } from './lib/context.js';
 import { AppError } from './lib/errors.js';
+import { registerWebsites } from './web.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
+import { authRoutes, bearerToken } from './modules/auth/auth.routes.js';
+import { resolveSession } from './modules/auth/auth.service.js';
 import { cartRoutes } from './modules/cart/cart.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { homeRoutes } from './modules/home/home.routes.js';
@@ -50,15 +53,20 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
   await app.register(cors, { origin: true });
 
   /**
-   * TEMPORARY auth until real login exists (see CLAUDE.md):
-   * outside production, `x-user-id` (or DEV_USER_ID) identifies the user.
-   * In production no user is set, so every user route answers 401.
+   * Who is calling: `Authorization: Bearer <token>` from phone + code sign-in (/v1/auth).
+   * Tests only (AUTH_DEV_HEADER, never in production): `x-user-id` / DEV_USER_ID.
    */
   app.addHook('onRequest', async (req) => {
-    if (config.env === 'production') return;
-    const header = req.headers['x-user-id'];
-    if (typeof header === 'string' && UUID_RE.test(header)) req.userId = header;
-    else req.userId = config.devUserId ?? null;
+    const token = bearerToken(req.headers.authorization);
+    if (token) {
+      req.userId = await resolveSession(pool, token, now());
+      return;
+    }
+    if (config.auth.devHeader) {
+      const header = req.headers['x-user-id'];
+      if (typeof header === 'string' && UUID_RE.test(header)) req.userId = header;
+      else req.userId = config.auth.devUserId ?? null;
+    }
   });
 
   app.setErrorHandler((err, req, reply) => {
@@ -108,6 +116,7 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
 
   await app.register(
     async (v1) => {
+      await v1.register(authRoutes);
       await v1.register(homeRoutes);
       await v1.register(catalogRoutes);
       await v1.register(storesRoutes);
@@ -120,6 +129,9 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
     },
     { prefix: '/v1' },
   );
+
+  // The customer site (/) and the back office (/admin) when built — see registerWebsites.
+  await registerWebsites(app, config.web);
 
   return app;
 }

@@ -11,6 +11,15 @@ import {
   PRODUCT_STATUSES,
   updateProduct,
 } from './products.admin.js';
+import {
+  cancelPayout,
+  createPayout,
+  getPayout,
+  listBalances,
+  listPayouts,
+  markPayoutPaid,
+  previewPayout,
+} from './payouts.admin.js';
 import { getReport } from './reports.admin.js';
 import {
   createDriver,
@@ -236,6 +245,45 @@ export async function adminRoutes(app: FastifyInstance) {
     const staff = can(req, 'products.write');
     const { id } = IdParams.parse(req.params);
     return updateProduct(app.ctx(req), staff, id, ProductBody.parse(req.body));
+  });
+
+  // ------------------------------------------------------------ payouts (تسوية المستحقات)
+  app.get('/payouts/balances', async (req) => ({ items: await listBalances(app.ctx(req), can(req, 'payouts.read')) }));
+  app.get('/payouts/preview', async (req) => {
+    const staff = can(req, 'payouts.manage');
+    const q = z.object({ storeId: Id, from: Day, to: Day }).parse(req.query);
+    return previewPayout(app.ctx(req), staff, q);
+  });
+  app.get('/payouts', async (req) => {
+    const staff = can(req, 'payouts.read');
+    const q = z.object({ storeId: Id.optional(), status: z.enum(['pending', 'paid']).optional() }).parse(req.query);
+    return { items: await listPayouts(app.ctx(req), staff, q) };
+  });
+  app.get('/payouts/:id', async (req) => {
+    const staff = can(req, 'payouts.read');
+    const { id } = IdParams.parse(req.params);
+    return getPayout(app.ctx(req), staff, id);
+  });
+  app.post('/payouts', async (req, reply) => {
+    const staff = can(req, 'payouts.manage');
+    const body = z
+      .object({ storeId: Id, from: Day, to: Day, note: z.string().trim().max(300).optional() })
+      .parse(req.body);
+    reply.status(201);
+    return createPayout(app.ctx(req), staff, body);
+  });
+  app.post('/payouts/:id/paid', async (req) => {
+    const staff = can(req, 'payouts.manage');
+    const { id } = IdParams.parse(req.params);
+    const body = z
+      .object({ reference: z.string().trim().min(2).max(80), note: z.string().trim().max(300).optional() })
+      .parse(req.body);
+    return markPayoutPaid(app.ctx(req), staff, id, body);
+  });
+  app.delete('/payouts/:id', async (req) => {
+    can(req, 'payouts.manage');
+    const { id } = IdParams.parse(req.params);
+    return cancelPayout(app.ctx(req), id);
   });
 
   // ------------------------------------------------------------ reports

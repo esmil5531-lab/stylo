@@ -39,7 +39,7 @@ before(async () => {
   const files = (await readdir(`${ROOT}migrations`)).filter((f) => f.endsWith('.sql')).sort();
   for (const f of files) await pool.query(await readFile(`${ROOT}migrations/${f}`, 'utf8'));
   await pool.query(await readFile(`${ROOT}seeds/dev_seed.sql`, 'utf8'));
-  app = await buildApp({ pool, config: loadConfig({ NODE_ENV: 'test', DATABASE_URL: TEST_DB }), logger: false });
+  app = await buildApp({ pool, config: loadConfig({ NODE_ENV: 'test', AUTH_DEV_HEADER: 'true', DATABASE_URL: TEST_DB }), logger: false });
 });
 
 after(async () => {

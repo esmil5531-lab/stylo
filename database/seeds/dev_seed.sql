@@ -4,7 +4,8 @@
 -- compare_at_price > base_price marks a product as on offer ("عروض").
 BEGIN;
 
-TRUNCATE users, stores, categories, products, banners, looks, shared_carts, carts, staff_members, drivers RESTART IDENTITY CASCADE;
+TRUNCATE users, stores, categories, products, banners, looks, shared_carts, carts, staff_members, drivers,
+         otp_codes, payouts RESTART IDENTITY CASCADE;
 
 -- ---------------------------------------------------------------- users
 INSERT INTO users (id, email, full_name, role) VALUES
@@ -21,6 +22,10 @@ INSERT INTO users (id, email, phone, full_name, role) VALUES
   ('00000000-0000-0000-0000-000000000023', 'luna@stylo.local',  '+218910000023', 'لينا القذافي',  'vendor'),
   ('00000000-0000-0000-0000-000000000024', 'chic@stylo.local',  '+218910000024', 'شيماء الجهاني', 'vendor'),
   ('00000000-0000-0000-0000-000000000025', 'vela@stylo.local',  '+218920000025', 'وفاء العبيدي',  'vendor');
+-- Everyone signs in with a phone number + one-time code.
+UPDATE users SET phone = '+218910000001' WHERE id = '00000000-0000-0000-0000-000000000001';
+UPDATE users SET phone = '+218910000004' WHERE id = '00000000-0000-0000-0000-000000000004';
+UPDATE users SET phone = '+218920000005' WHERE id = '00000000-0000-0000-0000-000000000005';
 UPDATE users SET phone = '+218910000002' WHERE id = '00000000-0000-0000-0000-000000000002';
 UPDATE users SET phone = '+218910000003' WHERE id = '00000000-0000-0000-0000-000000000003';
 
