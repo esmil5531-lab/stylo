@@ -348,3 +348,10 @@ table.table { width: 100%; border-collapse: collapse; }
 .share-bar { height: 8px; border-radius: 4px; background: var(--primary-soft); overflow: hidden; min-width: 80px; }
 .share-bar span { display: block; height: 100%; background: var(--primary); border-radius: 4px; }
 @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .field-grid-3 { grid-template-columns: 1fr 1fr; } }
+
+/* ---------------------------------------------------------------- sign-in */
+.login-wrap { min-height: 100vh; display: grid; place-content: center; gap: 14px; padding: 24px; background: linear-gradient(160deg, var(--hero), var(--bg) 60%); }
+.login-card { width: min(420px, calc(100vw - 32px)); padding: 28px 24px; display: flex; flex-direction: column; gap: 16px; }
+.login-brand .brand-word { font-size: 34px; }
+.otp-input { text-align: center; letter-spacing: 10px; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.dev-note { background: #fff7e0; color: #6b4e00; border: 1px dashed #d9b44a; }

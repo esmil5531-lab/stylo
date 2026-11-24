@@ -18,6 +18,7 @@ import { DriversPage } from './pages/Drivers';
 import { OrderPage } from './pages/Order';
 import { MyStorePage } from './pages/MyStore';
 import { OrdersPage } from './pages/Orders';
+import { PayoutsPage } from './pages/Payouts';
 import { ProductFormPage } from './pages/ProductForm';
 import { ProductsPage } from './pages/Products';
 import { ReportsPage } from './pages/Reports';
@@ -36,7 +37,8 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      {/* Served under /admin/ (vite `base`), both in development and production. */}
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<DashboardPage />} />
@@ -46,6 +48,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="products/new" element={<ProductFormPage />} />
             <Route path="products/:id" element={<ProductFormPage />} />
             <Route path="reports" element={<ReportsPage />} />
+            <Route path="payouts" element={<PayoutsPage />} />
             <Route path="my-store" element={<MyStorePage />} />
             <Route path="stores" element={<StoresPage />} />
             <Route path="staff" element={<StaffPage />} />

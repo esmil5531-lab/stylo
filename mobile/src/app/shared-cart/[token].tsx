@@ -9,6 +9,7 @@ import { CartGroupCard } from '@/components/cart/CartGroupCard';
 import { storeConflictOf, useStoreConflictGuard } from '@/components/cart/StoreConflictDialog';
 import { EmptyState, QueryState } from '@/components/QueryState';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { useRequireSignIn } from '@/lib/requireSignIn';
 import { ar } from '@/i18n/ar';
 import { formatPrice } from '@/lib/format';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -18,6 +19,7 @@ export default function SharedCartScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const shared = useSharedCart(token);
   const importCart = useImportSharedCart();
+  const requireSignIn = useRequireSignIn();
   const guard = useStoreConflictGuard();
   const insets = useSafeAreaInsets();
 
@@ -66,7 +68,7 @@ export default function SharedCartScreen() {
                 {importCart.isError && !storeConflictOf(importCart.error) && (
                   <Text style={styles.error}>{errorMessage(importCart.error)}</Text>
                 )}
-                <Button title={ar.sharedCart.addAll} loading={importCart.isPending} onPress={addAll} />
+                <Button title={ar.sharedCart.addAll} loading={importCart.isPending} onPress={() => requireSignIn(addAll)} />
               </View>
             </>
           )

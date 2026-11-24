@@ -101,7 +101,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - Update (PATCH) schemas must not contain zod `.default()`s — `.partial()` keeps defaults and would silently reset fields the client didn't send. Defaults belong on create schemas only.
 - Money inputs are typed in د.ل by staff and sent to the API in dirhams (`parseLYD` in `admin/src/lib/format.ts`).
 - Order numbers next to Arabic text must be direction-isolated: `<OrderNo>` in admin, `\u2066…\u2069` in mobile strings — otherwise "#100001" renders as "100001#".
-- The «وضع التطوير — الدخول كـ» identity switcher exists only in dev builds; it is temporary until staff login exists.
+- Staff and store owners sign in with their phone + one-time code (`admin/src/pages/Login.tsx`, `app: 'admin'`). Only active `staff_members` get in; the back office never creates accounts. The token lives in localStorage and admin sessions last 12 hours. Change user ⇒ the query cache is cleared **during render** (never in an effect: that cancels the first requests and leaves screens spinning).
 
 ### Store panel (لوحة المتجر)
 - Stores manage themselves **inside the same back office**, scoped to their store: role `store_owner` («مالك المتجر», products + orders + settings + reports) and `store_manager`. Creating a store gives its owner `store_owner` automatically. One staff account = one store (an owner of several stores needs separate accounts until store switching exists).
@@ -130,7 +130,10 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - Money is integer dirhams end to end. Never use floats for money.
 - Multi-step writes (checkout) run in `withTransaction` and lock the rows they change (`FOR UPDATE`).
 - Delivery rules live **only** in `src/modules/delivery/delivery.ts` (pure functions + tests). Fees/hours are config (`EXPRESS_SURCHARGE`, `STANDARD_DELAY_HOURS`, transit hours, …), not literals in SQL.
-- **Auth is temporary**: outside production the `x-user-id` header (or `DEV_USER_ID`) selects the user; in production no user is set and user routes return 401. Replace with real auth before any public deployment.
+- **Auth = phone + one-time code** (`src/modules/auth`): `POST /v1/auth/otp/request` → `POST /v1/auth/otp/verify` → opaque bearer token (`Authorization: Bearer …`). Codes: 6 digits, 5 minutes, 5 wrong attempts, 5 codes/phone/hour, 30 s between codes; only hashes are stored (codes peppered with `OTP_PEPPER`, tokens SHA-256). Wrong attempts are recorded **outside** the sign-in transaction (inside, the rollback would erase them = unlimited guesses). New numbers become customers after giving a name; the back office only admits active staff.
+- In development the code is echoed in the response (`devCode`) and shown on screen because there is no SMS gateway; production refuses to start without `OTP_PEPPER` and `SMS_PROVIDER=http` + `SMS_HTTP_URL`.
+- `x-user-id` survives **only for tests** (`AUTH_DEV_HEADER=true`, never in production).
+- The API also serves the two websites (`src/web.ts`): the customer site (Expo static export, `CUSTOMER_WEB_DIR`) at `/` with dynamic routes like `/product/:id` mapped to `product/[id].html`, and the back office (`ADMIN_WEB_DIR`, Vite `base: '/admin/'`) at `/admin/`. Files are registered at start-up: **restart after every rebuild**.
 - Every new endpoint gets an integration test in `api/test/`. Run `npm test` from `api/` before declaring work done (needs PostgreSQL; uses `stylo_test`).
 
 ## 7. Database rules
@@ -169,6 +172,7 @@ delivered, cancelled → (terminal)
 - `stores` belong to a `users` row with role `vendor`. Products belong to a store. Stores carry delivery settings: `city`, `prep_hours`, `delivery_fee`.
 - **Single-store carts (migration 0003)**: `carts(user_id PK, store_id)` binds each user's cart to one store; trigger `cart_items_same_store` (constraint name `cart_single_store`) refuses items from another store, and the cart row is dropped automatically when its last item is removed. The API answers `409 cart_store_conflict` with `details: { currentStore, requestedStore, itemsCount }`; the client repeats the call with `replaceCart: true` only after the customer chooses «ابدئي سلة جديدة».
 - Checkout creates **one `orders` row** for the cart's store with `delivery_mode` `fastest` | `standard` (CHECK `orders_delivery_mode_single_store`). `unified` stays in the enum only for historical orders.
+- Auth & payouts (migration 0006): `otp_codes`, `sessions(app customer|admin)`; `payouts(number, store, period by delivery day, sales, commission, payout_amount generated, status pending|paid, reference)` + `payout_orders(order_id UNIQUE)` — each delivered order is settled once. Permissions `payouts.read` (store owners: their store) and `payouts.manage` (super admin). A pending payout can be cancelled; a paid one is permanent.
 - Store panel (migration 0005): roles gained `products.read/write`, `store.profile`, `reports.view`, `stores.commission`; new role `store_owner`; `stores.phone/district/address_line`; `product_variants.position` + one variant per size+colour; `orders.commission_bps` + generated `commission_amount`.
 - Back office (migration 0004): `staff_roles(key, name_ar, permissions[], store_scoped)`, `staff_members(user_id, role_key, store_id?, is_active)` (trigger `staff_store_scope`), `drivers(user_id, city, vehicle, status available|busy|offline, is_active)`, `orders.driver_id/assigned_at` with CHECK `orders_shipped_needs_driver`. `user_role` gained `staff` and `driver`.
 - Looks: `looks.store_id` + `look_items` (trigger `look_single_store`: products from the look's store only). Shared carts: `shared_carts` (token, `store_id`, 30-day expiry) + `shared_cart_items` (snapshot).
@@ -188,10 +192,13 @@ cd api && cp .env.example .env && npm install && npm run db:reset && npm run dev
 # Mobile (terminal 2)
 cd mobile && npm install && npx expo start
 
-# Back office (terminal 3) — http://localhost:5174
+# Back office (terminal 3) — http://localhost:5174/admin/
 cd admin && npm install && npm run dev
+
+# Or everything from one server: both websites + API on http://localhost:4000
+npm run install:all && npm run db:reset && npm run build && npm start
 ```
 
 ## 9. Not built yet (next steps)
 
-Real authentication for customers and staff (replace dev `x-user-id` + admin identity switcher), address management UI, payments + store payout settlement (mark commissions/payouts as paid), product photo upload/storage (currently image URLs), store switching for owners of several stores, driver app, push notifications, audit log for admin edits, personalised «لأجلك» feed (currently featured + rating).
+See `docs/NEXT_STEPS.md`: product photo upload (presigned uploads), driver app, real SMS gateway, online payments, customer address management, push notifications, store switching for multi-store owners, audit log, hosting (HTTPS, backups).

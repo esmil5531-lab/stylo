@@ -1,3 +1,5 @@
+import { useSession } from '@/lib/session';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -11,11 +13,15 @@ import { deliveryModeLabel, formatDate, formatPrice } from '@/lib/format';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 export default function OrdersScreen() {
+  const { signedIn } = useSession();
   const orders = useOrders();
   return (
     <View style={styles.screen}>
       <ScreenHeader title={ar.orders.title} />
       <ScrollView contentContainerStyle={styles.content}>
+        {!signedIn ? (
+          <SignInPrompt />
+        ) : (
         <QueryState query={orders} minHeight={300}>
           {(items) =>
             items.length === 0 ? (
@@ -48,6 +54,7 @@ export default function OrdersScreen() {
             )
           }
         </QueryState>
+        )}
       </ScrollView>
     </View>
   );

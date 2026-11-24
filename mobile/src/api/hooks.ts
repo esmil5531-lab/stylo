@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { useSession } from '@/lib/session';
+
 import { api, query } from './client';
 import type {
   Cart,
@@ -76,27 +78,38 @@ export const useStore = (slug: string) =>
 export const useLook = (id: string) =>
   useQuery({ queryKey: queryKeys.look(id), queryFn: () => api.get<Look>(`/looks/${id}`) });
 
-export const useCart = () => useQuery({ queryKey: queryKeys.cart, queryFn: () => api.get<Cart>('/cart') });
+/** Signed-in customers only (the cart lives on the server). */
+export const useCart = () => {
+  const { signedIn } = useSession();
+  return useQuery({ queryKey: queryKeys.cart, queryFn: () => api.get<Cart>('/cart'), enabled: signedIn });
+};
 
 export const useSharedCart = (token: string) =>
   useQuery({ queryKey: queryKeys.sharedCart(token), queryFn: () => api.get<SharedCart>(`/shared-carts/${token}`) });
 
 export const useOrders = () =>
   useQuery({
+    enabled: useSession().signedIn,
     queryKey: queryKeys.orders,
     queryFn: () => api.get<List<OrderSummary>>('/orders?limit=50').then((r) => r.items),
   });
 
 export const useOrder = (id: string) =>
-  useQuery({ queryKey: queryKeys.order(id), queryFn: () => api.get<OrderDetail>(`/orders/${id}`) });
+  useQuery({
+    enabled: useSession().signedIn,
+    queryKey: queryKeys.order(id),
+    queryFn: () => api.get<OrderDetail>(`/orders/${id}`),
+  });
 
 export const useWishlist = () =>
   useQuery({
+    enabled: useSession().signedIn,
     queryKey: queryKeys.wishlist,
     queryFn: () => api.get<List<ProductSummary>>('/wishlist').then((r) => r.items),
   });
 
-export const useMe = () => useQuery({ queryKey: queryKeys.me, queryFn: () => api.get<Me>('/me') });
+export const useMe = () =>
+  useQuery({ enabled: useSession().signedIn, queryKey: queryKeys.me, queryFn: () => api.get<Me>('/me') });
 
 // ---------------------------------------------------------------- mutations
 // Cart mutations return the full cart, so we write it straight into the cache.

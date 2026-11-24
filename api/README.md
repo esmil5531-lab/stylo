@@ -19,11 +19,9 @@ npm run dev           # http://localhost:4000  (watch mode)
 | `npm test` | اختبارات تكامل على قاعدة `stylo_test` (`TEST_DATABASE_URL` لتغييرها) |
 | `npm run typecheck` / `npm run build` | فحص الأنواع / البناء إلى `dist/` |
 
-## المصادقة (مؤقتة)
+## المصادقة
 
-حتى بناء تسجيل الدخول: خارج الإنتاج، الهيدر `x-user-id` يحدد المستخدم، وإلا يُستخدم `DEV_USER_ID` (سارة، طرابلس). في الإنتاج لا يوجد مستخدم ⇒ مسارات المستخدم ترجع 401.
-
-مستخدمو البذور: `…0004` سارة (طرابلس)، `…0005` مريم (بنغازي).
+برقم الهاتف ورمز التحقق (انظري «الدخول برقم الهاتف» أدناه). الهيدر `x-user-id` يعمل في الاختبارات فقط (`AUTH_DEV_HEADER=true`)، وأرقام حسابات البذور في [README الرئيسي](../README.md).
 
 ## نقاط النهاية (`/v1`)
 
@@ -51,6 +49,27 @@ npm run dev           # http://localhost:4000  (watch mode)
 | GET | `/health` | فحص الخادم وقاعدة البيانات |
 
 الأخطاء دائماً: `{ "error": { "code": "insufficient_stock", "message": "المتوفر 3 فقط", "details": … } }`.
+
+## الدخول برقم الهاتف
+
+| Method | Path | الوصف |
+|---|---|---|
+| POST | `/auth/otp/request` | `{ phone }` ⇐ يرسل رمزاً من 6 أرقام صالحاً 5 دقائق. في التطوير يعود الرمز في `devCode` |
+| POST | `/auth/otp/verify` | `{ phone, code, app: 'customer' \| 'admin', fullName? }` ⇐ `{ token, expiresAt, user }`. الرقم الجديد يحتاج `fullName`، وإلا يعود `name_required` |
+| POST | `/auth/logout` | ينهي الجلسة |
+
+بعد الدخول تُرسل كل الطلبات مع `Authorization: Bearer <token>`.
+
+## مستحقات المتاجر (`/v1/admin/payouts`)
+
+| Method | Path | الصلاحية | الوصف |
+|---|---|---|---|
+| GET | `/admin/payouts/balances` | `payouts.read` | المستحق لكل متجر: الطلبات المسلّمة غير المسوّاة |
+| GET | `/admin/payouts/preview?storeId&from&to` | `payouts.manage` | معاينة التسوية للفترة (حسب يوم التسليم) |
+| POST | `/admin/payouts` | `payouts.manage` | `{ storeId, from, to, note? }` ⇐ تسوية «معلّقة» |
+| POST | `/admin/payouts/:id/paid` | `payouts.manage` | `{ reference }` ⇐ «مدفوعة» مع رقم الحوالة |
+| DELETE | `/admin/payouts/:id` | `payouts.manage` | إلغاء تسوية معلّقة، فتعود طلباتها غير مسوّاة |
+| GET | `/admin/payouts` · `/admin/payouts/:id` | `payouts.read` | سجل التسويات وتفاصيلها |
 
 ## لوحة الإدارة (`/v1/admin`)
 

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
 import { useToggleWishlist } from '@/api/hooks';
+import { useRequireSignIn } from '@/lib/requireSignIn';
 import { colors } from '@/theme';
 
 export function WishlistButton({
@@ -17,11 +18,12 @@ export function WishlistButton({
   const toggle = useToggleWishlist();
   // Optimistic: flip immediately, roll back on failure.
   const [on, setOn] = useState(initial);
-  const press = () => {
+  const requireSignIn = useRequireSignIn();
+  const press = () => requireSignIn(() => {
     const next = !on;
     setOn(next);
     toggle.mutate({ productId, wishlisted: next }, { onError: () => setOn(!next) });
-  };
+  });
   return (
     <Pressable
       onPress={press}

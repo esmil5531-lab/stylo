@@ -272,4 +272,18 @@ BEGIN
 END;
 $$;
 
+-- Status history happened when the orders did (not at seeding time), so reports and payout
+-- periods by delivery day look like real life.
+UPDATE order_status_history h
+   SET changed_at = o.placed_at + CASE h.to_status
+         WHEN 'pending'    THEN interval '0'
+         WHEN 'confirmed'  THEN interval '25 minutes'
+         WHEN 'processing' THEN interval '2 hours'
+         WHEN 'shipped'    THEN interval '5 hours'
+         WHEN 'delivered'  THEN interval '9 hours'
+         WHEN 'cancelled'  THEN interval '1 hour'
+       END
+  FROM orders o
+ WHERE o.id = h.order_id;
+
 COMMIT;

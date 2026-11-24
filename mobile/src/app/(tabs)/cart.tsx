@@ -1,3 +1,5 @@
+import { useSession } from '@/lib/session';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
@@ -19,6 +21,7 @@ import { colors, fonts, radius, spacing } from '@/theme';
 const MODES: DeliveryMode[] = ['fastest', 'standard'];
 
 export default function CartScreen() {
+  const { signedIn } = useSession();
   const cart = useCart();
   const share = useShareCart();
   const [shareLink, setShareLink] = useState<string | null>(null);
@@ -52,6 +55,8 @@ export default function CartScreen() {
 
       {placed ? (
         <OrderPlaced result={placed} onDone={() => setPlaced(null)} />
+      ) : !signedIn ? (
+        <SignInPrompt />
       ) : (
         <QueryState query={cart} minHeight={300}>
           {(data) =>

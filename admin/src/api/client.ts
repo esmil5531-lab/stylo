@@ -1,4 +1,4 @@
-import { getActingUserId } from '@/lib/identity';
+import { clearToken, getToken } from '@/lib/session';
 
 /** Same-origin `/v1` (Vite proxies it to the API in development), unless VITE_API_URL is set. */
 const BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1';
@@ -16,15 +16,14 @@ export class ApiError extends Error {
 }
 
 export async function request<T>(
-  method: 'GET' | 'POST' | 'PATCH' | 'PUT',
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   path: string,
   body?: unknown,
 ): Promise<T> {
   const headers: Record<string, string> = { accept: 'application/json' };
   if (body !== undefined) headers['content-type'] = 'application/json';
-  // TEMPORARY until real login: the API trusts x-user-id outside production.
-  const userId = getActingUserId();
-  if (userId) headers['x-user-id'] = userId;
+  const token = getToken();
+  if (token) headers.authorization = `Bearer ${token}`;
 
   let res: Response;
   try {
@@ -38,6 +37,8 @@ export async function request<T>(
   }
   const data = await res.json().catch(() => null);
   if (!res.ok) {
+    // Expired or revoked session: back to the sign-in screen.
+    if (res.status === 401 && token) clearToken();
     const e = data?.error;
     throw new ApiError(res.status, e?.code ?? 'http_error', e?.message ?? 'حدث خطأ غير متوقع', e?.details);
   }

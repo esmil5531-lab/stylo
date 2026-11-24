@@ -1,3 +1,5 @@
+import { useSession } from '@/lib/session';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -15,14 +17,19 @@ import { colors, fonts, radius, spacing } from '@/theme';
 const HAPPY_PATH: OrderStatus[] = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'];
 
 export default function OrderScreen() {
+  const { signedIn } = useSession();
   const { id } = useLocalSearchParams<{ id: string }>();
   const order = useOrder(id);
   return (
     <View style={styles.screen}>
       <ScreenHeader title={order.data ? ar.orders.number(order.data.orderNumber) : ''} />
+      {!signedIn ? (
+        <SignInPrompt />
+      ) : (
       <QueryState query={order} minHeight={400}>
         {(o) => <OrderBody order={o} />}
       </QueryState>
+      )}
     </View>
   );
 }

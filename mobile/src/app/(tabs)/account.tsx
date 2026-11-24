@@ -3,19 +3,36 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { api } from '@/api/client';
 import { useMe } from '@/api/hooks';
+import { Button } from '@/components/Button';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { QueryState } from '@/components/QueryState';
 import { BRAND } from '@/constants/brand';
 import { ar } from '@/i18n/ar';
 import { directionalIcons } from '@/i18n/rtl';
+import { setSession, useSession } from '@/lib/session';
 import { colors, fonts, radius, spacing } from '@/theme';
+
+function formatPhone(p: string | null): string {
+  const m = /^\+218(\d{2})(\d{3})(\d{4})$/.exec(p ?? '');
+  return m ? `+218 ${m[1]} ${m[2]} ${m[3]}` : (p ?? '');
+}
 
 export default function AccountScreen() {
   const me = useMe();
+  const { signedIn } = useSession();
+  const signOut = async () => {
+    await api.post('/auth/logout').catch(() => undefined);
+    await setSession(null);
+  };
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Text style={styles.title}>{ar.account.title}</Text>
       <ScrollView contentContainerStyle={styles.content}>
+        {!signedIn ? (
+          <SignInPrompt />
+        ) : (
         <QueryState query={me}>
           {(user) => (
             <>
@@ -25,7 +42,8 @@ export default function AccountScreen() {
                 </View>
                 <View>
                   <Text style={styles.name}>{user.fullName}</Text>
-                  <Text style={styles.muted}>{user.email ?? user.phone}</Text>
+                  {/* +218 91 234 5678 — keep the number left-to-right */}
+                  <Text style={[styles.muted, { writingDirection: 'ltr' }]}>{formatPhone(user.phone)}</Text>
                 </View>
               </View>
 
@@ -41,9 +59,11 @@ export default function AccountScreen() {
                   }
                 />
               </View>
+              <Button title={ar.auth.signOut} variant="outline" onPress={() => void signOut()} />
             </>
           )}
         </QueryState>
+        )}
         <Text style={styles.tagline}>
           {BRAND.nameAr} — {BRAND.taglineAr}
         </Text>

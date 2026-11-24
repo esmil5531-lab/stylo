@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { qs, request } from './client';
 import type {
+  Payout,
+  PayoutDetail,
+  PayoutPreview,
+  StoreBalance,
   AdminOrder,
   AdminProduct,
   AdminProductDetail,
@@ -262,3 +266,46 @@ export const useReport = (f: { from?: string; to?: string; storeId?: string }) =
     queryFn: () => get<Report>(`/admin/reports${qs(f)}`),
     placeholderData: (prev) => prev,
   });
+
+// ---------------------------------------------------------------- payouts (تسوية المستحقات)
+export const useBalances = () =>
+  useQuery({
+    queryKey: ['payouts', 'balances'],
+    queryFn: () => get<{ items: StoreBalance[] }>('/admin/payouts/balances').then((r) => r.items),
+  });
+
+export const usePayouts = (f: { storeId?: string; status?: 'pending' | 'paid' } = {}) =>
+  useQuery({
+    queryKey: ['payouts', 'list', f],
+    queryFn: () => get<{ items: Payout[] }>(`/admin/payouts${qs(f)}`).then((r) => r.items),
+  });
+
+export const usePayout = (id: string | null) =>
+  useQuery({
+    queryKey: ['payouts', 'one', id],
+    queryFn: () => get<PayoutDetail>(`/admin/payouts/${id}`),
+    enabled: !!id,
+  });
+
+export const usePayoutPreview = (q: { storeId: string; from: string; to: string } | null) =>
+  useQuery({
+    queryKey: ['payouts', 'preview', q],
+    queryFn: () => get<PayoutPreview>(`/admin/payouts/preview${qs(q ?? {})}`),
+    enabled: !!q && q.from <= q.to,
+  });
+
+export const useCreatePayout = () =>
+  useInvalidating(
+    (v: { storeId: string; from: string; to: string; note?: string }) => request<PayoutDetail>('POST', '/admin/payouts', v),
+    [['payouts']],
+  );
+
+export const useMarkPaid = () =>
+  useInvalidating(
+    ({ id, ...v }: { id: string; reference: string; note?: string }) =>
+      request<PayoutDetail>('POST', `/admin/payouts/${id}/paid`, v),
+    [['payouts']],
+  );
+
+export const useCancelPayout = () =>
+  useInvalidating((id: string) => request<{ id: string }>('DELETE', `/admin/payouts/${id}`), [['payouts']]);

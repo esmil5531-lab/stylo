@@ -6,6 +6,8 @@ import { defineConfig } from 'vite';
 // The admin app calls the API at /v1 on its own origin; in development Vite forwards
 // those requests to the Stylo API (STYLO_API_URL, default http://localhost:4000).
 export default defineConfig({
+  // The back office lives at /admin/ — same path in development and when the API serves the build.
+  base: '/admin/',
   plugins: [react()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {

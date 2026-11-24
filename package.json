@@ -1,0 +1,16 @@
+{
+  "name": "stylo",
+  "private": true,
+  "description": "ستايلو — كل ستايل في مكان واحد",
+  "scripts": {
+    "install:all": "npm --prefix api install && npm --prefix admin install && npm --prefix mobile install",
+    "db:reset": "npm --prefix api run db:reset",
+    "build:customer": "cd mobile && npx expo export --platform web --output-dir dist",
+    "build:admin": "npm --prefix admin run build",
+    "build:api": "npm --prefix api run build",
+    "build": "npm run build:api && npm run build:customer && npm run build:admin",
+    "start": "npm --prefix api start",
+    "check": "npm --prefix api run typecheck && npm --prefix admin run typecheck && npm --prefix mobile run typecheck && npm --prefix mobile run lint",
+    "test": "npm --prefix api test"
+  }
+}

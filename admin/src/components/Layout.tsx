@@ -1,9 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router';
 
 import { useMe } from '@/api/hooks';
 import type { Me, Permission } from '@/api/types';
-import { DEV_IDENTITIES, getActingUserId, setActingUserId } from '@/lib/identity';
+import { request, ApiError, errorMessage } from '@/api/client';
+import { clearToken, getToken } from '@/lib/session';
+import { LoginPage } from '@/pages/Login';
 
 import { Async, Icon } from './ui';
 
@@ -19,14 +22,52 @@ const NAV: {
   { to: '/orders', label: 'الطلبات', icon: 'orders', permission: 'orders.read' },
   { to: '/products', label: 'المنتجات والمقاسات', icon: 'products', permission: 'products.read' },
   { to: '/reports', label: 'التقارير والأرباح', icon: 'reports', permission: 'reports.view' },
+  { to: '/payouts', label: 'مستحقات المتاجر', icon: 'payouts', permission: 'payouts.read' },
   { to: '/my-store', label: 'إعدادات متجري', icon: 'settings', permission: 'store.profile', storeOnly: true },
   { to: '/stores', label: 'المتاجر', icon: 'stores', permission: 'stores.read' },
   { to: '/staff', label: 'الموظفون والصلاحيات', icon: 'staff', permission: 'staff.read' },
   { to: '/drivers', label: 'السائقون', icon: 'drivers', permission: 'drivers.read' },
 ];
 
+/** Re-renders when the session token changes (sign-in, sign-out, expiry). */
+function useSessionToken(): string | null {
+  const [token, set] = useState(getToken);
+  useEffect(() => {
+    const sync = () => set(getToken());
+    window.addEventListener('stylo-session', sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener('stylo-session', sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
+  return token;
+}
+
 export function Layout() {
+  const token = useSessionToken();
+  const qc = useQueryClient();
+  // A new session (or none) must never see the previous user's cached data. Clear it *before*
+  // rendering the signed-in screens: clearing in an effect would cancel their first requests.
+  const [lastToken, setLastToken] = useState(token);
+  if (lastToken !== token) {
+    setLastToken(token);
+    qc.clear();
+  }
+  if (!token) return <LoginPage />;
+  return <SignedIn key={token} />;
+}
+
+function SignedIn() {
   const me = useMe();
+  if (me.isError) {
+    const err = me.error;
+    // Signed in, but not (or no longer) allowed into the back office.
+    if (err instanceof ApiError && err.status === 403) {
+      clearToken();
+      return <LoginPage notice={errorMessage(err)} />;
+    }
+  }
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -48,7 +89,9 @@ export function Layout() {
       <div className="main">
         <header className="topbar">
           {me.data ? <Who me={me.data} /> : <span />}
-          {import.meta.env.DEV && <DevIdentitySwitch />}
+          <button className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
+            تسجيل الخروج
+          </button>
         </header>
         <main className="content">
           <Async query={me}>{() => <Outlet />}</Async>
@@ -56,6 +99,15 @@ export function Layout() {
       </div>
     </div>
   );
+}
+
+async function signOut() {
+  try {
+    await request('POST', '/auth/logout');
+  } catch {
+    /* the session may already be gone */
+  }
+  clearToken();
 }
 
 function Who({ me }: { me: Me }) {
@@ -70,30 +122,6 @@ function Who({ me }: { me: Me }) {
         </div>
       </div>
     </div>
-  );
-}
-
-/** Development only: act as another seeded staff account to test permissions. */
-function DevIdentitySwitch() {
-  const qc = useQueryClient();
-  return (
-    <label className="dev-switch">
-      وضع التطوير — الدخول كـ:
-      <select
-        defaultValue={getActingUserId() ?? undefined}
-        onChange={(e) => {
-          setActingUserId(e.target.value);
-          qc.clear();
-          window.location.assign('/');
-        }}
-      >
-        {DEV_IDENTITIES.map((i) => (
-          <option key={i.id} value={i.id}>
-            {i.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

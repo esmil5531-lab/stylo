@@ -20,7 +20,9 @@ export type Permission =
   | 'products.write'
   | 'store.profile'
   | 'reports.view'
-  | 'stores.commission';
+  | 'stores.commission'
+  | 'payouts.read'
+  | 'payouts.manage';
 
 export interface Me {
   id: string;
@@ -218,4 +220,50 @@ export interface Report {
     payout: number;
   }[];
   topProducts: { name: string; storeName: string; quantity: number; sales: number }[];
+}
+
+// ---------------------------------------------------------------- 0006: payouts
+
+export interface StoreBalance {
+  storeId: string;
+  storeName: string;
+  commissionBps: number;
+  unsettled: { orders: number; sales: number; commission: number; payout: number; firstDay: string | null; lastDay: string | null };
+  lastSettledTo: string | null;
+  pendingAmount: number;
+}
+
+export interface PayoutPreview {
+  storeId: string;
+  from: string;
+  to: string;
+  ordersCount: number;
+  sales: number;
+  commission: number;
+  payout: number;
+  orders: { id: string; orderNumber: number; deliveredAt: string; subtotal: number; commissionBps: number; commission: number; payout: number }[];
+}
+
+export interface Payout {
+  id: string;
+  number: number;
+  store: { id: string; name: string };
+  from: string;
+  to: string;
+  currency: string;
+  ordersCount: number;
+  sales: number;
+  commission: number;
+  payoutAmount: number;
+  status: 'pending' | 'paid';
+  note: string | null;
+  reference: string | null;
+  createdAt: string;
+  createdBy: string | null;
+  paidAt: string | null;
+  paidBy: string | null;
+}
+
+export interface PayoutDetail extends Payout {
+  orders: { id: string; orderNumber: number; placedAt: string; subtotal: number; commissionBps: number; commission: number; payout: number }[];
 }

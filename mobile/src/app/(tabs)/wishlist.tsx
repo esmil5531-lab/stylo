@@ -1,3 +1,5 @@
+import { useSession } from '@/lib/session';
+import { SignInPrompt } from '@/components/SignInPrompt';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,11 +10,15 @@ import { ar } from '@/i18n/ar';
 import { colors, fonts, spacing } from '@/theme';
 
 export default function WishlistScreen() {
+  const { signedIn } = useSession();
   const wishlist = useWishlist();
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Text style={styles.title}>{ar.wishlist.title}</Text>
       <ScrollView contentContainerStyle={styles.content}>
+        {!signedIn ? (
+          <SignInPrompt />
+        ) : (
         <QueryState query={wishlist}>
           {(items) =>
             items.length === 0 ? (
@@ -22,6 +28,7 @@ export default function WishlistScreen() {
             )
           }
         </QueryState>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
