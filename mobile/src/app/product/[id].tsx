@@ -71,6 +71,7 @@ function ProductBody({ product }: { product: ProductDetail }) {
             uri={product.images[0]?.url ?? product.imageUrl}
             colorHex={variant?.colorHex ?? product.colorHex}
             category={product.category}
+            icon={product.categoryIcon}
             name={product.name}
             iconSize={110}
           />

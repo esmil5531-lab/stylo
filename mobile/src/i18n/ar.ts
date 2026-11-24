@@ -180,6 +180,8 @@ export const ar = {
   categories: {
     title: 'الأقسام',
     products: (n: number) => `${n} منتج`,
+    all: 'الكل',
+    subcategories: 'الأقسام الفرعية',
   },
   wishlist: {
     title: 'المفضلة',

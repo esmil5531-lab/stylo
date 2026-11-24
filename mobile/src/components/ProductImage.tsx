@@ -8,7 +8,9 @@ import { colors } from '@/theme';
 
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
-function iconFor(category: string | null | undefined, name = ''): IconName {
+function iconFor(category: string | null | undefined, name = '', icon?: string | null): IconName {
+  // The category's icon from the back office wins (only names the app knows).
+  if (icon && icon in MaterialCommunityIcons.glyphMap) return icon as IconName;
   if (/نظار/.test(name)) return 'sunglasses';
   if (/قلادة|عقد/.test(name)) return 'necklace';
   if (/أقراط|حلق|خاتم/.test(name)) return 'diamond-stone';
@@ -34,6 +36,8 @@ interface Props {
   uri: string | null | undefined;
   colorHex?: string | null;
   category?: string | null;
+  /** Category icon from the API (overrides the guess from the category slug / product name). */
+  icon?: string | null;
   name?: string;
   style?: StyleProp<ViewStyle>;
   iconSize?: number;
@@ -43,7 +47,7 @@ interface Props {
  * Product photo; until real photos are uploaded (or if one fails to load) it shows a
  * tinted tile in the product's own color with a matching garment icon.
  */
-export function ProductImage({ uri, colorHex, category, name, style, iconSize = 42 }: Props) {
+export function ProductImage({ uri, colorHex, category, icon, name, style, iconSize = 42 }: Props) {
   const [failed, setFailed] = useState(false);
   const base = colorHex ?? colors.primary;
 
@@ -63,7 +67,7 @@ export function ProductImage({ uri, colorHex, category, name, style, iconSize = 
   const iconColor = luminance(base) > 0.75 ? colors.inkFaint : luminance(base) > 0.35 ? darken(base, 0.45) : base;
   return (
     <View style={[styles.fill, styles.placeholder, { backgroundColor: lighten(base, 0.86) }, style]}>
-      <MaterialCommunityIcons name={iconFor(category, name)} size={iconSize} color={iconColor} />
+      <MaterialCommunityIcons name={iconFor(category, name, icon)} size={iconSize} color={iconColor} />
     </View>
   );
 }

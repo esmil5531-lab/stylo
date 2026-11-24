@@ -31,7 +31,7 @@ npm run dev           # http://localhost:4000  (watch mode)
 | GET | `/products?feed=for_you\|trending\|offers\|nearby\|new&category=&store=&q=&limit=&offset=` | بطاقات المنتجات (سعر، `discountPercent`، تقييم، «يصلك اليوم/غداً»). `offers` = «عروض»: المخفّضة فقط، الأعلى خصماً أولاً |
 | GET | `/products/:id` | تفاصيل المنتج مع المقاسات/الألوان والمخزون |
 | GET | `/products/:id/complete-the-look` | قطع تكمّل اللوك مع هذا المنتج |
-| GET | `/categories` | الأقسام وعدد منتجاتها |
+| GET | `/categories` | شجرة الأقسام الظاهرة: الرئيسية بالترتيب، ولكل منها `children` (الفرعية)، مع `icon` و`color` و`imageUrl` وعدد المنتجات (الرئيسي يشمل الفرعية) |
 | GET | `/stores?featured=true` · `/stores/:slug` | المتاجر / متجر مع منتجاته |
 | GET | `/looks?featured=true&store=` · `/looks/:idOrSlug` | اللوكات (كل لوك من متجر واحد) مع القطع والإجمالي |
 | POST | `/looks/:idOrSlug/add-to-cart` | إضافة اللوك كاملاً. body اختياري: `{ variants: { productId: variantId }, replaceCart }` |
@@ -129,7 +129,9 @@ npm run dev           # http://localhost:4000  (watch mode)
 | POST | `/admin/orders/:id/status` | `orders.update_status` | `{ to, note?, cancelReason? }` |
 | POST | `/admin/orders/:id/driver` | `orders.assign_driver` | `{ driverId }`. للطلبات المؤكدة أو قيد التجهيز |
 | GET · PATCH | `/admin/my-store` | `store.profile` | إعدادات متجر الموظف (الأسماء، الهاتف، العنوان، وقت التجهيز) |
-| GET | `/admin/categories` | `products.read` | الأقسام |
+| GET | `/admin/categories` | `categories.manage` أو `products.read` | كل الأقسام (رئيسية ثم فرعية) لمن يدير الأقسام، والظاهرة فقط لموظفي المتاجر |
+| POST · PATCH · DELETE | `/admin/categories` · `/admin/categories/:id` | `categories.manage` | `{ nameAr, nameEn?, slug?, parentId?, icon?, color?, imageUrl?, isActive }`. الحذف للقسم الفارغ فقط |
+| POST | `/admin/categories/reorder` | `categories.manage` | `{ parentId: null \| id, ids: [...] }` كل أقسام المستوى بالترتيب الجديد |
 | GET | `/admin/products?status=&q=&storeId=&lowStock=true` | `products.read` | المنتجات مع المقاسات والمخزون (موظف المتجر: متجره فقط) |
 | GET · POST · PUT | `/admin/products/:id` · `/admin/products` | `products.read` / `products.write` | منتج كامل مع `variants: [{ id?, size, colorName, colorHex, sku?, price?, stock }]` |
 | GET | `/admin/reports?from=YYYY-MM-DD&to=&storeId=` | `reports.view` | المبيعات، العمولة، مستحقات المتاجر، إيراد ستايلو، يومياً، حسب المتجر، الأكثر مبيعاً |

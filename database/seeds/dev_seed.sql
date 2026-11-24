@@ -4,7 +4,7 @@
 -- compare_at_price > base_price marks a product as on offer ("عروض").
 BEGIN;
 
-TRUNCATE users, stores, categories, products, banners, looks, shared_carts, carts, staff_members, drivers,
+TRUNCATE users, stores, products, banners, looks, shared_carts, carts, staff_members, drivers,
          otp_codes, payouts, driver_settlements, message_log RESTART IDENTITY CASCADE;
 
 -- ---------------------------------------------------------------- users
@@ -54,6 +54,9 @@ UPDATE stores SET commission_bps = 1200, phone = '+218910000024', district = 'ا
 UPDATE stores SET commission_bps = 900,  phone = '+218920000025', district = 'الفويهات'   WHERE slug = 'vela';
 
 -- ---------------------------------------------------------------- categories
+-- The category tree comes from migration 0009 (main categories keep the ids used below) and is
+-- not wiped here, so edits made in «الأقسام» survive a re-seed. Re-create a main category only if
+-- it was deleted.
 INSERT INTO categories (id, slug, name_ar, name_en, sort_order) VALUES
   ('20000000-0000-0000-0000-000000000001', 'women',       'نساء',       'Women',       1),
   ('20000000-0000-0000-0000-000000000002', 'men',         'رجال',       'Men',         2),
@@ -61,7 +64,8 @@ INSERT INTO categories (id, slug, name_ar, name_en, sort_order) VALUES
   ('20000000-0000-0000-0000-000000000004', 'bags',        'حقائب',      'Bags',        4),
   ('20000000-0000-0000-0000-000000000005', 'shoes',       'أحذية',      'Shoes',       5),
   ('20000000-0000-0000-0000-000000000006', 'accessories', 'إكسسوارات',  'Accessories', 6),
-  ('20000000-0000-0000-0000-000000000007', 'watches',     'ساعات',      'Watches',     7);
+  ('20000000-0000-0000-0000-000000000007', 'watches',     'ساعات',      'Watches',     7)
+ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------- products
 -- created_at offsets make the "new" ordering deterministic.
@@ -94,6 +98,22 @@ INSERT INTO products (id, store_id, category_id, slug, name_ar, brand, base_pric
   -- فيلا
   ('30000000-0000-0000-0000-000000000010', '10000000-0000-0000-0000-000000000007', '20000000-0000-0000-0000-000000000004', 'mini-crossbody',      'حقيبة كروس صغيرة',      'Vela',  175000, NULL,   'active', false, 140, 4.6,  33, now() - interval '3 days'),
   ('30000000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000007', '20000000-0000-0000-0000-000000000006', 'pearl-necklace',      'قلادة لؤلؤ',            'Vela',   99000, NULL,   'active', false, 90,  4.7,  29, now() - interval '4 hours');
+
+-- Sample products live in sub-categories (a main category lists its sub-categories' products too).
+UPDATE products p SET category_id = c.id
+  FROM (VALUES
+    ('burgundy-wrap-dress', 'women-dresses'), ('satin-evening-dress', 'women-dresses'),
+    ('black-abaya', 'women-abayas'), ('cream-knit-cardigan', 'women-outerwear'), ('cream-wide-pants', 'women-bottoms'),
+    ('linen-shirt', 'men-shirts'), ('white-cotton-tee', 'men-shirts'), ('chino-pants', 'men-pants'),
+    ('kids-denim-set', 'kids-boys'),
+    ('beige-tote-bag', 'bags-handbags'), ('straw-summer-bag', 'bags-handbags'), ('satin-clutch', 'bags-evening'),
+    ('mini-crossbody', 'bags-crossbody'),
+    ('nude-heels', 'shoes-heels'), ('white-sneakers', 'shoes-sneakers'), ('leather-loafers', 'shoes-men'),
+    ('black-cat-eye-sunglasses', 'acc-sunglasses'), ('gold-earrings', 'acc-jewelry'), ('pearl-necklace', 'acc-jewelry'),
+    ('gold-classic-watch', 'watches-women'), ('silver-slim-watch', 'watches-women')
+  ) AS x(product_slug, category_slug)
+  JOIN categories c ON c.slug = x.category_slug
+ WHERE p.slug = x.product_slug;
 
 INSERT INTO product_variants (product_id, sku, size, color_name_ar, color_hex, stock_qty) VALUES
   ('30000000-0000-0000-0000-000000000001', 'LAU-WRP-BRG-S',  'S',   'عنابي', '#5B0E2D', 8),

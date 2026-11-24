@@ -23,6 +23,7 @@ export type Permission =
   | 'stores.commission'
   | 'payouts.read'
   | 'payouts.manage'
+  | 'categories.manage'
   | 'custody.read'
   | 'custody.manage'
   | 'finance.view';
@@ -141,10 +142,32 @@ export interface AdminOrderDetail extends AdminOrder {
 
 export type ProductStatus = 'draft' | 'active' | 'archived';
 
+/** A category as the back office sees it (main categories, then their sub-categories). */
 export interface Category {
   id: string;
+  parentId: string | null;
   slug: string;
-  name: string;
+  nameAr: string;
+  nameEn: string | null;
+  icon: string | null;
+  color: string | null;
+  imageUrl: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  productCount: number;
+  totalProductCount: number;
+  childrenCount: number;
+}
+
+export interface CategoryInput {
+  nameAr: string;
+  nameEn?: string | null;
+  slug?: string | null;
+  parentId?: string | null;
+  icon?: string | null;
+  color?: string | null;
+  imageUrl?: string | null;
+  isActive?: boolean;
 }
 
 export interface AdminProduct {

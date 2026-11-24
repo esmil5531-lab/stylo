@@ -26,6 +26,7 @@ export function LookStrip({ look }: { look: Look }) {
                 uri={p.imageUrl}
                 colorHex={p.colorHex}
                 category={p.category}
+                icon={p.categoryIcon}
                 name={p.name}
                 iconSize={30}
               />

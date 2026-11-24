@@ -1,8 +1,10 @@
 import { useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { useProducts } from '@/api/hooks';
-import type { Feed } from '@/api/types';
+import { useCategories, useProducts } from '@/api/hooks';
+import type { Category, Feed } from '@/api/types';
+import { CategoryChips } from '@/components/CategoryChips';
 import { ProductGrid } from '@/components/ProductGrid';
 import { EmptyState, QueryState } from '@/components/QueryState';
 import { ScreenHeader } from '@/components/ScreenHeader';
@@ -15,11 +17,23 @@ const FEEDS: Feed[] = ['for_you', 'trending', 'offers', 'nearby', 'new'];
 export default function ProductsScreen() {
   const params = useLocalSearchParams<{ feed?: string; category?: string; q?: string; title?: string }>();
   const feed = FEEDS.find((f) => f === params.feed);
-  const products = useProducts({ feed, category: params.category, q: params.q, limit: 50 });
+  // A main category (or one of its sub-categories) shows «الكل · فساتين · …» to narrow the list.
+  const categories = useCategories();
+  const main: Category | undefined = params.category
+    ? categories.data?.find(
+        (c) => c.slug === params.category || c.children.some((k) => k.slug === params.category),
+      )
+    : undefined;
+  const [selected, setSelected] = useState(params.category);
+  const category = selected ?? params.category;
+  const products = useProducts({ feed, category, q: params.q, limit: 50 });
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader title={params.title ?? ar.products.results} />
+      <ScreenHeader title={main?.name ?? params.title ?? ar.products.results} />
+      {main && main.children.length > 0 && category && (
+        <CategoryChips main={main} value={category} onChange={setSelected} />
+      )}
       <ScrollView contentContainerStyle={styles.content}>
         <QueryState query={products} minHeight={300}>
           {(items) =>

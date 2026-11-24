@@ -9,6 +9,7 @@ import { QueryState } from '@/components/QueryState';
 import { ar } from '@/i18n/ar';
 import { colors, fonts, radius, spacing } from '@/theme';
 
+// Fallback tints when a category has no colour set in the back office.
 const TONES = ['#5B0E2D', '#B08A5B', '#3F0820', '#C9A9A6', '#8E8E8E', '#D4B8A8', '#B79B87'];
 
 export default function CategoriesScreen() {
@@ -25,10 +26,18 @@ export default function CategoriesScreen() {
                 <Pressable
                   key={c.id}
                   style={styles.tile}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${c.name}، ${ar.categories.products(c.productCount)}`}
                   onPress={() => router.push({ pathname: '/products', params: { category: c.slug, title: c.name } })}
                 >
                   <View style={styles.art}>
-                    <ProductImage uri={null} category={c.slug} colorHex={TONES[i % TONES.length]} iconSize={38} />
+                    <ProductImage
+                      uri={c.imageUrl}
+                      category={c.slug}
+                      icon={c.icon}
+                      colorHex={c.color ?? TONES[i % TONES.length]}
+                      iconSize={38}
+                    />
                   </View>
                   <Text style={styles.name}>{c.name}</Text>
                   <Text style={styles.count}>{ar.categories.products(c.productCount)}</Text>

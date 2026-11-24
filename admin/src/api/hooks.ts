@@ -14,6 +14,7 @@ import type {
   AdminProduct,
   AdminProductDetail,
   Category,
+  CategoryInput,
   ProductStatus,
   Report,
   AdminOrderDetail,
@@ -197,8 +198,26 @@ export const useCategories = () =>
   useQuery({
     queryKey: ['categories'],
     queryFn: () => get<{ items: Category[] }>('/admin/categories').then((r) => r.items),
-    staleTime: 10 * 60_000,
+    staleTime: 60_000,
   });
+
+// ---------------------------------------------------------------- categories (الأقسام)
+export const useSaveCategory = () =>
+  useInvalidating(
+    ({ id, ...body }: Partial<CategoryInput> & { id?: string }) =>
+      id ? request<Category>('PATCH', `/admin/categories/${id}`, body) : request<Category>('POST', '/admin/categories', body),
+    [['categories'], ['products']],
+  );
+
+export const useDeleteCategory = () =>
+  useInvalidating((id: string) => request<{ id: string }>('DELETE', `/admin/categories/${id}`), [['categories']]);
+
+export const useReorderCategories = () =>
+  useInvalidating(
+    (v: { parentId: string | null; ids: string[] }) =>
+      request<{ items: Category[] }>('POST', '/admin/categories/reorder', v),
+    [['categories']],
+  );
 
 export interface ProductFilters {
   status?: ProductStatus;

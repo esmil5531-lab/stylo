@@ -18,6 +18,7 @@ export const PERMISSIONS = {
   'orders.assign_driver': 'إسناد الطلب لسائق',
   'products.read': 'عرض المنتجات',
   'products.write': 'إضافة وتعديل المنتجات والمقاسات',
+  'categories.manage': 'إدارة الأقسام وترتيبها وإخفاؤها',
   'store.profile': 'تعديل إعدادات متجره',
   'reports.view': 'عرض التقارير والأرباح',
   'stores.commission': 'تحديد نسبة عمولة المتاجر',

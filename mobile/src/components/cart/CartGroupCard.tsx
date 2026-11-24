@@ -53,6 +53,7 @@ export function CartGroupCard({
               uri={item.imageUrl}
               colorHex={item.colorHex}
               category={item.category}
+              icon={item.categoryIcon}
               name={item.name}
               iconSize={28}
             />

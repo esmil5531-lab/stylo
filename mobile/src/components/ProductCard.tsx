@@ -26,6 +26,7 @@ export function ProductCard({ product, width }: { product: ProductSummary; width
           uri={product.imageUrl}
           colorHex={product.colorHex}
           category={product.category}
+          icon={product.categoryIcon}
           name={product.name}
         />
         {product.discountPercent ? (

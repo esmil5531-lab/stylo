@@ -26,6 +26,8 @@ export interface ProductSummary {
   imageUrl: string | null;
   colorHex: string | null;
   category: string | null;
+  /** Icon of the product's category (from «الأقسام» in the back office). */
+  categoryIcon?: string | null;
   inStock: boolean;
   isWishlisted: boolean;
   store: StoreRef;
@@ -102,7 +104,14 @@ export interface Category {
   slug: string;
   name: string;
   parentId: string | null;
+  /** MaterialCommunityIcons name chosen in the back office. */
+  icon: string | null;
+  /** Tile tint (#RRGGBB). */
+  color: string | null;
+  imageUrl: string | null;
+  /** Visible products here and, for a main category, in its sub-categories. */
   productCount: number;
+  children: Category[];
 }
 
 export interface DeliveryOption {
@@ -130,6 +139,8 @@ export interface CartItem {
   colorName: string | null;
   size: string | null;
   category: string | null;
+  /** Icon of the product's category (from «الأقسام» in the back office). */
+  categoryIcon?: string | null;
   sku: string;
   unitPrice: number;
   quantity: number;

@@ -6,7 +6,6 @@ import { assignDriver, changeOrderStatus, getOrder, listOrders, ORDER_STATUSES }
 import {
   createProduct,
   getProduct,
-  listCategories,
   listProducts,
   PRODUCT_STATUSES,
   updateProduct,
@@ -21,6 +20,14 @@ import {
   previewPayout,
 } from './payouts.admin.js';
 import { getReport } from './reports.admin.js';
+import {
+  createCategory,
+  deleteCategory,
+  listAdminCategories,
+  reorderCategories,
+  updateCategory,
+} from './categories.admin.js';
+import { CATEGORY_ICONS } from '../../lib/category-icons.js';
 import { getDriverCustody, getSettlement, listCustody, listSettlements, settleCustody } from './custody.admin.js';
 import { notifyOrderStatus } from '../orders/notify.js';
 import {
@@ -102,6 +109,29 @@ const StoreProfile = StoreFields.pick({
   phone: true,
   prepHours: true,
 }).partial();
+
+// Categories: update schema without defaults (see the note above).
+const CategoryFields = z.object({
+  nameAr: z.string().trim().min(2, 'اسم القسم قصير جداً').max(40),
+  nameEn: z.string().trim().max(40).nullish(),
+  slug: z
+    .string()
+    .trim()
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'الرابط المختصر: حروف لاتينية صغيرة وأرقام وشرطات فقط')
+    .max(60)
+    .nullish()
+    .or(z.literal('')),
+  parentId: Id.nullish(),
+  icon: z.enum(CATEGORY_ICONS).nullish(),
+  color: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .nullish(),
+  imageUrl: z.string().trim().url().max(500).nullish().or(z.literal('')),
+  isActive: z.boolean(),
+});
+const CategoryCreate = CategoryFields.extend({ isActive: z.boolean().default(true) });
+const CategoryUpdate = CategoryFields.partial();
 
 const ProductBody = z.object({
   storeId: Id.optional(),
@@ -227,10 +257,36 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // ------------------------------------------------------------ products & sizes
+  // ------------------------------------------------------------ categories (الأقسام)
   app.get('/categories', async (req) => {
-    can(req, 'products.read');
-    return { items: await listCategories(app.ctx(req)) };
+    // Managers see every category; staff filing products see the visible ones.
+    const staff = req.staff!;
+    if (!staff.permissions.has('categories.manage')) requirePermission(staff, 'products.read');
+    return { items: await listAdminCategories(app.ctx(req), staff) };
   });
+  app.post('/categories', async (req, reply) => {
+    can(req, 'categories.manage');
+    reply.status(201);
+    return createCategory(app.ctx(req), CategoryCreate.parse(req.body));
+  });
+  app.patch('/categories/:id', async (req) => {
+    can(req, 'categories.manage');
+    const { id } = IdParams.parse(req.params);
+    return updateCategory(app.ctx(req), id, CategoryUpdate.parse(req.body));
+  });
+  app.delete('/categories/:id', async (req) => {
+    can(req, 'categories.manage');
+    const { id } = IdParams.parse(req.params);
+    return deleteCategory(app.ctx(req), id);
+  });
+  app.post('/categories/reorder', async (req) => {
+    const staff = can(req, 'categories.manage');
+    const body = z.object({ parentId: Id.nullable(), ids: z.array(Id).min(1).max(200) }).parse(req.body);
+    await reorderCategories(app.ctx(req), body);
+    return { items: await listAdminCategories(app.ctx(req), staff) };
+  });
+
+  // ------------------------------------------------------------ products & sizes
   app.get('/products', async (req) => {
     const staff = can(req, 'products.read');
     const q = z

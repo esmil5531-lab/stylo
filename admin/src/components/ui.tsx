@@ -91,6 +91,7 @@ export function Field({
   required,
   children,
   full,
+  group,
 }: {
   label: string;
   hint?: ReactNode;
@@ -99,9 +100,18 @@ export function Field({
   required?: boolean;
   children: ReactNode;
   full?: boolean;
+  /**
+   * Several controls (e.g. a row of choice buttons): rendered as a labelled group instead of a
+   * <label>, which would forward clicks on empty space to the first button.
+   */
+  group?: boolean;
 }) {
+  const Tag = group ? 'div' : 'label';
   return (
-    <label className={`field${full ? ' full' : ''}${error ? ' has-error' : ''}`}>
+    <Tag
+      className={`field${full ? ' full' : ''}${error ? ' has-error' : ''}`}
+      {...(group ? { role: 'group', 'aria-label': label } : {})}
+    >
       <span className="field-label">
         {label}
         {required && (
@@ -119,7 +129,7 @@ export function Field({
       ) : (
         hint && <span className="field-hint">{hint}</span>
       )}
-    </label>
+    </Tag>
   );
 }
 
@@ -230,6 +240,14 @@ const PATHS = {
       <path d="M3 7h15a3 3 0 0 1 3 3v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
       <path d="M3 7l12-4 1.5 4" />
       <circle cx="16.5" cy="14" r="1.3" />
+    </>
+  ),
+  categories: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <path d="M14 15.5h7M14 19.5h5" />
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,

@@ -3,7 +3,8 @@ import { dayOffset, estimateArrival } from '../delivery/delivery.js';
 
 /**
  * Shared SELECT for product cards. $1 must be the current user id (or NULL).
- * Callers append `AND …`, ORDER BY, LIMIT. Aliases: p = products, s = stores, c = categories.
+ * Callers append `AND …`, ORDER BY, LIMIT. Aliases: p = products, s = stores, c = the product's
+ * category, pc = its main category (NULL when c is already a main category).
  */
 export const PRODUCT_SUMMARY_SELECT = `
   SELECT p.id, p.name_ar, p.brand, p.base_price, p.compare_at_price, p.currency,
@@ -12,11 +13,12 @@ export const PRODUCT_SUMMARY_SELECT = `
          (SELECT color_hex FROM product_variants v WHERE v.product_id = p.id ORDER BY v.position, v.sku LIMIT 1) AS color_hex,
          (SELECT COALESCE(SUM(stock_qty), 0) FROM product_variants v WHERE v.product_id = p.id) AS stock_total,
          s.id AS store_id, s.slug AS store_slug, s.name_ar AS store_name, s.city AS store_city, s.prep_hours,
-         c.slug AS category_slug,
+         COALESCE(pc.slug, c.slug) AS category_slug, COALESCE(c.icon, pc.icon) AS category_icon,
          EXISTS (SELECT 1 FROM wishlist_items w WHERE w.user_id = $1::uuid AND w.product_id = p.id) AS is_wishlisted
     FROM products p
     JOIN stores s ON s.id = p.store_id AND s.status = 'active'
     LEFT JOIN categories c ON c.id = p.category_id
+    LEFT JOIN categories pc ON pc.id = c.parent_id
    WHERE p.status = 'active'`;
 
 export interface ProductSummary {
@@ -32,7 +34,10 @@ export interface ProductSummary {
   ratingCount: number;
   imageUrl: string | null;
   colorHex: string | null;
+  /** Slug of the product's main category (نساء، حقائب…), for the placeholder tile. */
   category: string | null;
+  /** Icon of its category (MaterialCommunityIcons name) for the placeholder tile. */
+  categoryIcon: string | null;
   inStock: boolean;
   isWishlisted: boolean;
   store: { id: string; slug: string; name: string; city: string };
@@ -58,6 +63,7 @@ export function mapProductSummary(r: any, ctx: Ctx, customerCity: string): Produ
     imageUrl: r.image_url,
     colorHex: r.color_hex,
     category: r.category_slug,
+    categoryIcon: r.category_icon ?? null,
     inStock: r.stock_total > 0,
     isWishlisted: r.is_wishlisted,
     store: { id: r.store_id, slug: r.store_slug, name: r.store_name, city: r.store_city },

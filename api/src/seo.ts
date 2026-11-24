@@ -72,7 +72,9 @@ export async function pageMeta(db: Queryable, path: string, query: URLSearchPara
   }
 
   if (path === 'categories') {
-    const { rows } = await db.query(`SELECT slug, name_ar FROM categories ORDER BY sort_order, name_ar`);
+    const { rows } = await db.query(
+      `SELECT c.slug, c.name_ar FROM categories c LEFT JOIN categories pc ON pc.id = c.parent_id WHERE c.is_active AND (pc.id IS NULL OR pc.is_active) AND c.parent_id IS NULL ORDER BY c.sort_order, c.name_ar`,
+    );
     return {
       ...base,
       title: `الأقسام | ${SITE_NAME}`,
@@ -90,7 +92,7 @@ export async function pageMeta(db: Queryable, path: string, query: URLSearchPara
     const q = query.get('q');
     if (q) return { ...base, title: `نتائج «${clip(q, 40)}» | ${SITE_NAME}`, noindex: true };
     if (category) {
-      const { rows } = await db.query(`SELECT name_ar FROM categories WHERE slug = $1`, [category]);
+      const { rows } = await db.query(`SELECT c.name_ar FROM categories c LEFT JOIN categories pc ON pc.id = c.parent_id WHERE c.is_active AND (pc.id IS NULL OR pc.is_active) AND c.slug = $1`, [category]);
       if (rows[0]) {
         return {
           ...base,
@@ -302,7 +304,7 @@ export function robotsTxt(origin: string, cfg: SeoConfig): string {
 
 export async function sitemapXml(db: Queryable, origin: string): Promise<string> {
   const [categories, stores, products, looks] = await Promise.all([
-    db.query(`SELECT slug FROM categories ORDER BY sort_order`),
+    db.query(`SELECT c.slug FROM categories c LEFT JOIN categories pc ON pc.id = c.parent_id WHERE c.is_active AND (pc.id IS NULL OR pc.is_active) ORDER BY c.parent_id NULLS FIRST, c.sort_order`),
     db.query(`SELECT slug, updated_at FROM stores WHERE status = 'active' ORDER BY slug`),
     db.query(
       `SELECT p.id, p.updated_at,

@@ -194,11 +194,22 @@ function ProductEditor({ initial }: { initial?: AdminProductDetail }) {
               <Field label="القسم">
                 <select className="select" value={info.categoryId} onChange={(e) => set('categoryId', e.target.value)}>
                   <option value="">بدون قسم</option>
-                  {categories.data?.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
+                  {/* Main categories as groups; a sub-category is the precise choice («نساء › فساتين»). */}
+                  {categories.data
+                    ?.filter((c) => !c.parentId)
+                    .map((main) => (
+                      <optgroup key={main.id} label={main.nameAr}>
+                        <option value={main.id}>{main.nameAr} — عام</option>
+                        {categories.data
+                          ?.filter((c) => c.parentId === main.id)
+                          .map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.nameAr}
+                              {c.isActive ? '' : ' (مخفي)'}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ))}
                 </select>
               </Field>
               <Field label="الماركة">

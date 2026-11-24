@@ -19,7 +19,8 @@ type LineSource = { kind: 'cart'; userId: string } | { kind: 'shared'; sharedCar
 const LINE_SELECT = `
   SELECT x.variant_id, x.quantity, v.sku, v.size, v.color_name_ar, v.color_hex, v.stock_qty,
          COALESCE(v.price, p.base_price) AS unit_price, p.currency,
-         p.id AS product_id, p.name_ar, p.status AS product_status, c.slug AS category_slug,
+         p.id AS product_id, p.name_ar, p.status AS product_status,
+         COALESCE(pc.slug, c.slug) AS category_slug, COALESCE(c.icon, pc.icon) AS category_icon,
          (SELECT url FROM product_images i WHERE i.product_id = p.id ORDER BY i.sort_order LIMIT 1) AS image_url,
          s.id AS store_id, s.slug AS store_slug, s.name_ar AS store_name, s.logo_text, s.brand_color,
          s.city AS store_city, s.prep_hours, s.delivery_fee, s.status AS store_status`;
@@ -28,7 +29,8 @@ const LINE_JOINS = `
   JOIN product_variants v ON v.id = x.variant_id
   JOIN products p ON p.id = v.product_id
   JOIN stores s ON s.id = p.store_id
-  LEFT JOIN categories c ON c.id = p.category_id`;
+  LEFT JOIN categories c ON c.id = p.category_id
+  LEFT JOIN categories pc ON pc.id = c.parent_id`;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LineRow = Record<string, any>;
@@ -113,6 +115,7 @@ export function buildCartView(rows: LineRow[], customerCity: string, ctx: Ctx): 
     colorName: r.color_name_ar,
     size: r.size,
     category: r.category_slug,
+    categoryIcon: r.category_icon ?? null,
     sku: r.sku,
     unitPrice: r.unit_price,
     quantity: r.quantity,

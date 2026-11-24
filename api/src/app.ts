@@ -112,10 +112,17 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
       const message =
         constraint === 'product_variants_sku_key'
           ? 'رمز SKU مستخدم لمنتج آخر'
+          : constraint === 'categories_slug_key'
+            ? 'الرابط المختصر (slug) مستخدم لقسم آخر'
           : constraint === 'product_variants_size_color_uniq'
             ? 'هذا المقاس بهذا اللون موجود مسبقاً في المنتج'
             : 'هذه البيانات مسجّلة من قبل';
       return reply.status(409).send({ error: { code: 'duplicate', message } });
+    }
+    if (pgCode === '23514' && (err as { constraint?: string }).constraint === 'categories_two_levels') {
+      return reply.status(400).send({
+        error: { code: 'invalid_parent', message: 'الأقسام مستويان فقط: قسم رئيسي وأقسام فرعية تحته' },
+      });
     }
     if (pgCode === '23514' && (err as { constraint?: string }).constraint === 'orders_shipped_needs_driver') {
       return reply.status(400).send({ error: { code: 'driver_required', message: 'أسندي الطلب لسائق أولاً' } });

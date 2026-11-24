@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { inTransaction, type Queryable } from '../../db.js';
 import type { Ctx } from '../../lib/context.js';
 import { badRequest, forbidden, notFound } from '../../lib/errors.js';
+import { assertCategoryUsable } from './categories.admin.js';
 import type { StaffContext } from './permissions.js';
 
 /**
@@ -118,10 +119,10 @@ export async function listProducts(
 }
 
 async function findScopedProduct(db: Queryable, staff: StaffContext, id: string) {
-  const { rows } = await db.query(`SELECT id, store_id FROM products WHERE id = $1`, [id]);
+  const { rows } = await db.query(`SELECT id, store_id, category_id FROM products WHERE id = $1`, [id]);
   const p = rows[0];
   if (!p || (staff.storeId && p.store_id !== staff.storeId)) throw notFound('المنتج');
-  return p as { id: string; store_id: string };
+  return p as { id: string; store_id: string; category_id: string | null };
 }
 
 export async function getProduct(ctx: Ctx, staff: StaffContext, id: string) {
@@ -155,11 +156,6 @@ export async function getProduct(ctx: Ctx, staff: StaffContext, id: string) {
       sold: r.sold as number,
     })),
   };
-}
-
-export async function listCategories(ctx: Ctx) {
-  const { rows } = await ctx.db.query(`SELECT id, slug, name_ar FROM categories ORDER BY sort_order, name_ar`);
-  return rows.map((r) => ({ id: r.id as string, slug: r.slug as string, name: r.name_ar as string }));
 }
 
 // ---------------------------------------------------------------- validation shared by create/update
@@ -246,6 +242,7 @@ export async function createProduct(ctx: Ctx, staff: StaffContext, input: Produc
   const isFeatured = staff.storeId ? false : (input.isFeatured ?? false);
 
   const id = await inTransaction(ctx.db, async (db) => {
+    await assertCategoryUsable(db, input.categoryId);
     const { rows } = await db.query(
       `INSERT INTO products (store_id, category_id, slug, name_ar, name_en, brand, description_ar,
                              base_price, compare_at_price, status, is_featured)
@@ -280,6 +277,7 @@ export async function updateProduct(ctx: Ctx, staff: StaffContext, id: string, i
     if (input.storeId && input.storeId !== current.store_id) {
       throw badRequest('store_change', 'لا يمكن نقل منتج إلى متجر آخر');
     }
+    await assertCategoryUsable(db, input.categoryId, current.category_id);
     await db.query(
       `UPDATE products SET category_id = $2, name_ar = $3, name_en = $4, brand = $5, description_ar = $6,
               base_price = $7, compare_at_price = $8, status = $9,
