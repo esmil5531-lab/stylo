@@ -6,11 +6,11 @@ import {
   Cairo_800ExtraBold,
   useFonts,
 } from '@expo-google-fonts/cairo';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AppState, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import { ensureRTL } from '@/i18n/rtl';
@@ -18,6 +18,12 @@ import { loadSession, useSession } from '@/lib/session';
 import { colors } from '@/theme';
 
 ensureRTL();
+
+// Native apps have no window focus: refetch (driver orders, cart…) when the app comes back to the
+// foreground, so a driver returning from the maps app never works from a stale list.
+if (Platform.OS !== 'web') {
+  AppState.addEventListener('change', (state) => focusManager.setFocused(state === 'active'));
+}
 
 function createQueryClient() {
   return new QueryClient({
