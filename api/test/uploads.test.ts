@@ -140,6 +140,10 @@ describe('uploading a photo', () => {
   it('refuses files that are not real images, tiny images and oversized files', async () => {
     let res = await upload(ADMIN, 'banner', Buffer.from('<?php echo "hi"; ?>'), 'image/png');
     assert.equal(res.json().error.code, 'not_an_image');
+    // SVG is never decoded (only photo formats, by their first bytes).
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900"><rect width="900" height="900"/></svg>');
+    res = await upload(ADMIN, 'banner', svg, 'image/svg+xml');
+    assert.equal(res.json().error.code, 'not_an_image');
     // A valid header with the pixels cut off: readable metadata, undecodable image.
     const cut = (await photo()).subarray(0, 4000);
     res = await upload(ADMIN, 'banner', cut);

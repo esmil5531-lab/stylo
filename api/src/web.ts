@@ -14,11 +14,11 @@ interface SeoDeps {
 }
 
 /** Hashed build files never change: cache them for a year. HTML is always revalidated. */
-function cacheHeaders(res: { setHeader(name: string, value: string): unknown }, path: string) {
+function cacheHeaders(res: { header(name: string, value: string): unknown }, path: string) {
   if (/[\\/](_expo[\\/]static|assets)[\\/]/.test(path)) {
-    res.setHeader('cache-control', 'public, max-age=31536000, immutable');
+    res.header('cache-control', 'public, max-age=31536000, immutable');
   } else if (path.endsWith('.html')) {
-    res.setHeader('cache-control', 'no-cache');
+    res.header('cache-control', 'no-cache');
   }
 }
 

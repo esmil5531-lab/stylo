@@ -210,7 +210,7 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
       index: false,
       cacheControl: false,
       allowedPath: (p) => p.endsWith('.webp'),
-      setHeaders: (res) => res.setHeader('cache-control', 'public, max-age=31536000, immutable'),
+      setHeaders: (reply) => reply.header('cache-control', 'public, max-age=31536000, immutable'),
     });
   }
 

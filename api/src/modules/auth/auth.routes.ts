@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
-import { unauthorized } from '../../lib/errors.js';
+import { AppError, unauthorized } from '../../lib/errors.js';
+import { createRateLimiter } from '../../lib/rate-limit.js';
 import { requestOtp, revokeSession, verifyOtp } from './auth.service.js';
 
 const Phone = z.string().trim().min(9).max(20);
@@ -12,8 +13,15 @@ export function bearerToken(header: string | undefined): string | null {
 }
 
 export async function authRoutes(app: FastifyInstance) {
-  app.post('/auth/otp/request', async (req) => {
+  const perIp = createRateLimiter(app.config.auth.otpMaxPerIpHour, 3_600_000);
+
+  app.post('/auth/otp/request', async (req, reply) => {
     const { phone } = z.object({ phone: Phone }).parse(req.body);
+    const wait = perIp.hit(req.ip);
+    if (wait > 0) {
+      reply.header('retry-after', String(wait));
+      throw new AppError(429, 'otp_ip_limit', 'طلبات رموز كثيرة من هذا الاتصال، حاولي بعد قليل', { retryAfter: wait });
+    }
     return requestOtp(app.ctx(req), app.messenger, phone);
   });
 

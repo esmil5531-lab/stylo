@@ -26,6 +26,21 @@ export const MEDIA_WIDTHS = [320, 800, 1600] as const;
 export type MediaWidth = (typeof MEDIA_WIDTHS)[number];
 export type MediaPurpose = 'product' | 'banner' | 'look' | 'category';
 
+/**
+ * First bytes of the formats we accept. Checked before sharp sees the file so SVG, TIFF, PDF and
+ * other formats never reach their (larger, riskier) decoders.
+ */
+function looksLikePhoto(b: Buffer): boolean {
+  const ascii = (from: number, to: number) => b.subarray(from, to).toString('latin1');
+  return (
+    (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) || // JPEG
+    ascii(0, 8) === '\x89PNG\r\n\x1a\n' || // PNG
+    (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') || // WebP
+    ascii(0, 4) === 'GIF8' || // GIF
+    ascii(4, 8) === 'ftyp' // AVIF / HEIF
+  );
+}
+
 /** Formats we accept (detected from the bytes, not the file name). */
 const ACCEPTED = new Set(['jpeg', 'png', 'webp', 'gif', 'avif', 'heif']);
 
@@ -112,7 +127,8 @@ export async function storeImage(
     throw new AppError(413, 'file_too_large', `حجم الصورة أكبر من ${Math.round(maxBytes / 1_048_576)} ميغابايت`);
   }
 
-  let meta: sharp.Metadata;
+  if (!looksLikePhoto(input)) throw badRequest('not_an_image', 'الملف ليس صورة صالحة (JPG أو PNG أو WebP)');
+  let meta: Awaited<ReturnType<ReturnType<typeof sharp>['metadata']>>;
   try {
     meta = await sharp(input, { limitInputPixels: 60_000_000 }).metadata();
   } catch {
@@ -134,18 +150,17 @@ export async function storeImage(
   let size = { width: meta.width, height: meta.height };
   for (const w of MEDIA_WIDTHS) {
     // rotate() applies the EXIF orientation; WebP output carries no EXIF (GPS, camera…).
-    let data: Buffer;
-    let info: sharp.OutputInfo;
-    try {
-      ({ data, info } = await sharp(input, { limitInputPixels: 60_000_000 })
-        .rotate()
-        .resize({ width: w, height: w, fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: w === 320 ? 75 : 82 })
-        .toBuffer({ resolveWithObject: true }));
-    } catch {
+    const result = await sharp(input, { limitInputPixels: 60_000_000 })
+      .rotate()
+      .resize({ width: w, height: w, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: w === 320 ? 75 : 82 })
+      .toBuffer({ resolveWithObject: true })
+      .catch(() => null);
+    if (!result) {
       // e.g. iPhone HEIC (HEVC) or a truncated file: readable header, undecodable pixels.
       throw badRequest('unsupported_image', 'تعذّرت قراءة الصورة. احفظيها بصيغة JPG أو PNG ثم أعيدي الرفع');
     }
+    const { data, info } = result;
     out[w] = await storage.put(`${key}-${w}.webp`, data, 'image/webp');
     bytes += data.length;
     if (w === 1600) size = { width: info.width, height: info.height };

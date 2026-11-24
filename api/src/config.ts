@@ -66,6 +66,7 @@ const EnvSchema = z.object({
   UPLOADS_DIR: z.string().optional(),
   /** Max size of one uploaded photo in MB (before compression). */
   MEDIA_MAX_MB: z.coerce.number().positive().max(50).default(10),
+  OTP_MAX_PER_IP_HOUR: z.coerce.number().int().positive().default(30),
   SUPABASE_URL: z.string().url().optional(),
   /** Supabase "service_role" key — server only, never in the app or the admin site. */
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
@@ -102,6 +103,8 @@ export interface AuthConfig {
   otpMaxAttempts: number;
   /** At most this many codes per phone per hour. */
   otpMaxPerHour: number;
+  /** At most this many code requests per IP address per hour (carrier NAT: keep it generous). */
+  otpMaxPerIpHour: number;
   otpResendSeconds: number;
   customerSessionDays: number;
   adminSessionHours: number;
@@ -192,6 +195,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       otpTtlSeconds: 300,
       otpMaxAttempts: 5,
       otpMaxPerHour: 5,
+      otpMaxPerIpHour: e.OTP_MAX_PER_IP_HOUR,
       otpResendSeconds: 30,
       customerSessionDays: 60,
       adminSessionHours: 12,
