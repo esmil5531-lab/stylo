@@ -280,6 +280,8 @@ export interface DriverHome {
   driver: { id: string; name: string; phone: string | null; city: string; vehicle: string; status: DriverStatus };
   custody: { ordersCount: number; amount: number; since: string | null };
   today: { delivered: number; active: number };
+  /** Cash-on-delivery orders assigned and not delivered yet: what the driver will collect. */
+  toCollect: { ordersCount: number; amount: number };
   lastSettlement: { at: string; amountReceived: number; receivedBy: string } | null;
 }
 
@@ -289,6 +291,7 @@ export interface DriverOrder {
   status: OrderStatusValue;
   statusLabel: string;
   deliveryMode: 'fastest' | 'standard' | 'unified';
+  isExpress: boolean;
   paymentMethod: 'cod' | 'online';
   amountToCollect: number;
   cashCollectedAt: string | null;

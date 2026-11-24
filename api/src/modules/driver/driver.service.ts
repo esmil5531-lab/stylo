@@ -35,7 +35,7 @@ export async function loadDriver(ctx: Ctx): Promise<DriverCtx> {
 }
 
 export async function getDriverHome(ctx: Ctx, driver: DriverCtx) {
-  const [custody, today, last] = await Promise.all([
+  const [custody, today, last, pending] = await Promise.all([
     ctx.db.query(
       `SELECT count(*)::int AS n, COALESCE(SUM(o.total), 0)::bigint AS amount, MIN(o.cash_collected_at) AS since
          FROM orders o
@@ -58,6 +58,13 @@ export async function getDriverHome(ctx: Ctx, driver: DriverCtx) {
         WHERE ds.driver_id = $1 ORDER BY ds.settled_at DESC LIMIT 1`,
       [driver.id],
     ),
+    // Cash still to collect: cash-on-delivery orders assigned to the driver and not delivered yet.
+    ctx.db.query(
+      `SELECT count(*)::int AS n, COALESCE(SUM(o.total), 0)::bigint AS amount
+         FROM orders o
+        WHERE o.driver_id = $1 AND o.payment_method = 'cod' AND o.status IN ('confirmed', 'processing', 'shipped')`,
+      [driver.id],
+    ),
   ]);
   const c = custody.rows[0];
   const l = last.rows[0];
@@ -69,6 +76,7 @@ export async function getDriverHome(ctx: Ctx, driver: DriverCtx) {
       since: c.since ? (c.since as Date).toISOString() : null,
     },
     today: { delivered: today.rows[0].delivered as number, active: today.rows[0].active as number },
+    toCollect: { ordersCount: pending.rows[0].n as number, amount: Number(pending.rows[0].amount) },
     lastSettlement: l
       ? { at: (l.settled_at as Date).toISOString(), amountReceived: Number(l.amount_received), receivedBy: l.received_by }
       : null,
@@ -115,6 +123,8 @@ function mapDriverOrder(r: any) {
     status: r.status as OrderStatus,
     statusLabel: STATUS_AR[r.status as OrderStatus],
     deliveryMode: r.delivery_mode as string,
+    /** «أسرع توصيل»: the customer paid for priority — deliver these first. */
+    isExpress: r.delivery_mode === 'fastest',
     paymentMethod: r.payment_method as 'cod' | 'online',
     /** Cash to collect from the customer (0 for paid-online orders). */
     amountToCollect: cod ? Number(r.total) : 0,
@@ -151,7 +161,8 @@ export async function listDriverOrders(ctx: Ctx, driver: DriverCtx) {
              OR (o.status = 'delivered'
                  AND (o.cash_collected_at AT TIME ZONE '${TZ}')::date = ($2::timestamptz AT TIME ZONE '${TZ}')::date))
       ORDER BY CASE o.status WHEN 'shipped' THEN 0 WHEN 'processing' THEN 1 WHEN 'confirmed' THEN 2 ELSE 3 END,
-               o.cash_collected_at DESC NULLS LAST, o.assigned_at`,
+               o.cash_collected_at DESC NULLS LAST,
+               (o.delivery_mode = 'fastest') DESC, o.estimated_delivery_at NULLS LAST, o.assigned_at`,
     [driver.id, ctx.now],
   );
   const orders = rows.map(mapDriverOrder);

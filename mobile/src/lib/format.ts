@@ -39,3 +39,18 @@ export function formatCount(n: number): string {
 export function deliveryModeLabel(mode: 'fastest' | 'standard' | 'unified'): string {
   return ar.delivery[mode];
 }
+
+/** Libya time (UTC+2, no daylight saving) as "3:05 م" — the same on every phone, whatever its zone. */
+export function formatLibyaTime(iso: string): string {
+  const d = new Date(new Date(iso).getTime() + 2 * 3_600_000);
+  const h = d.getUTCHours();
+  const m = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${h % 12 || 12}:${m} ${h < 12 ? 'ص' : 'م'}`;
+}
+
+/** Libyan number → WhatsApp link digits: "+218 91 234 5678" / "0912345678" → "218912345678". */
+export function whatsappNumber(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('218')) return digits;
+  return `218${digits.replace(/^0/, '')}`;
+}

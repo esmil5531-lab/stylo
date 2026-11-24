@@ -210,6 +210,14 @@ describe('driver mode (/v1/driver)', () => {
     assert.equal((await req(ALI, 'POST', `/v1/driver/orders/${SHIPPED_ORDER}/delivered`)).statusCode, 404);
 
     const before = (await req(MOHAMED, 'GET', '/v1/driver/me')).json();
+    // Cash still to collect = the driver's undelivered cash-on-delivery orders.
+    const codActive = list.active.filter((o: { paymentMethod: string }) => o.paymentMethod === 'cod');
+    assert.equal(before.toCollect.ordersCount, codActive.length);
+    assert.equal(
+      before.toCollect.amount,
+      codActive.reduce((s: number, o: { amountToCollect: number }) => s + o.amountToCollect, 0),
+    );
+    assert.equal(order.isExpress, order.deliveryMode === 'fastest');
     const res = await req(MOHAMED, 'POST', `/v1/driver/orders/${SHIPPED_ORDER}/delivered`);
     assert.equal(res.statusCode, 200, res.body);
     assert.equal(res.json().status, 'delivered');
@@ -218,6 +226,7 @@ describe('driver mode (/v1/driver)', () => {
     const me = (await req(MOHAMED, 'GET', '/v1/driver/me')).json();
     assert.equal(me.custody.amount, before.custody.amount + order.amountToCollect);
     assert.equal(me.custody.ordersCount, before.custody.ordersCount + 1);
+    assert.equal(me.toCollect.amount, before.toCollect.amount - order.amountToCollect);
     assert.equal(me.driver.status, 'available');
     assert.equal(hasCommission(me), false);
 
