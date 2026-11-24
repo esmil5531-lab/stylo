@@ -81,13 +81,35 @@ export async function registerWebsites(
       cacheControl: false,
       setHeaders: cacheHeaders,
     });
-    const htmlCache = new Map<string, string>();
+    // Build output (JS bundles, fonts, images) is looked up on disk per request, so a rebuild
+    // while the server runs still serves the new hashed files instead of 404s.
+    for (const sub of ['_expo', 'assets']) {
+      if (!existsSync(join(customerDir, sub))) continue;
+      await app.register(fastifyStatic, {
+        root: join(customerDir, sub),
+        prefix: `/${sub}/`,
+        decorateReply: false,
+        wildcard: true,
+        cacheControl: false,
+        setHeaders: cacheHeaders,
+      });
+    }
+
+    const check = checkCustomerBuild(customerDir);
+    if (!check.ok) app.log.error(`customer site build problem: ${check.problem}`);
+    else if (check.repairedScript) {
+      app.log.warn(`customer index.html has no bundle <script>; serving it with ${check.repairedScript}`);
+    }
+
+    // Re-read a page when its file changes (rebuilds), and make sure it loads the JS bundle.
+    const htmlCache = new Map<string, { mtime: number; html: string }>();
     const readHtml = (file: string) => {
-      let html = htmlCache.get(file);
-      if (html === undefined) {
-        html = readFileSync(join(customerDir, file), 'utf8');
-        htmlCache.set(file, html);
-      }
+      const full = join(customerDir, file);
+      const mtime = statSync(full).mtimeMs;
+      const cached = htmlCache.get(file);
+      if (cached && cached.mtime === mtime) return cached.html;
+      const html = ensureBundleScript(readFileSync(full, 'utf8'), customerDir);
+      htmlCache.set(file, { mtime, html });
       return html;
     };
     const page = async (req: FastifyRequest, path: string, file: string, status: number) => {
@@ -112,12 +134,24 @@ export async function registerWebsites(
       if (path === 'v1' || path.startsWith('v1/')) {
         return reply.code(404).send({ error: { code: 'not_found', message: 'المسار غير موجود' } });
       }
+      // A page without its JS bundle would be blank: explain instead.
+      if (!findEntryBundle(customerDir)) {
+        return reply
+          .code(503)
+          .header('cache-control', 'no-store')
+          .type('text/html; charset=utf-8')
+          .send(notBuiltPage('customer', !!opts.production, true));
+      }
       const file = resolveRoute(routes, path);
       const out = await page(req, path, file ?? routes.notFound ?? 'index.html', file ? 200 : 404);
       return reply.code(out.status).header('cache-control', 'no-cache').type('text/html; charset=utf-8').send(out.html);
     };
     app.get('/', handler);
     app.get('/*', handler);
+    if (!opts.production) {
+      // Development diagnostic: what the server sees in the customer build (open it in the browser).
+      app.get('/__stylo/site', async () => checkCustomerBuild(customerDir));
+    }
     app.log.info(`customer site served at / from ${customerDir}`);
   } else {
     const page = notBuiltPage('customer', !!opts.production);
@@ -139,12 +173,14 @@ export async function registerWebsites(
  * Shown at / (or /admin/) while the website has not been built: the API itself is fine, only the
  * static export is missing. Development explains how to build it; production shows a neutral page.
  */
-function notBuiltPage(site: 'customer' | 'admin', production: boolean): string {
+function notBuiltPage(site: 'customer' | 'admin', production: boolean, incomplete = false): string {
   const title = site === 'customer' ? 'موقع الزبائن' : 'لوحة الإدارة والمتاجر';
   const command = site === 'customer' ? 'npm run build:customer' : 'npm run build:admin';
   const body = production
     ? `<p>الموقع قيد التجهيز، نعود قريباً.</p>`
-    : `<p>الخادم يعمل ✓ لكن <b>${title}</b> لم يُبنَ بعد، لذلك لا توجد صفحة لعرضها هنا.</p>
+    : `<p>الخادم يعمل ✓ لكن <b>${title}</b> ${
+        incomplete ? 'بناؤه غير مكتمل (لا توجد ملفات JavaScript في <code dir="ltr">_expo/static/js/web</code>)' : 'لم يُبنَ بعد'
+      }، لذلك لا توجد صفحة لعرضها هنا.</p>
        <p>من مجلد المشروع شغّلي أحد الأمرين ثم أعيدي تشغيل الخادم:</p>
        <pre dir="ltr">${command}</pre>
        <pre dir="ltr">npm run build</pre>
@@ -177,6 +213,63 @@ function notBuiltPage(site: 'customer' | 'admin', production: boolean): string {
   <p class="tag">كل ستايل في مكان واحد</p>
   ${body}
 </main></body></html>`;
+}
+
+const BUNDLE_SRC = /<script[^>]+src="\/?_expo\/static\/js\/web\/[^"]+\.js"/;
+
+/** The newest web entry bundle in the export (Expo empties dist/ on each export, but be safe). */
+function findEntryBundle(customerDir: string): string | null {
+  const dir = join(customerDir, '_expo', 'static', 'js', 'web');
+  if (!existsSync(dir)) return null;
+  const entries = readdirSync(dir)
+    .filter((f) => /^entry-[\w-]+\.js$/.test(f))
+    .map((f) => ({ f, t: statSync(join(dir, f)).mtimeMs }))
+    .sort((a, b) => b.t - a.t);
+  return entries[0] ? `/_expo/static/js/web/${entries[0].f}` : null;
+}
+
+/**
+ * An exported page must load the JS bundle, or the browser shows an empty page with no error.
+ * If a page has no bundle <script> (seen with some local builds), add the entry bundle.
+ */
+export function ensureBundleScript(html: string, customerDir: string): string {
+  if (BUNDLE_SRC.test(html)) return html;
+  const src = findEntryBundle(customerDir);
+  if (!src) return html;
+  const tag = `<script src="${src}" defer></script>`;
+  return html.includes('</body>') ? html.replace('</body>', `${tag}</body>`) : html + tag;
+}
+
+export interface BuildCheck {
+  ok: boolean;
+  problem?: string;
+  dir: string;
+  indexBytes: number;
+  scriptsInIndex: { src: string; exists: boolean }[];
+  entryBundle: string | null;
+  repairedScript?: string;
+}
+
+/** Inspects the customer build: is there a JS bundle, and does index.html point at files that exist? */
+export function checkCustomerBuild(customerDir: string): BuildCheck {
+  const index = join(customerDir, 'index.html');
+  const html = existsSync(index) ? readFileSync(index, 'utf8') : '';
+  const scripts = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map((m) => m[1]!);
+  const scriptsInIndex = scripts.map((src) => ({
+    src,
+    exists: existsSync(join(customerDir, decodeURIComponent(src.replace(/^\//, '').split('?')[0]!))),
+  }));
+  const entryBundle = findEntryBundle(customerDir);
+  const base = { dir: customerDir, indexBytes: Buffer.byteLength(html), scriptsInIndex, entryBundle };
+  if (!html) return { ...base, ok: false, problem: 'index.html is missing — run `npm run build:customer`' };
+  if (!entryBundle) {
+    return { ...base, ok: false, problem: 'no JS bundle in _expo/static/js/web — the export is incomplete; run `npm run build:customer` again' };
+  }
+  const missing = scriptsInIndex.filter((s) => !s.exists && s.src.includes('_expo/'));
+  if (missing.length) {
+    return { ...base, ok: false, problem: `index.html points to missing files: ${missing.map((m) => m.src).join(', ')}` };
+  }
+  return BUNDLE_SRC.test(html) ? { ...base, ok: true } : { ...base, ok: true, repairedScript: entryBundle };
 }
 
 interface RouteTable {

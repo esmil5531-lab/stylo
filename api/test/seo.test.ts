@@ -30,13 +30,13 @@ function fakeSite(): string {
     `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title data-rh="true"></title><meta charSet="utf-8"/></head><body><div id="root">${name}</div></body></html>`;
   mkdirSync(join(dir, 'product'));
   mkdirSync(join(dir, 'store'));
-  mkdirSync(join(dir, '_expo/static/js'), { recursive: true });
+  mkdirSync(join(dir, '_expo/static/js/web'), { recursive: true });
   writeFileSync(join(dir, 'index.html'), page('home'));
   writeFileSync(join(dir, 'cart.html'), page('cart'));
   writeFileSync(join(dir, '+not-found.html'), page('404'));
   writeFileSync(join(dir, 'product/[id].html'), page('product'));
   writeFileSync(join(dir, 'store/[slug].html'), page('store'));
-  writeFileSync(join(dir, '_expo/static/js/app-abc123.js'), 'console.log(1)');
+  writeFileSync(join(dir, '_expo/static/js/web/entry-abc123.js'), 'console.log(1)');
   return dir;
 }
 
@@ -118,7 +118,7 @@ describe('page tags for Google and link previews', () => {
 
   it('staging pages are noindex; hashed assets are cached for a year', async () => {
     assert.match((await staging.inject('/')).body, /<meta name="robots" content="noindex, nofollow"\/>/);
-    const js = await app.inject('/_expo/static/js/app-abc123.js');
+    const js = await app.inject('/_expo/static/js/web/entry-abc123.js');
     assert.equal(js.statusCode, 200);
     assert.equal(js.headers['cache-control'], 'public, max-age=31536000, immutable');
     assert.equal(js.headers['x-content-type-options'], 'nosniff');
