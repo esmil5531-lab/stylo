@@ -4,9 +4,10 @@ import { Link, useParams } from 'react-router';
 import { useAssignDriver, useChangeOrderStatus, useDrivers, useOrder } from '@/api/hooks';
 import type { AdminOrderDetail, OrderStatus } from '@/api/types';
 import { useCan } from '@/components/Layout';
+import { Count, Money, Num, Phone } from '@/components/inputs';
 import { Async, Badge, ErrorAlert, Field, Icon, Modal, OrderNo, PageHead } from '@/components/ui';
 import { DELIVERY_MODE, ORDER_STATUS, VEHICLE } from '@/lib/constants';
-import { formatDateTime, formatLYD } from '@/lib/format';
+import { formatDateTime } from '@/lib/format';
 
 const PATH: OrderStatus[] = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'];
 
@@ -104,12 +105,24 @@ function OrderView({ order }: { order: AdminOrderDetail }) {
                       <td>
                         <div className="cell-title">{it.name}</div>
                         <div className="cell-sub">
-                          {[it.colorName, it.size].filter(Boolean).join(' · ')} · <span className="ltr">{it.sku}</span>
+                          {it.colorName}
+                          {it.size && (
+                            <>
+                              {it.colorName ? ' · ' : ''}المقاس <Num>{it.size}</Num>
+                            </>
+                          )}{' '}
+                          · <Num>{it.sku}</Num>
                         </div>
                       </td>
-                      <td className="num">{it.quantity}</td>
-                      <td className="num">{formatLYD(it.unitPrice)}</td>
-                      <td className="num strong">{formatLYD(it.lineTotal)}</td>
+                      <td>
+                        <Count value={it.quantity} />
+                      </td>
+                      <td>
+                        <Money value={it.unitPrice} />
+                      </td>
+                      <td className="strong">
+                        <Money value={it.lineTotal} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -118,15 +131,15 @@ function OrderView({ order }: { order: AdminOrderDetail }) {
             <div className="card-pad totals">
               <div className="row">
                 <span className="muted">مجموع المنتجات</span>
-                <span className="num">{formatLYD(order.subtotal)}</span>
+                <Money value={order.subtotal} />
               </div>
               <div className="row">
                 <span className="muted">التوصيل ({DELIVERY_MODE[order.deliveryMode] ?? order.deliveryMode})</span>
-                <span className="num">{formatLYD(order.shippingFee)}</span>
+                <Money value={order.shippingFee} />
               </div>
               <div className="row strong">
                 <span>الإجمالي</span>
-                <span className="num">{formatLYD(order.total)}</span>
+                <Money value={order.total} />
               </div>
             </div>
           </section>
@@ -145,7 +158,9 @@ function OrderView({ order }: { order: AdminOrderDetail }) {
                 <dt>الاسم</dt>
                 <dd>{order.driver.name}</dd>
                 <dt>الهاتف</dt>
-                <dd className="ltr">{order.driver.phone}</dd>
+                <dd>
+                  <Phone value={order.driver.phone} />
+                </dd>
               </dl>
             ) : (
               <p className="muted" style={{ margin: 0 }}>
@@ -161,7 +176,9 @@ function OrderView({ order }: { order: AdminOrderDetail }) {
               <dt>العميل</dt>
               <dd>{order.customer.name}</dd>
               <dt>الهاتف</dt>
-              <dd className="ltr">{order.shippingAddress.phone ?? order.customer.phone}</dd>
+              <dd>
+                <Phone value={order.shippingAddress.phone ?? order.customer.phone} />
+              </dd>
               <dt>العنوان</dt>
               <dd>
                 {[order.shippingAddress.city, order.shippingAddress.district, order.shippingAddress.street]

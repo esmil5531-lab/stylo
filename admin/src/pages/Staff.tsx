@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { useCreateStaff, useMe, useRoles, useStaff, useStores, useUpdateStaff } from '@/api/hooks';
 import type { Role, StaffMember } from '@/api/types';
 import { Can, useCan } from '@/components/Layout';
+import { Phone, PhoneInput } from '@/components/inputs';
 import { Async, Badge, ErrorAlert, Field, Icon, Modal, PageHead } from '@/components/ui';
+import { normaliseLibyanPhone } from '@/lib/numbers';
 
 export function StaffPage() {
   const staff = useStaff();
@@ -54,7 +56,9 @@ export function StaffPage() {
                         </div>
                         <div className="cell-sub">{s.jobTitle}</div>
                       </td>
-                      <td className="ltr">{s.phone}</td>
+                      <td>
+                        <Phone value={s.phone} />
+                      </td>
                       <td>
                         <Badge tone="brand">{s.role.name}</Badge>
                       </td>
@@ -124,10 +128,19 @@ function StaffForm({ member, roles, onClose }: { member: StaffMember | null; rol
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((p) => ({ ...p, [k]: v }));
   const role = roles.find((r) => r.key === f.roleKey);
-  const valid =
-    (member || (f.fullName.trim().length >= 2 && f.phone.trim().length >= 9)) && (!role?.storeScoped || f.storeId);
+  const [submitted, setSubmitted] = useState(false);
+  const phone = normaliseLibyanPhone(f.phone);
+  const errors = {
+    fullName: !member && f.fullName.trim().length < 2 ? 'اكتبي الاسم الكامل' : null,
+    phone: !member && !phone ? 'رقم ليبي غير صحيح، مثال: 0912345678' : null,
+    email: !member && f.email.trim() && !/^\S+@\S+\.\S+$/.test(f.email) ? 'بريد غير صحيح' : null,
+    store: role?.storeScoped && !f.storeId ? 'اختاري المتجر لهذا الدور' : null,
+  };
+  const show = (e: string | null) => (submitted ? e : null);
 
   const submit = () => {
+    setSubmitted(true);
+    if (Object.values(errors).some(Boolean)) return;
     const storeId = role?.storeScoped ? f.storeId : null;
     if (member) {
       update.mutate(
@@ -138,7 +151,7 @@ function StaffForm({ member, roles, onClose }: { member: StaffMember | null; rol
       create.mutate(
         {
           fullName: f.fullName,
-          phone: f.phone,
+          phone: phone!,
           email: f.email || undefined,
           jobTitle: f.jobTitle || undefined,
           roleKey: f.roleKey,
@@ -158,7 +171,7 @@ function StaffForm({ member, roles, onClose }: { member: StaffMember | null; rol
           <button className="btn btn-ghost" onClick={onClose}>
             إلغاء
           </button>
-          <button className="btn btn-primary" disabled={!valid || mutation.isPending} onClick={submit}>
+          <button className="btn btn-primary" disabled={mutation.isPending} onClick={submit}>
             {member ? 'حفظ' : 'إضافة الموظف'}
           </button>
         </>
@@ -167,14 +180,14 @@ function StaffForm({ member, roles, onClose }: { member: StaffMember | null; rol
       <div className="form-grid">
         {!member && (
           <>
-            <Field label="الاسم الكامل">
+            <Field label="الاسم الكامل" required error={show(errors.fullName)}>
               <input className="input" value={f.fullName} onChange={(e) => set('fullName', e.target.value)} autoFocus />
             </Field>
-            <Field label="رقم الهاتف" hint="مثال: 0912345678 — يُستخدم لتسجيل الدخول لاحقاً">
-              <input className="input ltr" inputMode="tel" value={f.phone} onChange={(e) => set('phone', e.target.value)} />
+            <Field label="رقم الهاتف" required error={show(errors.phone)} hint="يُستخدم لتسجيل الدخول لاحقاً">
+              <PhoneInput value={f.phone} onChange={(v) => set('phone', v)} />
             </Field>
-            <Field label="البريد الإلكتروني (اختياري)">
-              <input className="input ltr" type="email" value={f.email} onChange={(e) => set('email', e.target.value)} />
+            <Field label="البريد الإلكتروني" error={show(errors.email)}>
+              <input className="input" dir="ltr" type="email" value={f.email} onChange={(e) => set('email', e.target.value)} />
             </Field>
           </>
         )}
@@ -191,7 +204,7 @@ function StaffForm({ member, roles, onClose }: { member: StaffMember | null; rol
           </select>
         </Field>
         {role?.storeScoped && (
-          <Field label="المتجر" hint="موظف المتجر يرى طلبات هذا المتجر فقط" full>
+          <Field label="المتجر" required error={show(errors.store)} hint="موظف المتجر يرى بيانات هذا المتجر فقط" full>
             <select className="select" value={f.storeId} onChange={(e) => set('storeId', e.target.value)}>
               <option value="">اختاري المتجر…</option>
               {stores.data?.map((s) => (

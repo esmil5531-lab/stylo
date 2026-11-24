@@ -288,7 +288,7 @@ export async function addLookToCart(
       `SELECT li.product_id, s.id AS store_id, s.slug AS store_slug, s.name_ar AS store_name,
               (SELECT v.id FROM product_variants v
                 WHERE v.product_id = li.product_id AND v.stock_qty > 0
-                ORDER BY v.created_at, v.sku LIMIT 1) AS default_variant
+                ORDER BY v.position, v.sku LIMIT 1) AS default_variant
          FROM looks l
          JOIN stores s ON s.id = l.store_id AND s.status = 'active'
          JOIN look_items li ON li.look_id = l.id

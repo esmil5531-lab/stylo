@@ -4,11 +4,21 @@ import { z } from 'zod';
 import { Id, IdParams } from '../../lib/validation.js';
 import { assignDriver, changeOrderStatus, getOrder, listOrders, ORDER_STATUSES } from './orders.admin.js';
 import {
+  createProduct,
+  getProduct,
+  listCategories,
+  listProducts,
+  PRODUCT_STATUSES,
+  updateProduct,
+} from './products.admin.js';
+import { getReport } from './reports.admin.js';
+import {
   createDriver,
   createStaff,
   createStore,
   DRIVER_STATUSES,
   getDashboard,
+  getStore,
   listDrivers,
   listRoles,
   listStaff,
@@ -16,6 +26,7 @@ import {
   STORE_STATUSES,
   updateDriver,
   updateStaff,
+  updateOwnStore,
   updateStore,
   VEHICLES,
 } from './people.admin.js';
@@ -33,6 +44,11 @@ const Name = z.string().trim().min(2).max(80);
 const Phone = z.string().trim().min(9).max(20);
 const Email = z.string().trim().email().max(120).nullish().or(z.literal(''));
 const City = z.string().trim().min(2).max(40);
+const OptionalPhone = z.string().trim().max(20).nullish().or(z.literal(''));
+/** Basis points: 1000 = 10%. Commission above 50% is almost certainly a typo. */
+const CommissionBps = z.number().int().min(0).max(5000);
+/** YYYY-MM-DD (Libya calendar day). */
+const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 // Update schemas must NOT carry defaults: zod's .partial() still applies them, which would
 // silently reset fields the client did not send. Defaults live only on the create schemas.
@@ -41,18 +57,69 @@ const StoreFields = z.object({
   nameEn: z.string().trim().max(80).nullish(),
   logoText: z.string().trim().max(12).nullish(),
   city: City,
+  district: z.string().trim().max(60).nullish(),
+  addressLine: z.string().trim().max(160).nullish(),
+  phone: OptionalPhone,
   deliveryFee: Dirhams,
   prepHours: z.number().int().min(0).max(72),
   status: z.enum(STORE_STATUSES),
   isFeatured: z.boolean(),
+  commissionBps: CommissionBps,
 });
 const StoreCreate = StoreFields.extend({
   prepHours: StoreFields.shape.prepHours.default(4),
   status: StoreFields.shape.status.default('pending_review'),
   isFeatured: StoreFields.shape.isFeatured.default(false),
+  commissionBps: CommissionBps.optional(),
   owner: z.object({ fullName: Name, phone: Phone, email: Email }),
 });
 const StoreUpdate = StoreFields.partial();
+// What a store may change about itself («إعدادات متجري»).
+const StoreProfile = StoreFields.pick({
+  nameAr: true,
+  nameEn: true,
+  logoText: true,
+  district: true,
+  addressLine: true,
+  phone: true,
+  prepHours: true,
+}).partial();
+
+const ProductBody = z.object({
+  storeId: Id.optional(),
+  categoryId: Id.nullish(),
+  nameAr: Name,
+  nameEn: z.string().trim().max(80).nullish(),
+  brand: z.string().trim().max(60).nullish(),
+  descriptionAr: z.string().trim().max(2000).nullish(),
+  basePrice: z.number().int().min(1).max(100_000_000),
+  compareAtPrice: z.number().int().min(1).max(100_000_000).nullish(),
+  status: z.enum(PRODUCT_STATUSES),
+  isFeatured: z.boolean().optional(),
+  images: z.array(z.string().trim().url().max(500)).max(8).default([]),
+  variants: z
+    .array(
+      z.object({
+        id: Id.optional(),
+        size: z.string().trim().max(20).nullish(),
+        colorName: z.string().trim().max(30).nullish(),
+        colorHex: z
+          .string()
+          .regex(/^#[0-9A-Fa-f]{6}$/)
+          .nullish(),
+        sku: z
+          .string()
+          .trim()
+          .regex(/^[A-Za-z0-9-]{3,40}$/, 'رمز SKU: حروف لاتينية وأرقام وشرطات فقط')
+          .nullish()
+          .or(z.literal('')),
+        price: z.number().int().min(1).max(100_000_000).nullish(),
+        stock: z.number().int().min(0).max(100_000),
+      }),
+    )
+    .min(1)
+    .max(100),
+});
 
 const StaffBody = z.object({
   fullName: Name,
@@ -119,9 +186,63 @@ export async function adminRoutes(app: FastifyInstance) {
     return createStore(app.ctx(req), staff, body);
   });
   app.patch('/stores/:id', async (req) => {
-    can(req, 'stores.write');
+    const staff = can(req, 'stores.write');
     const { id } = IdParams.parse(req.params);
-    return updateStore(app.ctx(req), id, StoreUpdate.parse(req.body));
+    return updateStore(app.ctx(req), staff, id, StoreUpdate.parse(req.body));
+  });
+
+  // ------------------------------------------------------------ a store's own settings
+  app.get('/my-store', async (req) => {
+    const staff = can(req, 'store.profile');
+    if (!staff.storeId) return { store: null };
+    return { store: await getStore(app.db, staff.storeId) };
+  });
+  app.patch('/my-store', async (req) => {
+    const staff = can(req, 'store.profile');
+    return { store: await updateOwnStore(app.ctx(req), staff, StoreProfile.parse(req.body)) };
+  });
+
+  // ------------------------------------------------------------ products & sizes
+  app.get('/categories', async (req) => {
+    can(req, 'products.read');
+    return { items: await listCategories(app.ctx(req)) };
+  });
+  app.get('/products', async (req) => {
+    const staff = can(req, 'products.read');
+    const q = z
+      .object({
+        status: z.enum(PRODUCT_STATUSES).optional(),
+        storeId: Id.optional(),
+        categoryId: Id.optional(),
+        q: z.string().trim().max(60).optional(),
+        lowStock: z.enum(['true', 'false']).optional(),
+      })
+      .parse(req.query);
+    return {
+      items: await listProducts(app.ctx(req), staff, { ...q, search: q.q, lowStock: q.lowStock === 'true' }),
+    };
+  });
+  app.get('/products/:id', async (req) => {
+    const staff = can(req, 'products.read');
+    const { id } = IdParams.parse(req.params);
+    return getProduct(app.ctx(req), staff, id);
+  });
+  app.post('/products', async (req, reply) => {
+    const staff = can(req, 'products.write');
+    reply.status(201);
+    return createProduct(app.ctx(req), staff, ProductBody.parse(req.body));
+  });
+  app.put('/products/:id', async (req) => {
+    const staff = can(req, 'products.write');
+    const { id } = IdParams.parse(req.params);
+    return updateProduct(app.ctx(req), staff, id, ProductBody.parse(req.body));
+  });
+
+  // ------------------------------------------------------------ reports
+  app.get('/reports', async (req) => {
+    const staff = can(req, 'reports.view');
+    const q = z.object({ from: Day.optional(), to: Day.optional(), storeId: Id.optional() }).parse(req.query);
+    return getReport(app.ctx(req), staff, q);
   });
 
   // ------------------------------------------------------------ staff & roles

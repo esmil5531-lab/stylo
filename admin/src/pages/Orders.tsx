@@ -3,9 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router';
 
 import { useDashboard, useOrders } from '@/api/hooks';
 import type { OrderStatus } from '@/api/types';
+import { Money, Phone } from '@/components/inputs';
 import { Async, Badge, Empty, OrderNo, PageHead } from '@/components/ui';
 import { DELIVERY_MODE, ORDER_STATUS, ORDER_STATUSES } from '@/lib/constants';
-import { formatLYD, timeAgo } from '@/lib/format';
+import { timeAgo } from '@/lib/format';
 
 const PAGE = 25;
 
@@ -101,12 +102,16 @@ export function OrdersPage() {
                           <td>{o.store.name}</td>
                           <td>
                             <div>{o.customer.name}</div>
-                            <div className="cell-sub ltr">{o.customer.phone}</div>
+                            <div className="cell-sub">
+                              <Phone value={o.customer.phone} />
+                            </div>
                           </td>
                           <td>{o.city}</td>
                           <td>{DELIVERY_MODE[o.deliveryMode] ?? o.deliveryMode}</td>
                           <td>{o.driver?.name ?? <span className="muted">—</span>}</td>
-                          <td className="num strong">{formatLYD(o.total)}</td>
+                          <td className="strong">
+                            <Money value={o.total} />
+                          </td>
                           <td>
                             <Badge tone={ORDER_STATUS[o.status].tone}>{ORDER_STATUS[o.status].label}</Badge>
                           </td>

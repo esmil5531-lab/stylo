@@ -7,9 +7,19 @@ import { DEV_IDENTITIES, getActingUserId, setActingUserId } from '@/lib/identity
 
 import { Async, Icon } from './ui';
 
-const NAV: { to: string; label: string; icon: Parameters<typeof Icon>[0]['name']; permission: Permission }[] = [
+const NAV: {
+  to: string;
+  label: string;
+  icon: Parameters<typeof Icon>[0]['name'];
+  permission: Permission;
+  /** Only for staff tied to one store (e.g. «إعدادات متجري»). */
+  storeOnly?: boolean;
+}[] = [
   { to: '/', label: 'الرئيسية', icon: 'dashboard', permission: 'dashboard.view' },
   { to: '/orders', label: 'الطلبات', icon: 'orders', permission: 'orders.read' },
+  { to: '/products', label: 'المنتجات والمقاسات', icon: 'products', permission: 'products.read' },
+  { to: '/reports', label: 'التقارير والأرباح', icon: 'reports', permission: 'reports.view' },
+  { to: '/my-store', label: 'إعدادات متجري', icon: 'settings', permission: 'store.profile', storeOnly: true },
   { to: '/stores', label: 'المتاجر', icon: 'stores', permission: 'stores.read' },
   { to: '/staff', label: 'الموظفون والصلاحيات', icon: 'staff', permission: 'staff.read' },
   { to: '/drivers', label: 'السائقون', icon: 'drivers', permission: 'drivers.read' },
@@ -24,7 +34,9 @@ export function Layout() {
           <div className="brand-word">STYLO</div>
           <div className="brand-sub">لوحة الإدارة والعمل</div>
         </div>
-        {NAV.filter((n) => me.data?.permissions.includes(n.permission)).map((n) => (
+        {NAV.filter(
+          (n) => me.data?.permissions.includes(n.permission) && (!n.storeOnly || !!me.data?.store),
+        ).map((n) => (
           <NavLink key={n.to} to={n.to} end={n.to === '/'} className="nav-link">
             <Icon name={n.icon} />
             {n.label}

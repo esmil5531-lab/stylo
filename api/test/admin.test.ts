@@ -194,8 +194,8 @@ describe('order status workflow (6 statuses)', () => {
 
   it('dashboard counts follow the changes', async () => {
     const dash = (await req(ADMIN, 'GET', '/dashboard')).json();
-    assert.equal(dash.ordersByStatus.delivered, 2);
-    assert.equal(dash.ordersByStatus.cancelled, 2);
+    const db = await pool.query(`SELECT status, count(*)::int AS n FROM orders GROUP BY 1`);
+    for (const r of db.rows) assert.equal(dash.ordersByStatus[r.status], r.n, r.status);
     const scoped = (await req(LAURA_MGR, 'GET', '/dashboard')).json();
     assert.equal(scoped.scope.storeId, LAURA_STORE);
     assert.equal(scoped.stores, null);

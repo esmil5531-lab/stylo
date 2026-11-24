@@ -14,6 +14,16 @@ INSERT INTO users (id, email, full_name, role) VALUES
   ('00000000-0000-0000-0000-000000000004', 'customer@stylo.local',  'سارة أحمد',     'customer'),
   ('00000000-0000-0000-0000-000000000005', 'customer2@stylo.local', 'مريم علي',      'customer');
 
+-- One owner account per store (each gets the «مالك المتجر» role below).
+INSERT INTO users (id, email, phone, full_name, role) VALUES
+  ('00000000-0000-0000-0000-000000000021', 'fiona@stylo.local', '+218910000021', 'فيروز الشريف',  'vendor'),
+  ('00000000-0000-0000-0000-000000000022', 'stylo-col@stylo.local', '+218910000022', 'عمر بن سعيد', 'vendor'),
+  ('00000000-0000-0000-0000-000000000023', 'luna@stylo.local',  '+218910000023', 'لينا القذافي',  'vendor'),
+  ('00000000-0000-0000-0000-000000000024', 'chic@stylo.local',  '+218910000024', 'شيماء الجهاني', 'vendor'),
+  ('00000000-0000-0000-0000-000000000025', 'vela@stylo.local',  '+218920000025', 'وفاء العبيدي',  'vendor');
+UPDATE users SET phone = '+218910000002' WHERE id = '00000000-0000-0000-0000-000000000002';
+UPDATE users SET phone = '+218910000003' WHERE id = '00000000-0000-0000-0000-000000000003';
+
 INSERT INTO addresses (user_id, label, recipient_name, phone, country_code, city, district, street, is_default) VALUES
   ('00000000-0000-0000-0000-000000000004', 'البيت', 'سارة أحمد', '+218910000004', 'LY', 'طرابلس', 'حي الأندلس', 'شارع جرابة', true),
   ('00000000-0000-0000-0000-000000000005', 'البيت', 'مريم علي',  '+218920000005', 'LY', 'بنغازي', 'الفويهات',  'شارع دبي',   true);
@@ -22,12 +32,21 @@ INSERT INTO addresses (user_id, label, recipient_name, phone, country_code, city
 -- prep_hours: time for the store to prepare an order. delivery_fee: its standard delivery fee.
 INSERT INTO stores (id, owner_id, slug, name_ar, name_en, logo_text, brand_color, city, prep_hours, delivery_fee, is_featured, status, rating_avg, rating_count) VALUES
   ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'laura',  'أزياء لورا',      'Laura',  'LAURA', '#5B0E2D', 'طرابلس', 3,  10000, true,  'active', 4.8, 320),
-  ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', 'fiona',  'متجر فيونا',      'Fiona',  'FIONA', '#B08A5B', 'طرابلس', 4,  10000, false, 'active', 4.6, 118),
-  ('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000003', 'stylo-collection', 'ستايلو كولكشن', 'Stylo Collection', 'STYLO', '#5B0E2D', 'طرابلس', 2, 8000, false, 'active', 4.7, 95),
-  ('10000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000002', 'luna',   'لونا',            'Luna',   'LUNA',  '#C9A9A6', 'طرابلس', 4,  12000, true,  'active', 4.9, 210),
+  ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000021', 'fiona',  'متجر فيونا',      'Fiona',  'FIONA', '#B08A5B', 'طرابلس', 4,  10000, false, 'active', 4.6, 118),
+  ('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000022', 'stylo-collection', 'ستايلو كولكشن', 'Stylo Collection', 'STYLO', '#5B0E2D', 'طرابلس', 2, 8000, false, 'active', 4.7, 95),
+  ('10000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000023', 'luna',   'لونا',            'Luna',   'LUNA',  '#C9A9A6', 'طرابلس', 4,  12000, true,  'active', 4.9, 210),
   ('10000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000003', 'nova',   'نوفا',            'Nova',   'NOVA',  '#8E8E8E', 'مصراتة', 6,  15000, true,  'active', 4.5, 87),
-  ('10000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000002', 'chic',   'شيك',             'Chic',   'Chic',  '#D4B8A8', 'طرابلس', 3,  10000, true,  'active', 4.7, 156),
-  ('10000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000003', 'vela',   'فيلا',            'Vela',   'VELA',  '#B79B87', 'بنغازي', 5,  15000, true,  'active', 4.6, 64);
+  ('10000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000024', 'chic',   'شيك',             'Chic',   'Chic',  '#D4B8A8', 'طرابلس', 3,  10000, true,  'active', 4.7, 156),
+  ('10000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000025', 'vela',   'فيلا',            'Vela',   'VELA',  '#B79B87', 'بنغازي', 5,  15000, true,  'active', 4.6, 64);
+
+-- Commission rates (basis points: 1000 = 10%) and store contact details.
+UPDATE stores SET commission_bps = 1200, phone = '+218910000002', district = 'حي الأندلس' WHERE slug = 'laura';
+UPDATE stores SET commission_bps = 1000, phone = '+218910000021', district = 'قرقارش'     WHERE slug = 'fiona';
+UPDATE stores SET commission_bps = 800,  phone = '+218910000022', district = 'سوق الجمعة' WHERE slug = 'stylo-collection';
+UPDATE stores SET commission_bps = 1500, phone = '+218910000023', district = 'ذات العماد' WHERE slug = 'luna';
+UPDATE stores SET commission_bps = 1000, phone = '+218910000003', district = 'وسط المدينة' WHERE slug = 'nova';
+UPDATE stores SET commission_bps = 1200, phone = '+218910000024', district = 'النوفليين'  WHERE slug = 'chic';
+UPDATE stores SET commission_bps = 900,  phone = '+218920000025', district = 'الفويهات'   WHERE slug = 'vela';
 
 -- ---------------------------------------------------------------- categories
 INSERT INTO categories (id, slug, name_ar, name_en, sort_order) VALUES
@@ -102,6 +121,10 @@ INSERT INTO product_variants (product_id, sku, size, color_name_ar, color_hex, s
   ('30000000-0000-0000-0000-000000000010', 'VEL-CRS-BLK',    NULL,  'أسود',  '#222222', 11),
   ('30000000-0000-0000-0000-000000000011', 'VEL-PRL-WHT',    NULL,  'لؤلؤي', '#F4EFE6', 14);
 
+UPDATE product_variants v SET position = x.rn
+  FROM (SELECT id, row_number() OVER (PARTITION BY product_id ORDER BY sku) AS rn FROM product_variants) x
+ WHERE x.id = v.id;
+
 -- ---------------------------------------------------------------- banners
 INSERT INTO banners (title_ar, subtitle_ar, cta_ar, link, sort_order) VALUES
   ('إطلالتك تبدأ من هنا', 'أزياء مختارة لك بعناية',        'تسوقي الآن',   '/products?feed=for_you', 1),
@@ -145,6 +168,9 @@ INSERT INTO staff_members (user_id, role_key, store_id, job_title) VALUES
   ('00000000-0000-0000-0000-000000000007', 'customer_support',   NULL, 'خدمة العملاء'),
   ('00000000-0000-0000-0000-000000000008', 'store_manager',      '10000000-0000-0000-0000-000000000001', 'مديرة متجر أزياء لورا');
 
+INSERT INTO staff_members (user_id, role_key, store_id, job_title)
+SELECT owner_id, 'store_owner', id, 'مالك المتجر' FROM stores;
+
 INSERT INTO drivers (user_id, city, vehicle, plate_number, status) VALUES
   ('00000000-0000-0000-0000-000000000011', 'طرابلس', 'motorcycle', '5-123456', 'busy'),
   ('00000000-0000-0000-0000-000000000012', 'بنغازي', 'car',        '10-654321', 'available'),
@@ -177,6 +203,8 @@ SELECT o.id, v.id, p.name_ar, v.sku, v.size, v.color_name_ar, COALESCE(v.price, 
   JOIN product_variants v ON v.sku = x.sku
   JOIN products p ON p.id = v.product_id;
 
+UPDATE orders o SET commission_bps = s.commission_bps FROM stores s WHERE s.id = o.store_id;
+
 -- Walk orders through the allowed transitions (the trigger records history).
 UPDATE orders SET status = 'confirmed'  WHERE id IN ('50000000-0000-0000-0000-000000000002','50000000-0000-0000-0000-000000000003','50000000-0000-0000-0000-000000000004','50000000-0000-0000-0000-000000000005');
 UPDATE orders SET status = 'processing' WHERE id IN ('50000000-0000-0000-0000-000000000003','50000000-0000-0000-0000-000000000004','50000000-0000-0000-0000-000000000005');
@@ -185,5 +213,58 @@ UPDATE orders SET driver_id = '00000000-0000-0000-0000-000000000012', assigned_a
 UPDATE orders SET status = 'shipped'    WHERE id IN ('50000000-0000-0000-0000-000000000004','50000000-0000-0000-0000-000000000005');
 UPDATE orders SET status = 'delivered', payment_status = 'paid' WHERE id = '50000000-0000-0000-0000-000000000005';
 UPDATE orders SET status = 'cancelled', cancel_reason = 'طلب العميلة الإلغاء' WHERE id = '50000000-0000-0000-0000-000000000006';
+
+
+-- ---------------------------------------------------------------- order history for reports
+-- ~60 past orders over the last four weeks (deterministic pseudo-random), mostly delivered.
+DO $$
+DECLARE
+  i INT;
+  r RECORD;
+  oid UUID;
+  qty INT;
+  cust UUID;
+  drv UUID;
+BEGIN
+  PERFORM setseed(0.42);
+  FOR i IN 1..60 LOOP
+    SELECT pv.id AS variant_id, pv.sku, pv.size, pv.color_name_ar, p.id AS product_id, p.name_ar, p.store_id,
+           COALESCE(pv.price, p.base_price) AS price, s.delivery_fee, s.commission_bps
+      INTO r
+      FROM product_variants pv JOIN products p ON p.id = pv.product_id JOIN stores s ON s.id = p.store_id
+     ORDER BY random() LIMIT 1;
+    qty  := 1 + floor(random() * 2)::int;
+    cust := CASE WHEN random() < 0.6 THEN '00000000-0000-0000-0000-000000000004'::uuid
+                 ELSE '00000000-0000-0000-0000-000000000005'::uuid END;
+    drv  := CASE WHEN cust = '00000000-0000-0000-0000-000000000005'::uuid
+                 THEN '00000000-0000-0000-0000-000000000012'::uuid
+                 ELSE '00000000-0000-0000-0000-000000000013'::uuid END;
+
+    INSERT INTO orders (checkout_id, customer_id, store_id, subtotal, shipping_fee, commission_bps,
+                        shipping_address, delivery_mode, placed_at)
+    VALUES (gen_random_uuid(), cust, r.store_id, r.price * qty, r.delivery_fee, r.commission_bps,
+            CASE WHEN cust = '00000000-0000-0000-0000-000000000005'::uuid
+                 THEN '{"recipient_name":"مريم علي","phone":"+218920000005","city":"بنغازي","district":"الفويهات","street":"شارع دبي"}'::jsonb
+                 ELSE '{"recipient_name":"سارة أحمد","phone":"+218910000004","city":"طرابلس","district":"حي الأندلس","street":"شارع جرابة"}'::jsonb END,
+            CASE WHEN random() < 0.4 THEN 'fastest'::delivery_mode ELSE 'standard'::delivery_mode END,
+            now() - interval '1 day' - (i * interval '10 hours') - (random() * interval '4 hours'))
+    RETURNING id INTO oid;
+
+    INSERT INTO order_items (order_id, variant_id, product_name_ar, sku, size, color_name_ar, unit_price, quantity)
+    VALUES (oid, r.variant_id, r.name_ar, r.sku, r.size, r.color_name_ar, r.price, qty);
+
+    IF random() < 0.12 THEN
+      UPDATE orders SET status = 'cancelled', cancel_reason = 'طلب العميلة الإلغاء' WHERE id = oid;
+    ELSE
+      UPDATE orders SET status = 'confirmed' WHERE id = oid;
+      UPDATE orders SET status = 'processing' WHERE id = oid;
+      UPDATE orders SET driver_id = drv, assigned_at = now() WHERE id = oid;
+      UPDATE orders SET status = 'shipped' WHERE id = oid;
+      UPDATE orders SET status = 'delivered', payment_status = 'paid' WHERE id = oid;
+      UPDATE products SET sold_count = sold_count + qty WHERE id = r.product_id;
+    END IF;
+  END LOOP;
+END;
+$$;
 
 COMMIT;

@@ -16,7 +16,11 @@ import { Empty } from './components/ui';
 import { DashboardPage } from './pages/Dashboard';
 import { DriversPage } from './pages/Drivers';
 import { OrderPage } from './pages/Order';
+import { MyStorePage } from './pages/MyStore';
 import { OrdersPage } from './pages/Orders';
+import { ProductFormPage } from './pages/ProductForm';
+import { ProductsPage } from './pages/Products';
+import { ReportsPage } from './pages/Reports';
 import { StaffPage } from './pages/Staff';
 import { StoresPage } from './pages/Stores';
 
@@ -38,6 +42,11 @@ createRoot(document.getElementById('root')!).render(
             <Route index element={<DashboardPage />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="orders/:id" element={<OrderPage />} />
+            <Route path="products" element={<ProductsPage />} />
+            <Route path="products/new" element={<ProductFormPage />} />
+            <Route path="products/:id" element={<ProductFormPage />} />
+            <Route path="reports" element={<ReportsPage />} />
+            <Route path="my-store" element={<MyStorePage />} />
             <Route path="stores" element={<StoresPage />} />
             <Route path="staff" element={<StaffPage />} />
             <Route path="drivers" element={<DriversPage />} />

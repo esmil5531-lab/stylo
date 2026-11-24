@@ -15,6 +15,7 @@ import { QueryState } from '@/components/QueryState';
 import { Rating } from '@/components/Rating';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { SectionHeader } from '@/components/SectionHeader';
+import { VariantPicker } from '@/components/product/VariantPicker';
 import { WishlistButton } from '@/components/WishlistButton';
 import { ar } from '@/i18n/ar';
 import { formatPrice } from '@/lib/format';
@@ -39,7 +40,7 @@ export default function ProductScreen() {
 function ProductBody({ product }: { product: ProductDetail }) {
   const insets = useSafeAreaInsets();
   const firstInStock = product.variants.find((v) => v.stock > 0) ?? product.variants[0];
-  const [variantId, setVariantId] = useState(firstInStock?.id);
+  const [variantId, setVariantId] = useState<string | undefined>(firstInStock?.id);
   const variant = product.variants.find((v) => v.id === variantId);
   const add = useAddToCart();
   const guard = useStoreConflictGuard();
@@ -95,30 +96,7 @@ function ProductBody({ product }: { product: ProductDetail }) {
           <DeliveryBadge dayOffset={product.delivery.dayOffset} />
           {product.description && <Text style={styles.description}>{product.description}</Text>}
 
-          {product.variants.length > 1 && (
-            <View style={{ gap: spacing.sm }}>
-              <Text style={styles.label}>{product.variants.some((v) => v.size) ? ar.product.size : ar.product.color}</Text>
-              <View style={styles.chips}>
-                {product.variants.map((v) => {
-                  const active = v.id === variantId;
-                  const out = v.stock === 0;
-                  return (
-                    <Pressable
-                      key={v.id}
-                      onPress={() => setVariantId(v.id)}
-                      disabled={out}
-                      style={[styles.chip, active && styles.chipActive, out && styles.chipOut]}
-                    >
-                      {v.colorHex && <View style={[styles.swatch, { backgroundColor: v.colorHex }]} />}
-                      <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                        {v.size ?? v.colorName}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          )}
+          <VariantPicker variants={product.variants} selected={variant} onSelect={(v) => setVariantId(v?.id)} />
         </View>
 
         {look.data && look.data.length > 0 && (
@@ -148,7 +126,15 @@ function ProductBody({ product }: { product: ProductDetail }) {
           </View>
         ) : (
           <Button
-            title={variant && variant.stock > 0 ? ar.product.addToCart : ar.product.outOfStock}
+            title={
+              !variant
+                ? product.inStock
+                  ? ar.product.chooseSize
+                  : ar.product.outOfStock
+                : variant.stock > 0
+                  ? ar.product.addToCart
+                  : ar.product.outOfStock
+            }
             disabled={!variant || variant.stock === 0}
             loading={add.isPending}
             onPress={() => variant && addToCart(variant.id)}
@@ -171,24 +157,6 @@ const styles = StyleSheet.create({
   compare: { fontFamily: fonts.regular, fontSize: 15, color: colors.inkMuted, textDecorationLine: 'line-through' },
   description: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, color: colors.inkMuted },
   label: { fontFamily: fonts.bold, fontSize: 15, color: colors.ink, marginTop: spacing.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    minWidth: 52,
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  chipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  chipOut: { opacity: 0.4 },
-  chipText: { fontFamily: fonts.semiBold, fontSize: 14, color: colors.ink },
-  chipTextActive: { color: colors.primary },
-  swatch: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: colors.border },
   footer: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,

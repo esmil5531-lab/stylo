@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { useCreateDriver, useDrivers, useUpdateDriver } from '@/api/hooks';
 import type { Driver, DriverStatus, Vehicle } from '@/api/types';
 import { Can, useCan } from '@/components/Layout';
+import { Count, Phone, PhoneInput } from '@/components/inputs';
 import { Async, Badge, Empty, ErrorAlert, Field, Icon, Modal, PageHead } from '@/components/ui';
+import { normaliseLibyanPhone } from '@/lib/numbers';
 import { DRIVER_STATUS, LIBYAN_CITIES, VEHICLE } from '@/lib/constants';
 
 const STATUSES = Object.keys(DRIVER_STATUS) as DriverStatus[];
@@ -66,15 +68,25 @@ export function DriversPage() {
                       <tr key={d.id} className={d.isActive ? undefined : 'inactive'}>
                         <td>
                           <div className="cell-title">{d.fullName}</div>
-                          <div className="cell-sub ltr">{d.phone}</div>
+                          <div className="cell-sub">
+                            <Phone value={d.phone} />
+                          </div>
                         </td>
                         <td>{d.city}</td>
                         <td>
                           {VEHICLE[d.vehicle]}
-                          {d.plateNumber && <div className="cell-sub ltr">{d.plateNumber}</div>}
+                          {d.plateNumber && (
+                            <div className="cell-sub">
+                              <bdi dir="ltr">{d.plateNumber}</bdi>
+                            </div>
+                          )}
                         </td>
-                        <td className="num">{d.activeOrders}</td>
-                        <td className="num">{d.deliveredOrders}</td>
+                        <td>
+                          <Count value={d.activeOrders} />
+                        </td>
+                        <td>
+                          <Count value={d.deliveredOrders} />
+                        </td>
                         <td>
                           <Badge tone={d.isActive ? DRIVER_STATUS[d.status].tone : 'gray'}>
                             {d.isActive ? DRIVER_STATUS[d.status].label : 'موقوف'}
@@ -137,7 +149,18 @@ function DriverForm({ onClose }: { onClose: () => void }) {
   const create = useCreateDriver();
   const [f, setF] = useState({ fullName: '', phone: '', city: 'طرابلس', vehicle: 'motorcycle' as Vehicle, plateNumber: '' });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((p) => ({ ...p, [k]: v }));
-  const valid = f.fullName.trim().length >= 2 && f.phone.trim().length >= 9;
+  const [submitted, setSubmitted] = useState(false);
+  const phone = normaliseLibyanPhone(f.phone);
+  const errors = {
+    fullName: f.fullName.trim().length < 2 ? 'اكتبي الاسم الكامل' : null,
+    phone: !phone ? 'رقم ليبي غير صحيح، مثال: 0912345678' : null,
+  };
+  const show = (e: string | null) => (submitted ? e : null);
+  const submit = () => {
+    setSubmitted(true);
+    if (Object.values(errors).some(Boolean)) return;
+    create.mutate({ ...f, phone: phone!, plateNumber: f.plateNumber || undefined }, { onSuccess: onClose });
+  };
 
   return (
     <Modal
@@ -148,22 +171,18 @@ function DriverForm({ onClose }: { onClose: () => void }) {
           <button className="btn btn-ghost" onClick={onClose}>
             إلغاء
           </button>
-          <button
-            className="btn btn-primary"
-            disabled={!valid || create.isPending}
-            onClick={() => create.mutate({ ...f, plateNumber: f.plateNumber || undefined }, { onSuccess: onClose })}
-          >
+          <button className="btn btn-primary" disabled={create.isPending} onClick={submit}>
             إضافة السائق
           </button>
         </>
       }
     >
       <div className="form-grid">
-        <Field label="الاسم الكامل">
+        <Field label="الاسم الكامل" required error={show(errors.fullName)}>
           <input className="input" value={f.fullName} onChange={(e) => set('fullName', e.target.value)} autoFocus />
         </Field>
-        <Field label="رقم الهاتف" hint="مثال: 0912345678">
-          <input className="input ltr" inputMode="tel" value={f.phone} onChange={(e) => set('phone', e.target.value)} />
+        <Field label="رقم الهاتف" required error={show(errors.phone)} hint="مثال: 0912345678">
+          <PhoneInput value={f.phone} onChange={(v) => set('phone', v)} />
         </Field>
         <Field label="مدينة العمل">
           <select className="select" value={f.city} onChange={(e) => set('city', e.target.value)}>
@@ -182,7 +201,7 @@ function DriverForm({ onClose }: { onClose: () => void }) {
           </select>
         </Field>
         <Field label="رقم اللوحة (اختياري)" full>
-          <input className="input ltr" value={f.plateNumber} onChange={(e) => set('plateNumber', e.target.value)} />
+          <input className="input" dir="ltr" value={f.plateNumber} onChange={(e) => set('plateNumber', e.target.value)} />
         </Field>
       </div>
       <p className="muted small" style={{ margin: 0 }}>

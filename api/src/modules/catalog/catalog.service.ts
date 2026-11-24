@@ -80,7 +80,7 @@ export async function getProduct(ctx: Ctx, id: string) {
     ctx.db.query(
       `SELECT v.id, v.sku, v.size, v.color_name_ar, v.color_hex, COALESCE(v.price, p.base_price) AS price, v.stock_qty
          FROM product_variants v JOIN products p ON p.id = v.product_id
-        WHERE v.product_id = $1 ORDER BY v.created_at, v.sku`,
+        WHERE v.product_id = $1 ORDER BY v.position, v.sku`,
       [id],
     ),
     ctx.db.query(`SELECT url, alt_ar FROM product_images WHERE product_id = $1 ORDER BY sort_order`, [id]),

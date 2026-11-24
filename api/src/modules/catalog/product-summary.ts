@@ -9,7 +9,7 @@ export const PRODUCT_SUMMARY_SELECT = `
   SELECT p.id, p.name_ar, p.brand, p.base_price, p.compare_at_price, p.currency,
          p.rating_avg, p.rating_count, p.sold_count, p.created_at,
          (SELECT url FROM product_images i WHERE i.product_id = p.id ORDER BY i.sort_order LIMIT 1) AS image_url,
-         (SELECT color_hex FROM product_variants v WHERE v.product_id = p.id ORDER BY v.created_at, v.sku LIMIT 1) AS color_hex,
+         (SELECT color_hex FROM product_variants v WHERE v.product_id = p.id ORDER BY v.position, v.sku LIMIT 1) AS color_hex,
          (SELECT COALESCE(SUM(stock_qty), 0) FROM product_variants v WHERE v.product_id = p.id) AS stock_total,
          s.id AS store_id, s.slug AS store_slug, s.name_ar AS store_name, s.city AS store_city, s.prep_hours,
          c.slug AS category_slug,

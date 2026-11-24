@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { inTransaction, type Queryable } from '../../db.js';
 import type { Ctx } from '../../lib/context.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
-import { PERMISSIONS, type Permission, type StaffContext } from './permissions.js';
+import { PERMISSIONS, requirePermission, type Permission, type StaffContext } from './permissions.js';
 
 /**
  * Stores, staff and drivers managed from the back office.
@@ -16,7 +16,11 @@ export const VEHICLES = ['motorcycle', 'car', 'van'] as const;
 
 /** Libyan phone numbers, normalised to +218XXXXXXXXX. */
 export function normalisePhone(raw: string): string {
-  const digits = raw.replace(/[^\d+]/g, '');
+  // Accept Arabic-Indic (٠-٩) and Persian (۰-۹) digits as typed on Arabic keyboards.
+  const western = raw
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
+  const digits = western.replace(/[^\d+]/g, '');
   let local = digits.replace(/^\+?218/, '').replace(/^0/, '');
   if (!/^9[1-5]\d{7}$/.test(local)) {
     throw badRequest('invalid_phone', 'رقم الهاتف غير صحيح. مثال: 0912345678');
@@ -41,8 +45,8 @@ async function assertPhoneFree(db: Queryable, phone: string, email?: string | nu
 // ================================================================ stores
 
 const STORE_SELECT = `
-  SELECT s.id, s.slug, s.name_ar, s.name_en, s.logo_text, s.brand_color, s.city, s.prep_hours,
-         s.delivery_fee, s.status, s.is_featured, s.commission_bps, s.rating_avg, s.created_at,
+  SELECT s.id, s.slug, s.name_ar, s.name_en, s.logo_text, s.brand_color, s.city, s.district, s.address_line,
+         s.phone, s.prep_hours, s.delivery_fee, s.status, s.is_featured, s.commission_bps, s.rating_avg, s.created_at,
          u.id AS owner_id, u.full_name AS owner_name, u.phone AS owner_phone,
          (SELECT count(*)::int FROM products p WHERE p.store_id = s.id AND p.status = 'active') AS products_count,
          (SELECT count(*)::int FROM orders o WHERE o.store_id = s.id
@@ -59,10 +63,14 @@ function mapStore(r: any) {
     logoText: r.logo_text as string | null,
     brandColor: r.brand_color as string | null,
     city: r.city as string,
+    district: r.district as string | null,
+    addressLine: r.address_line as string | null,
+    phone: r.phone as string | null,
     prepHours: r.prep_hours as number,
     deliveryFee: r.delivery_fee as number,
     status: r.status as (typeof STORE_STATUSES)[number],
     isFeatured: r.is_featured as boolean,
+    /** Basis points: 1000 = 10% of the merchandise subtotal. */
     commissionBps: r.commission_bps as number,
     rating: r.rating_avg as number,
     createdAt: (r.created_at as Date).toISOString(),
@@ -85,7 +93,7 @@ export async function listStores(ctx: Ctx, staff: StaffContext, q: { status?: st
   return rows.map(mapStore);
 }
 
-async function getStore(db: Queryable, id: string) {
+export async function getStore(db: Queryable, id: string) {
   const { rows } = await db.query(`${STORE_SELECT} WHERE s.id = $1`, [id]);
   if (!rows[0]) throw notFound('المتجر');
   return mapStore(rows[0]);
@@ -103,15 +111,20 @@ export interface StoreInput {
   nameAr: string;
   nameEn?: string | null;
   city: string;
+  district?: string | null;
+  addressLine?: string | null;
+  phone?: string | null;
   deliveryFee: number;
   prepHours: number;
   status: (typeof STORE_STATUSES)[number];
   isFeatured: boolean;
   logoText?: string | null;
+  commissionBps?: number;
   owner: { fullName: string; phone: string; email?: string | null };
 }
 
 export async function createStore(ctx: Ctx, staff: StaffContext, input: StoreInput) {
+  if (input.commissionBps !== undefined) requirePermission(staff, 'stores.commission');
   const id = await inTransaction(ctx.db, async (db) => {
     const phone = normalisePhone(input.owner.phone);
     // Reuse an existing vendor account (owner of several stores), otherwise create one.
@@ -136,8 +149,9 @@ export async function createStore(ctx: Ctx, staff: StaffContext, input: StoreInp
     if (taken.rowCount) slug = `${slug}-${randomBytes(2).toString('hex')}`;
 
     const { rows } = await db.query(
-      `INSERT INTO stores (owner_id, slug, name_ar, name_en, logo_text, city, prep_hours, delivery_fee, status, is_featured)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      `INSERT INTO stores (owner_id, slug, name_ar, name_en, logo_text, city, district, address_line, phone,
+                           prep_hours, delivery_fee, status, is_featured, commission_bps)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($14, 1000)) RETURNING id`,
       [
         ownerId,
         slug,
@@ -145,32 +159,50 @@ export async function createStore(ctx: Ctx, staff: StaffContext, input: StoreInp
         input.nameEn?.trim() || null,
         input.logoText?.trim() || input.nameEn?.trim().toUpperCase() || null,
         input.city,
+        input.district?.trim() || null,
+        input.addressLine?.trim() || null,
+        input.phone ? normalisePhone(input.phone) : phone,
         input.prepHours,
         input.deliveryFee,
         input.status,
         input.isFeatured,
+        input.commissionBps ?? null,
       ],
     );
-    return rows[0].id as string;
+    const storeId = rows[0].id as string;
+
+    // The owner manages the store from the same back office («مالك المتجر»).
+    // A staff account belongs to one store; owners of several stores keep their first.
+    await db.query(
+      `INSERT INTO staff_members (user_id, role_key, store_id, job_title, created_by)
+       VALUES ($1, 'store_owner', $2, 'مالك المتجر', $3) ON CONFLICT (user_id) DO NOTHING`,
+      [ownerId, storeId, staff.userId],
+    );
+    return storeId;
   });
-  void staff;
   return getStore(ctx.db, id);
 }
 
 export async function updateStore(
   ctx: Ctx,
+  staff: StaffContext,
   id: string,
   input: Partial<Omit<StoreInput, 'owner'>>,
 ) {
+  if (input.commissionBps !== undefined) requirePermission(staff, 'stores.commission');
   const map: Record<string, unknown> = {
     name_ar: input.nameAr?.trim(),
     name_en: input.nameEn === undefined ? undefined : input.nameEn?.trim() || null,
     logo_text: input.logoText === undefined ? undefined : input.logoText?.trim() || null,
     city: input.city,
+    district: input.district === undefined ? undefined : input.district?.trim() || null,
+    address_line: input.addressLine === undefined ? undefined : input.addressLine?.trim() || null,
+    phone: input.phone === undefined ? undefined : input.phone ? normalisePhone(input.phone) : null,
     delivery_fee: input.deliveryFee,
     prep_hours: input.prepHours,
     status: input.status,
     is_featured: input.isFeatured,
+    commission_bps: input.commissionBps,
   };
   const entries = Object.entries(map).filter(([, v]) => v !== undefined);
   if (entries.length) {
@@ -182,6 +214,20 @@ export async function updateStore(
     if (!rowCount) throw notFound('المتجر');
   }
   return getStore(ctx.db, id);
+}
+
+/**
+ * A store edits its own profile («إعدادات متجري»). Delivery fee, status and commission are
+ * Stylo decisions (Stylo runs the drivers), so they are not editable here.
+ */
+export type StoreProfileInput = Pick<
+  Partial<StoreInput>,
+  'nameAr' | 'nameEn' | 'logoText' | 'district' | 'addressLine' | 'phone' | 'prepHours'
+>;
+
+export async function updateOwnStore(ctx: Ctx, staff: StaffContext, input: StoreProfileInput) {
+  if (!staff.storeId) throw badRequest('not_store_staff', 'هذه الصفحة لموظفي المتاجر');
+  return updateStore(ctx, staff, staff.storeId, input);
 }
 
 // ================================================================ staff

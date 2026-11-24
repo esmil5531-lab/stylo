@@ -3,6 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { qs, request } from './client';
 import type {
   AdminOrder,
+  AdminProduct,
+  AdminProductDetail,
+  Category,
+  ProductStatus,
+  Report,
   AdminOrderDetail,
   AdminStore,
   Dashboard,
@@ -76,6 +81,10 @@ export interface StoreInput {
   nameEn?: string | null;
   logoText?: string | null;
   city: string;
+  district?: string | null;
+  addressLine?: string | null;
+  phone?: string | null;
+  commissionBps?: number;
   deliveryFee: number;
   prepHours: number;
   status: StoreStatus;
@@ -154,3 +163,100 @@ export const useUpdateDriver = () =>
       request<Driver>('PATCH', `/admin/drivers/${id}`, v),
     [['drivers'], ['dashboard']],
   );
+
+// ---------------------------------------------------------------- a store's own settings
+export const useMyStore = () =>
+  useQuery({
+    queryKey: ['my-store'],
+    queryFn: () => get<{ store: AdminStore | null }>('/admin/my-store').then((r) => r.store),
+  });
+
+export type StoreProfileInput = Pick<
+  StoreInput,
+  'nameAr' | 'nameEn' | 'logoText' | 'district' | 'addressLine' | 'phone' | 'prepHours'
+>;
+
+export const useUpdateMyStore = () =>
+  useInvalidating(
+    (v: Partial<StoreProfileInput>) => request<{ store: AdminStore }>('PATCH', '/admin/my-store', v),
+    [['my-store'], ['stores']],
+  );
+
+// ---------------------------------------------------------------- products & sizes
+export const useCategories = () =>
+  useQuery({
+    queryKey: ['categories'],
+    queryFn: () => get<{ items: Category[] }>('/admin/categories').then((r) => r.items),
+    staleTime: 10 * 60_000,
+  });
+
+export interface ProductFilters {
+  status?: ProductStatus;
+  storeId?: string;
+  q?: string;
+  lowStock?: boolean;
+}
+
+export const useProducts = (f: ProductFilters) =>
+  useQuery({
+    queryKey: ['products', f],
+    queryFn: () =>
+      get<{ items: AdminProduct[] }>(
+        `/admin/products${qs({ ...f, lowStock: f.lowStock ? 'true' : undefined })}`,
+      ).then((r) => r.items),
+    placeholderData: (prev) => prev,
+  });
+
+export const useProduct = (id: string | undefined) =>
+  useQuery({
+    queryKey: ['product', id],
+    queryFn: () => get<AdminProductDetail>(`/admin/products/${id}`),
+    enabled: !!id,
+  });
+
+export interface VariantInput {
+  id?: string;
+  size: string | null;
+  colorName: string | null;
+  colorHex: string | null;
+  sku?: string | null;
+  price?: number | null;
+  stock: number;
+}
+
+export interface ProductInput {
+  storeId?: string;
+  categoryId: string | null;
+  nameAr: string;
+  nameEn: string | null;
+  brand: string | null;
+  descriptionAr: string | null;
+  basePrice: number;
+  compareAtPrice: number | null;
+  status: ProductStatus;
+  isFeatured?: boolean;
+  images: string[];
+  variants: VariantInput[];
+}
+
+export function useSaveProduct(id?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: ProductInput) =>
+      id
+        ? request<AdminProductDetail>('PUT', `/admin/products/${id}`, v)
+        : request<AdminProductDetail>('POST', '/admin/products', v),
+    onSuccess: (p) => {
+      qc.setQueryData(['product', p.id], p);
+      qc.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------- reports
+export const useReport = (f: { from?: string; to?: string; storeId?: string }) =>
+  useQuery({
+    queryKey: ['report', f],
+    queryFn: () => get<Report>(`/admin/reports${qs(f)}`),
+    placeholderData: (prev) => prev,
+  });

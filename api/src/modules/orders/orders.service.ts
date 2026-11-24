@@ -43,8 +43,9 @@ export async function checkout(pool: Pool, baseCtx: Ctx, input: CheckoutInput) {
     const option = cart.delivery[input.deliveryMode];
     const { rows: created } = await client.query(
       `INSERT INTO orders (checkout_id, customer_id, store_id, currency, subtotal, shipping_fee,
-                           shipping_address, delivery_mode, estimated_delivery_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                           shipping_address, delivery_mode, estimated_delivery_at, commission_bps)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+               (SELECT commission_bps FROM stores WHERE id = $3)) -- rate snapshot for reports
        RETURNING id, order_number, total, estimated_delivery_at`,
       [
         randomUUID(),

@@ -15,7 +15,12 @@ export type Permission =
   | 'drivers.write'
   | 'orders.read'
   | 'orders.update_status'
-  | 'orders.assign_driver';
+  | 'orders.assign_driver'
+  | 'products.read'
+  | 'products.write'
+  | 'store.profile'
+  | 'reports.view'
+  | 'stores.commission';
 
 export interface Me {
   id: string;
@@ -41,6 +46,9 @@ export interface AdminStore {
   logoText: string | null;
   brandColor: string | null;
   city: string;
+  district: string | null;
+  addressLine: string | null;
+  phone: string | null;
   prepHours: number;
   deliveryFee: number;
   status: StoreStatus;
@@ -122,4 +130,92 @@ export interface AdminOrderDetail extends AdminOrder {
   }[];
   history: { from: OrderStatus | null; to: OrderStatus; note: string | null; at: string; by: string | null }[];
   allowedNext: OrderStatus[];
+}
+
+// ---------------------------------------------------------------- 0005: store panel, products, reports
+
+export type ProductStatus = 'draft' | 'active' | 'archived';
+
+export interface Category {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+export interface AdminProduct {
+  id: string;
+  nameAr: string;
+  nameEn: string | null;
+  brand: string | null;
+  basePrice: number;
+  compareAtPrice: number | null;
+  currency: string;
+  status: ProductStatus;
+  isFeatured: boolean;
+  soldCount: number;
+  rating: number;
+  updatedAt: string;
+  store: { id: string; name: string };
+  category: { id: string; name: string } | null;
+  imageUrl: string | null;
+  colorHex: string | null;
+  stockTotal: number;
+  variantsCount: number;
+  soldOutVariants: number;
+  sizes: string[];
+}
+
+export interface AdminVariant {
+  id: string;
+  size: string | null;
+  colorName: string | null;
+  colorHex: string | null;
+  sku: string;
+  price: number | null;
+  stock: number;
+  position: number;
+  sold: number;
+}
+
+export interface AdminProductDetail extends AdminProduct {
+  descriptionAr: string | null;
+  images: string[];
+  variants: AdminVariant[];
+}
+
+export interface Report {
+  range: { from: string; to: string; days: number };
+  scope: { storeId: string } | null;
+  currency: string;
+  summary: {
+    orders: number;
+    delivered: number;
+    cancelled: number;
+    open: number;
+    sales: number;
+    commission: number;
+    deliveryFees: number;
+    storePayout: number;
+    styloRevenue: number;
+    realisedSales: number;
+    realisedCommission: number;
+    cancelledSales: number;
+    averageOrderValue: number;
+    effectiveCommissionBps: number;
+    cancellationRateBps: number;
+  };
+  ordersByStatus: Partial<Record<OrderStatus, number>>;
+  daily: { day: string; orders: number; sales: number; commission: number }[];
+  byStore: {
+    storeId: string;
+    storeName: string;
+    currentCommissionBps: number;
+    orders: number;
+    cancelled: number;
+    sales: number;
+    commission: number;
+    deliveryFees: number;
+    payout: number;
+  }[];
+  topProducts: { name: string; storeName: string; quantity: number; sales: number }[];
 }

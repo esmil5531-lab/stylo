@@ -15,7 +15,11 @@ export class ApiError extends Error {
   }
 }
 
-export async function request<T>(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<T> {
+export async function request<T>(
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT',
+  path: string,
+  body?: unknown,
+): Promise<T> {
   const headers: Record<string, string> = { accept: 'application/json' };
   if (body !== undefined) headers['content-type'] = 'application/json';
   // TEMPORARY until real login: the API trusts x-user-id outside production.

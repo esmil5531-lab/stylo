@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 
 import { useDashboard, useOrders } from '@/api/hooks';
+import { Can } from '@/components/Layout';
 import { Async, Badge, OrderNo, PageHead } from '@/components/ui';
 import { DRIVER_STATUS, ORDER_STATUS, ORDER_STATUSES, STORE_STATUS } from '@/lib/constants';
 import { formatLYD, timeAgo } from '@/lib/format';
@@ -21,6 +22,20 @@ export function DashboardPage() {
             <PageHead
               title={d.scope ? `لوحة متجر «${d.scope.storeName}»` : 'نظرة عامة'}
               subtitle="الأرقام بتوقيت ليبيا وتتحدث كل 30 ثانية"
+              actions={
+                <>
+                  <Can permission="reports.view">
+                    <Link to="/reports" className="btn btn-ghost">
+                      التقارير والأرباح
+                    </Link>
+                  </Can>
+                  <Can permission="products.write">
+                    <Link to="/products/new" className="btn btn-primary">
+                      إضافة منتج
+                    </Link>
+                  </Can>
+                </>
+              }
             />
 
             <div className="grid grid-4">

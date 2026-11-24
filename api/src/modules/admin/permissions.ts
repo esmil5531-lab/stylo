@@ -16,6 +16,11 @@ export const PERMISSIONS = {
   'orders.read': 'عرض الطلبات',
   'orders.update_status': 'تغيير حالة الطلب',
   'orders.assign_driver': 'إسناد الطلب لسائق',
+  'products.read': 'عرض المنتجات',
+  'products.write': 'إضافة وتعديل المنتجات والمقاسات',
+  'store.profile': 'تعديل إعدادات متجره',
+  'reports.view': 'عرض التقارير والأرباح',
+  'stores.commission': 'تحديد نسبة عمولة المتاجر',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
