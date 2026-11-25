@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { qs, request } from './client';
 import type {
+  AdminReview,
   CustodyRow,
   DriverCustody,
   Settlement,
@@ -417,3 +418,18 @@ export const useDeleteLook = () =>
 
 export const useReorderLooks = () =>
   useInvalidating((ids: string[]) => request<{ items: AdminLook[] }>('POST', '/admin/looks/reorder', { ids }), [['looks']]);
+
+// ---------------------------------------------------------------- reviews (moderation)
+export const useAdminReviews = (hidden?: boolean) =>
+  useQuery({
+    queryKey: ['reviews', hidden ?? 'all'],
+    queryFn: () =>
+      get<{ items: AdminReview[]; total: number }>(`/admin/reviews${hidden === undefined ? '' : `?hidden=${hidden}`}`),
+  });
+
+export const useSetReviewHidden = () =>
+  useInvalidating(
+    ({ id, hidden }: { id: string; hidden: boolean }) =>
+      request<{ ok: true }>('POST', `/admin/reviews/${id}/visibility`, { hidden }),
+    [['reviews']],
+  );

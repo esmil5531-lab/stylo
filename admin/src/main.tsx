@@ -18,6 +18,7 @@ import { DashboardPage } from './pages/Dashboard';
 import { BannersPage } from './pages/Banners';
 import { CategoriesPage } from './pages/Categories';
 import { LooksPage } from './pages/Looks';
+import { ReviewsPage } from './pages/Reviews';
 import { CustodyPage } from './pages/Custody';
 import { DriversPage } from './pages/Drivers';
 import { OrderPage } from './pages/Order';
@@ -54,6 +55,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="products/:id" element={<ProductFormPage />} />
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="looks" element={<LooksPage />} />
+            <Route path="reviews" element={<ReviewsPage />} />
             <Route path="banners" element={<BannersPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="payouts" element={<PayoutsPage />} />

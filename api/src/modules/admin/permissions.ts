@@ -21,6 +21,7 @@ export const PERMISSIONS = {
   'categories.manage': 'إدارة الأقسام وترتيبها وإخفاؤها',
   'banners.manage': 'إدارة بنرات الصفحة الرئيسية',
   'looks.manage': 'إدارة «كمّل اللوك» (متجره فقط لموظفي المتاجر)',
+  'reviews.manage': 'مراجعة التقييمات وإخفاء المسيء منها',
   'store.profile': 'تعديل إعدادات متجره',
   'reports.view': 'عرض التقارير والأرباح',
   'stores.commission': 'تحديد نسبة عمولة المتاجر',

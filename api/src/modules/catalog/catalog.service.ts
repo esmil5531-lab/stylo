@@ -8,21 +8,52 @@ import { mapProductSummary, PRODUCT_SUMMARY_SELECT, type ProductSummary } from '
 export const FEEDS = ['for_you', 'trending', 'offers', 'nearby', 'new'] as const;
 export type Feed = (typeof FEEDS)[number];
 
+/** Explicit sort chosen by the customer («ترتيب»); without it each feed keeps its own order. */
+export const SORTS = ['newest', 'price_asc', 'price_desc', 'discount', 'popular'] as const;
+export type Sort = (typeof SORTS)[number];
+
 export interface ListProductsInput {
   feed?: Feed;
   category?: string;
   store?: string;
   q?: string;
+  sort?: Sort;
+  /** Sizes with stock (e.g. ['M', 'L'] or ['38']): a product matches if any of them is in stock. */
+  sizes?: string[];
+  /** Dirhams, compared with the product price. */
+  minPrice?: number;
+  maxPrice?: number;
   limit: number;
   offset: number;
 }
 
-export async function listProducts(ctx: Ctx, input: ListProductsInput): Promise<ProductSummary[]> {
-  const city = await getCustomerCity(ctx);
-  const params: unknown[] = [ctx.userId];
-  const where: string[] = [];
-  const add = (v: unknown) => `$${params.push(v)}`;
+/**
+ * Arabic-insensitive search text: lower case, أ/إ/آ/ٱ → ا, ة → ه, ى → ي, no tatweel or harakat —
+ * so «عبايه» finds «عباية» and «اسود» finds «أسود». The same mapping runs in SQL on the columns.
+ */
+const ALEFS = /[أإآٱ]/g;
+const MARKS = /[ـً-ْ]/g;
+export function normaliseSearch(q: string): string {
+  return q.toLowerCase().replace(ALEFS, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(MARKS, '');
+}
+const normalisedSql = (col: string) =>
+  `translate(lower(${col}), 'أإآٱةىـًٌٍَُِّْ', 'ااااهي')`;
+const SEARCH_COLUMNS = [
+  'p.name_ar',
+  "coalesce(p.name_en, '')",
+  "coalesce(p.brand, '')",
+  's.name_ar',
+  "coalesce(c.name_ar, '')",
+  "coalesce(pc.name_ar, '')",
+  "coalesce(c.name_en, '')",
+];
+const escapeLike = (w: string) => w.replace(/[%_\\]/g, (m) => `\\${m}`);
 
+type Filters = Pick<ListProductsInput, 'category' | 'store' | 'q'>;
+
+/** WHERE conditions shared by the list and its filter facets. */
+function productFilters(input: Filters, add: (v: unknown) => string): string[] {
+  const where: string[] = [];
   if (input.category) {
     // A main category lists its sub-categories' products too; hidden categories list nothing.
     const slug = add(input.category);
@@ -30,12 +61,35 @@ export async function listProducts(ctx: Ctx, input: ListProductsInput): Promise<
   }
   if (input.store) where.push(`s.slug = ${add(input.store)}`);
   if (input.q) {
-    const escaped = input.q.replace(/[\\%_]/g, (m) => '\\' + m);
-    const like = add('%' + escaped + '%');
+    // Every word must appear in the product, its brand, its store or its (main) category.
+    const words = normaliseSearch(input.q).split(/\s+/).filter(Boolean).slice(0, 6);
+    for (const w of words) {
+      const like = add(`%${escapeLike(w)}%`);
+      where.push(`(${SEARCH_COLUMNS.map((col) => `${normalisedSql(col)} LIKE ${like}`).join(' OR ')})`);
+    }
+  }
+  return where;
+}
+
+export interface ProductPage {
+  items: ProductSummary[];
+  /** Every matching product («N منتج», «تحميل المزيد»). */
+  total: number;
+  hasMore: boolean;
+}
+
+export async function listProducts(ctx: Ctx, input: ListProductsInput): Promise<ProductPage> {
+  const city = await getCustomerCity(ctx);
+  const params: unknown[] = [ctx.userId];
+  const add = (v: unknown) => `$${params.push(v)}`;
+  const where = productFilters(input, add);
+  if (input.sizes?.length) {
     where.push(
-      `(p.name_ar ILIKE ${like} OR p.name_en ILIKE ${like} OR p.brand ILIKE ${like} OR s.name_ar ILIKE ${like})`,
+      `EXISTS (SELECT 1 FROM product_variants sv WHERE sv.product_id = p.id AND sv.stock_qty > 0 AND sv.size = ANY(${add(input.sizes)}::text[]))`,
     );
   }
+  if (input.minPrice !== undefined) where.push(`p.base_price >= ${add(input.minPrice)}`);
+  if (input.maxPrice !== undefined) where.push(`p.base_price <= ${add(input.maxPrice)}`);
 
   let order: string;
   switch (input.feed) {
@@ -58,13 +112,79 @@ export async function listProducts(ctx: Ctx, input: ListProductsInput): Promise<
       // Personalisation placeholder: featured first, then quality signals.
       order = 'p.is_featured DESC, p.rating_avg DESC, p.rating_count DESC';
   }
+  // «ترتيب» chosen by the customer wins over the feed's own order.
+  switch (input.sort) {
+    case 'newest':
+      order = 'p.created_at DESC';
+      break;
+    case 'price_asc':
+      order = 'p.base_price ASC';
+      break;
+    case 'price_desc':
+      order = 'p.base_price DESC';
+      break;
+    case 'discount':
+      order = 'COALESCE((p.compare_at_price - p.base_price)::numeric / NULLIF(p.compare_at_price, 0), 0) DESC';
+      break;
+    case 'popular':
+      order = 'p.sold_count DESC, p.rating_avg DESC';
+      break;
+  }
 
-  const sql = `${PRODUCT_SUMMARY_SELECT}
-    ${where.length ? `AND ${where.join(' AND ')}` : ''}
-    ORDER BY ${order}, p.id
-    LIMIT ${add(input.limit)} OFFSET ${add(input.offset)}`;
-  const { rows } = await ctx.db.query(sql, params);
-  return rows.map((r) => mapProductSummary(r, ctx, city));
+  const filtered = `${PRODUCT_SUMMARY_SELECT} ${where.length ? `AND ${where.join(' AND ')}` : ''}`;
+  const countParams = [...params];
+  const [list, count] = await Promise.all([
+    ctx.db.query(`${filtered} ORDER BY ${order}, p.id LIMIT ${add(input.limit)} OFFSET ${add(input.offset)}`, params),
+    ctx.db.query<{ n: number }>(`SELECT count(*)::int AS n FROM (${filtered}) x`, countParams),
+  ]);
+  const total = count.rows[0]?.n ?? 0;
+  return {
+    items: list.rows.map((r) => mapProductSummary(r, ctx, city)),
+    total,
+    hasMore: input.offset + list.rows.length < total,
+  };
+}
+
+/**
+ * «فلترة»: the sizes in stock and the price range of the products matching the same category /
+ * store / search / feed — so the filter sheet only offers choices that give results.
+ */
+export async function productFacets(ctx: Ctx, input: Filters & { feed?: Feed }) {
+  const params: unknown[] = [ctx.userId];
+  const add = (v: unknown) => `$${params.push(v)}`;
+  const where = productFilters(input, add);
+  if (input.feed === 'offers') where.push('p.compare_at_price > p.base_price');
+  const base = `${PRODUCT_SUMMARY_SELECT} ${where.length ? `AND ${where.join(' AND ')}` : ''}`;
+  const [sizes, prices] = await Promise.all([
+    ctx.db.query(
+      `SELECT v.size, count(DISTINCT v.product_id)::int AS n
+         FROM product_variants v
+        WHERE v.product_id IN (SELECT x.id FROM (${base}) x) AND v.size IS NOT NULL AND v.stock_qty > 0
+        GROUP BY v.size`,
+      params,
+    ),
+    ctx.db.query(`SELECT min(x.base_price)::bigint AS min, max(x.base_price)::bigint AS max FROM (${base}) x`, params),
+  ]);
+  return {
+    sizes: sortSizes(sizes.rows.map((r) => ({ size: r.size as string, count: r.n as number }))),
+    price: { min: Number(prices.rows[0]?.min ?? 0), max: Number(prices.rows[0]?.max ?? 0) },
+  };
+}
+
+const LETTER_SIZES = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL'];
+/** Letter sizes in their natural order, then numbers ascending, then the rest alphabetically. */
+export function sortSizes<T extends { size: string }>(list: T[]): T[] {
+  const rank = (s: string): [number, number, string] => {
+    const i = LETTER_SIZES.indexOf(s.toUpperCase());
+    if (i >= 0) return [0, i, s];
+    const n = Number.parseFloat(s);
+    return Number.isFinite(n) ? [1, n, s] : [2, 0, s];
+  };
+  return [...list].sort((a, b) => {
+    const [ga, va, sa] = rank(a.size);
+    const [gb, vb, sb] = rank(b.size);
+    return ga - gb || va - vb || sa.localeCompare(sb, 'ar');
+  });
 }
 
 /** Product cards for the given ids, in the given order. */
@@ -168,7 +288,10 @@ export async function listCategories(ctx: Ctx): Promise<CategoryNode[]> {
       children: [],
     }),
   );
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  for (const n of nodes) if (n.parentId) byId.get(n.parentId)?.children.push(n);
-  return nodes.filter((n) => !n.parentId);
+  // Customers never see an empty shelf: categories without products on sale are left out (they
+  // stay in the back office, and come back as soon as a product is filed there).
+  const stocked = nodes.filter((n) => n.productCount > 0);
+  const byId = new Map(stocked.map((n) => [n.id, n]));
+  for (const n of stocked) if (n.parentId) byId.get(n.parentId)?.children.push(n);
+  return stocked.filter((n) => !n.parentId);
 }

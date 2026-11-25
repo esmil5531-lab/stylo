@@ -45,6 +45,6 @@ export async function getStore(ctx: Ctx, slug: string) {
     [slug],
   );
   if (!rows[0]) throw notFound('المتجر');
-  const products = await listProducts(ctx, { store: slug, feed: 'for_you', limit: 50, offset: 0 });
-  return { ...mapStore(rows[0]), products };
+  const page = await listProducts(ctx, { store: slug, feed: 'for_you', limit: 50, offset: 0 });
+  return { ...mapStore(rows[0]), products: page.items, productsTotal: page.total };
 }

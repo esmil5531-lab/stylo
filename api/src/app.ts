@@ -24,6 +24,7 @@ import { looksRoutes } from './modules/looks/looks.routes.js';
 import { ordersRoutes } from './modules/orders/orders.routes.js';
 import { storesRoutes } from './modules/stores/stores.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
+import { reviewsRoutes } from './modules/reviews/reviews.routes.js';
 import { wishlistRoutes } from './modules/wishlist/wishlist.routes.js';
 
 declare module 'fastify' {
@@ -214,6 +215,7 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
       await v1.register(cartRoutes);
       await v1.register(ordersRoutes);
       await v1.register(wishlistRoutes);
+      await v1.register(reviewsRoutes);
       await v1.register(usersRoutes);
       await v1.register(adminRoutes, { prefix: '/admin' });
       await v1.register(driverRoutes, { prefix: '/driver' });

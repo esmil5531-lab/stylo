@@ -26,6 +26,7 @@ export type Permission =
   | 'categories.manage'
   | 'banners.manage'
   | 'looks.manage'
+  | 'reviews.manage'
   | 'custody.read'
   | 'custody.manage'
   | 'finance.view';
@@ -429,4 +430,15 @@ export interface LookInput {
   isActive?: boolean;
   isFeatured?: boolean;
   productIds: string[];
+}
+
+export interface AdminReview {
+  id: string;
+  rating: number;
+  body: string | null;
+  hidden: boolean;
+  createdAt: string;
+  product: { id: string; name: string };
+  storeName: string;
+  customer: { name: string; phone: string | null };
 }

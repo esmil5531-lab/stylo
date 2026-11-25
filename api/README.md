@@ -28,7 +28,10 @@ npm run dev           # http://localhost:4000  (watch mode)
 | Method | Path | الوصف |
 |---|---|---|
 | GET | `/home` | البانرات، اللوك المميز («كمّل اللوك»)، المتاجر المختارة |
-| GET | `/products?feed=for_you\|trending\|offers\|nearby\|new&category=&store=&q=&limit=&offset=` | بطاقات المنتجات (سعر، `discountPercent`، تقييم، «يصلك اليوم/غداً»). `offers` = «عروض»: المخفّضة فقط، الأعلى خصماً أولاً |
+| GET | `/products?feed=for_you\|trending\|offers\|nearby\|new&category=&store=&q=&sort=&sizes=&minPrice=&maxPrice=&limit=&offset=` | `{ items, total, hasMore }` — بطاقات المنتجات (سعر، `discountPercent`، تقييم، «يصلك اليوم/غداً»). `offers` = «عروض»: المخفّضة فقط، الأعلى خصماً أولاً. `sort` = `newest\|price_asc\|price_desc\|discount\|popular`. `sizes=M,L` (متوفرة فقط)، والأسعار بالدرهم. البحث `q`: كل كلمة في اسم المنتج أو العلامة أو المتجر أو القسم، دون فرق أ/ا، ة/ه، ى/ي |
+| GET | `/products/facets?feed=&category=&store=&q=` | المقاسات المتوفرة (بترتيبها الطبيعي) ونطاق الأسعار، لنافذة «فلترة» |
+| GET | `/products/:id/reviews?limit=&offset=` | التقييمات المعروضة مع الملخص والتوزيع، و`mine` و`canReview` للزبونة المسجّلة |
+| PUT · DELETE | `/products/:id/reviews/mine` | `{ rating: 1..5, body? }` — للزبونة التي استلمت المنتج فقط (طلب «تم التسليم»)؛ تقييم واحد لكل منتج قابل للتعديل والحذف |
 | GET | `/products/:id` | تفاصيل المنتج مع المقاسات/الألوان والمخزون |
 | GET | `/products/:id/complete-the-look` | قطع تكمّل اللوك مع هذا المنتج |
 | GET | `/categories` | شجرة الأقسام الظاهرة: الرئيسية بالترتيب، ولكل منها `children` (الفرعية)، مع `icon` و`color` و`imageUrl` وعدد المنتجات (الرئيسي يشمل الفرعية) |
@@ -126,6 +129,8 @@ npm run dev           # http://localhost:4000  (watch mode)
 | Method | Path | الصلاحية | الوصف |
 |---|---|---|---|
 | GET | `/admin/me` | — | الموظف ودوره وصلاحياته |
+| GET | `/admin/reviews?hidden=` | `reviews.manage` | أحدث التقييمات للمراجعة (فريق ستايلو فقط، لا المتاجر) |
+| POST | `/admin/reviews/:id/visibility` | `reviews.manage` | `{ hidden }` — إخفاء التقييم المسيء/إظهاره، ويُعاد حساب تقييم المنتج |
 | POST | `/admin/uploads?purpose=product\|banner\|look\|category` | `products.write` / `banners.manage` / `looks.manage` / `categories.manage` | رفع صورة: الجسم هو ملف الصورة نفسه (`content-type: image/*`، حتى `MEDIA_MAX_MB`). تُفحص أنها صورة حقيقية (≥ 200px)، وتُزال بيانات EXIF/GPS، وتُحفظ WebP بثلاثة أحجام. الرد `{ id, url, urls: { sm, md, lg }, width, height }` — يُحفظ `url` (1600) في المنتج/البنر/اللوك/القسم |
 | GET | `/admin/dashboard` | `dashboard.view` | الطلبات حسب الحالة، مبيعات اليوم، المتاجر، السائقون |
 | GET · POST · PATCH | `/admin/stores` · `/admin/stores/:id` | `stores.read` / `stores.write` | المتاجر. الإضافة تتضمن صاحب المتجر `owner: { fullName, phone }`، والرسوم `deliveryFee` بالدرهم |

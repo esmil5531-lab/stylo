@@ -43,6 +43,7 @@ import {
 import { getDriverCustody, getSettlement, listCustody, listSettlements, settleCustody } from './custody.admin.js';
 import { notifyOrderStatus } from '../orders/notify.js';
 import { DELIVERY_FAILURE_KEYS } from '../orders/delivery-failure.js';
+import { listAdminReviews, setReviewHidden } from '../reviews/reviews.service.js';
 import {
   createDriver,
   createStaff,
@@ -332,6 +333,30 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     reply.status(201);
     return { id: rows[0].id as string, ...img };
+  });
+
+  // ------------------------------------------------------------ reviews (التقييمات) — moderation
+  app.get('/reviews', async (req) => {
+    can(req, 'reviews.manage');
+    const q = z
+      .object({
+        hidden: z.enum(['true', 'false']).optional(),
+        limit: z.coerce.number().int().min(1).max(100).default(30),
+        offset: z.coerce.number().int().min(0).default(0),
+      })
+      .parse(req.query);
+    return listAdminReviews(app.db, {
+      hidden: q.hidden === undefined ? undefined : q.hidden === 'true',
+      limit: q.limit,
+      offset: q.offset,
+    });
+  });
+
+  app.post('/reviews/:id/visibility', async (req) => {
+    const staff = can(req, 'reviews.manage');
+    const { id } = IdParams.parse(req.params);
+    const { hidden } = z.object({ hidden: z.boolean() }).parse(req.body);
+    return setReviewHidden(app.db, staff.userId, id, hidden);
   });
 
   // ------------------------------------------------------------ banners (البنرات)

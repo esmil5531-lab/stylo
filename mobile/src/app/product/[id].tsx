@@ -15,6 +15,7 @@ import { QueryState } from '@/components/QueryState';
 import { Rating } from '@/components/Rating';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { SectionHeader } from '@/components/SectionHeader';
+import { ReviewsSection } from '@/components/product/ReviewsSection';
 import { VariantPicker } from '@/components/product/VariantPicker';
 import { WishlistButton } from '@/components/WishlistButton';
 import { ar } from '@/i18n/ar';
@@ -113,6 +114,8 @@ function ProductBody({ product }: { product: ProductDetail }) {
             />
           </View>
         )}
+
+        <ReviewsSection productId={product.id} />
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>

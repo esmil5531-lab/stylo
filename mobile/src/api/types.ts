@@ -335,3 +335,21 @@ export interface NotificationItem {
   note: string | null;
   at: string;
 }
+
+export interface Review {
+  id: string;
+  rating: number;
+  body: string | null;
+  author: string;
+  createdAt: string;
+  edited: boolean;
+}
+
+export interface ProductReviews {
+  items: Review[];
+  summary: { count: number; average: number; distribution: Record<'1' | '2' | '3' | '4' | '5', number> };
+  /** Signed-in customer only. */
+  mine: { rating: number; body: string | null; hidden: boolean } | null;
+  /** She received this product (delivered order) and may rate it. */
+  canReview: boolean;
+}

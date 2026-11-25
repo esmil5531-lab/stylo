@@ -257,6 +257,7 @@ const PATHS = {
       <rect x="15" y="14" width="6" height="7" rx="1.5" />
     </>
   ),
+  star: <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z" />,
   banners: (
     <>
       <rect x="2.5" y="5" width="19" height="12" rx="2" />

@@ -63,16 +63,21 @@ after(async () => {
 describe('customer category tree', () => {
   it('main categories in order, each with its sub-categories, icon and colour', async () => {
     const t = await tree();
+    // «عناية وجمال» has no product on sale in the seed: customers don't see an empty shelf.
     assert.deepEqual(
       t.map((c) => c.slug),
-      ['women', 'men', 'kids', 'bags', 'shoes', 'accessories', 'watches', 'care'],
+      ['women', 'men', 'kids', 'bags', 'shoes', 'accessories', 'watches'],
     );
     const women = t[0]!;
     assert.equal(women.name, 'نساء');
     assert.equal(women.icon, 'hanger');
     assert.match(women.color!, /^#[0-9A-F]{6}$/i);
-    assert.deepEqual(women.children.slice(0, 2).map((c) => c.name), ['فساتين', 'عبايات وجلابيات']);
-    assert.equal(t.find((c) => c.slug === 'care')!.children.length, 4);
+    assert.equal(women.children[0]!.name, 'فساتين');
+    const all = t.flatMap((c) => [c, ...c.children]);
+    assert.ok(all.every((c) => c.productCount > 0), 'no empty category for customers');
+    // The back office still lists every category, empty ones included.
+    const admin = await adminList();
+    assert.ok(admin.some((c: { slug: string }) => c.slug === 'care'));
   });
 
   it("a main category counts and lists its sub-categories' products", async () => {
@@ -188,11 +193,11 @@ describe('managing categories (back office)', () => {
   it('reorders main categories (all of one level, once each)', async () => {
     const mains = (await adminList()).filter((c: { parentId: string | null }) => !c.parentId);
     const ids = mains.map((c: { id: string }) => c.id);
-    const care = mains.find((c: { slug: string }) => c.slug === 'care').id;
-    const next = [care, ...ids.filter((i: string) => i !== care)];
+    const watches = mains.find((c: { slug: string }) => c.slug === 'watches').id;
+    const next = [watches, ...ids.filter((i: string) => i !== watches)];
     const res = await req(OPS, 'POST', '/v1/admin/categories/reorder', { parentId: null, ids: next });
     assert.equal(res.statusCode, 200, res.body);
-    assert.equal((await tree())[0]!.slug, 'care');
+    assert.equal((await tree())[0]!.slug, 'watches');
     assert.equal(
       (await req(OPS, 'POST', '/v1/admin/categories/reorder', { parentId: null, ids: next.slice(1) })).json().error.code,
       'invalid_order',

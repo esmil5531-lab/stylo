@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useSession } from '@/lib/session';
 
@@ -18,6 +18,7 @@ import type {
   DriverOrders,
   DriverStatus,
   NotificationItem,
+  ProductReviews,
   Me,
   Address,
   AddressInput,
@@ -50,13 +51,35 @@ export const queryKeys = {
   cities: ['cities'] as const,
 };
 
+export type ProductSort = 'newest' | 'price_asc' | 'price_desc' | 'discount' | 'popular';
+
 export interface ProductQuery {
   feed?: Feed;
   category?: string;
   store?: string;
   q?: string;
   limit?: number;
+  /** «ترتيب»; without it the feed keeps its own order. */
+  sort?: ProductSort;
+  /** Sizes with stock (any of them). */
+  sizes?: string[];
+  /** Dirhams. */
+  minPrice?: number;
+  maxPrice?: number;
 }
+
+export interface ProductPage {
+  items: ProductSummary[];
+  total: number;
+  hasMore: boolean;
+}
+
+export interface ProductFacets {
+  sizes: { size: string; count: number }[];
+  price: { min: number; max: number };
+}
+
+const productParams = (p: ProductQuery) => ({ ...p, sizes: p.sizes?.length ? p.sizes.join(',') : undefined });
 
 // ---------------------------------------------------------------- queries
 
@@ -65,7 +88,27 @@ export const useHome = () => useQuery({ queryKey: queryKeys.home, queryFn: () =>
 export const useProducts = (p: ProductQuery) =>
   useQuery({
     queryKey: queryKeys.products(p),
-    queryFn: () => api.get<List<ProductSummary>>(`/products${query({ ...p })}`).then((r) => r.items),
+    queryFn: () => api.get<ProductPage>(`/products${query(productParams(p))}`).then((r) => r.items),
+  });
+
+const PAGE = 20;
+
+/** Paged results (product lists, search): 20 at a time, the next page loads on scroll. */
+export const useProductPages = (p: Omit<ProductQuery, 'limit'>) =>
+  useInfiniteQuery({
+    queryKey: [...queryKeys.products(p), 'pages'],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      api.get<ProductPage>(`/products${query({ ...productParams(p), limit: PAGE, offset: pageParam })}`),
+    getNextPageParam: (last, all) => (last.hasMore ? all.length * PAGE : undefined),
+  });
+
+/** Sizes in stock and price range of a listing (the filter sheet). */
+export const useProductFacets = (p: Pick<ProductQuery, 'feed' | 'category' | 'store' | 'q'>) =>
+  useQuery({
+    queryKey: ['products', 'facets', p],
+    queryFn: () => api.get<ProductFacets>(`/products/facets${query({ ...p })}`),
+    staleTime: 60_000,
   });
 
 export const useProduct = (id: string) =>
@@ -191,6 +234,26 @@ export function useCheckout() {
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['product'] });
     },
+  });
+}
+
+/** «التقييمات» of a product (+ hers and whether she may write one). */
+export const useProductReviews = (productId: string) => {
+  const { signedIn } = useSession();
+  return useQuery({
+    // Signed-in state is part of the key: `mine` / `canReview` depend on who asks.
+    queryKey: ['product', productId, 'reviews', signedIn],
+    queryFn: () => api.get<ProductReviews>(`/products/${productId}/reviews?limit=10`),
+  });
+};
+
+export function useSaveReview(productId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { rating: number; body?: string | null }) =>
+      api.put<ProductReviews>(`/products/${productId}/reviews/mine`, v),
+    // The product's rating changed too (cards, product page).
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['product', productId] }),
   });
 }
 

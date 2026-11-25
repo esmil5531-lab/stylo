@@ -1,8 +1,8 @@
 import { useSession } from '@/lib/session';
 import { SignInPrompt } from '@/components/SignInPrompt';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { errorMessage } from '@/api/client';
 import { useCancelOrder, useOrder } from '@/api/hooks';
@@ -96,6 +96,15 @@ function OrderBody({ order }: { order: OrderDetail }) {
             <Text style={styles.itemName} numberOfLines={1}>
               {it.name} {[it.colorName, it.size].filter(Boolean).length ? `(${[it.colorName, it.size].filter(Boolean).join(' · ')})` : ''} × {it.quantity}
             </Text>
+            {order.status === 'delivered' && it.productId && (
+              <Pressable
+                onPress={() => router.push({ pathname: '/product/[id]', params: { id: it.productId! } })}
+                accessibilityRole="button"
+                hitSlop={6}
+              >
+                <Text style={styles.rate}>{ar.reviews.rateItem}</Text>
+              </Pressable>
+            )}
             <Text style={styles.value}>{formatPrice(it.lineTotal, order.currency)}</Text>
           </View>
         ))}
@@ -174,6 +183,7 @@ const styles = StyleSheet.create({
   store: { fontFamily: fonts.bold, fontSize: 16, color: colors.ink },
   section: { fontFamily: fonts.extraBold, fontSize: 16, color: colors.ink, marginTop: spacing.sm },
   meta: { fontFamily: fonts.regular, fontSize: 13, color: colors.inkMuted },
+  rate: { fontFamily: fonts.semiBold, fontSize: 13, lineHeight: 20, color: colors.secondary },
   reasonCard: { backgroundColor: colors.dangerSoft, borderColor: colors.dangerSoft },
   reasonText: { fontFamily: fonts.semiBold, fontSize: 14, lineHeight: 22, color: colors.danger },
   confirm: { borderColor: colors.primary },
