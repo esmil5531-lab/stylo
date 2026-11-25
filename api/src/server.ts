@@ -2,6 +2,7 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createPool } from './db.js';
 import { databaseHost, diagnoseDbError, redactUrl, resolveSslMode } from './lib/database.js';
+import { pendingMigrations } from './lib/migrations.js';
 import { purgeIdleGuests } from './modules/auth/auth.service.js';
 
 const config = loadConfig();
@@ -34,6 +35,15 @@ try {
     `database connected: ${databaseHost(config.database.url)} (PostgreSQL ${rows[0].version}, ssl=${resolveSslMode(config.database)})`,
   );
   if (!rows[0].migrated) app.log.warn('database is empty: run `npm run db:reset` (development) or `npm run db:migrate`');
+  else {
+    const pending = await pendingMigrations(pool);
+    if (pending?.length) {
+      app.log.error(
+        `DATABASE IS OLDER THAN THE CODE: ${pending.length} migration(s) not applied (${pending.join(', ')}). ` +
+          'Some pages will fail until you run: npm run db:migrate (then restart the server)',
+      );
+    }
+  }
 } catch (err) {
   const problem = diagnoseDbError(err, config.database.url);
   app.log.error(

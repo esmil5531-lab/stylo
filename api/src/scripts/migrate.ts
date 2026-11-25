@@ -1,12 +1,9 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { loadConfig } from '../config.js';
 import { createPool } from '../db.js';
-
-// fileURLToPath, not URL.pathname: on Windows .pathname gives "/C:/…", which fs cannot open.
-const MIGRATIONS_DIR = fileURLToPath(new URL('../../../database/migrations/', import.meta.url));
+import { MIGRATIONS_DIR, migrationVersions } from '../lib/migrations.js';
 
 /**
  * Applies database/migrations/NNNN_*.sql in order, once each, tracked in schema_migrations.
@@ -27,11 +24,9 @@ async function main() {
     if (base[0].has0002) await record(pool, '0002_libya_looks_delivery_sharing');
 
     const applied = new Set((await pool.query('SELECT version FROM schema_migrations')).rows.map((r) => r.version));
-    const files = (await readdir(MIGRATIONS_DIR)).filter((f) => /^\d{4}_.+\.sql$/.test(f)).sort();
-
-    for (const file of files) {
-      const version = file.replace(/\.sql$/, '');
+    for (const version of await migrationVersions()) {
       if (applied.has(version)) continue;
+      const file = `${version}.sql`;
       console.log(`→ applying ${file}`);
       await pool.query(await readFile(join(MIGRATIONS_DIR, file), 'utf8'));
       await record(pool, version);

@@ -32,7 +32,7 @@ before(async () => {
   const files = (await readdir(`${ROOT}migrations`)).filter((f) => f.endsWith('.sql')).sort();
   for (const f of files) await pool.query(await readFile(`${ROOT}migrations/${f}`, 'utf8'));
   await pool.query(await readFile(`${ROOT}seeds/dev_seed.sql`, 'utf8'));
-  app = await buildApp({ pool, config: loadConfig({ NODE_ENV: 'test', DATABASE_URL: TEST_DB }), logger: false });
+  app = await buildApp({ pool, config: loadConfig({ NODE_ENV: 'test', DATABASE_URL: TEST_DB, AUTH_DEV_HEADER: 'true' }), logger: false });
 });
 
 after(async () => {
@@ -53,6 +53,25 @@ describe('paging', () => {
     assert.equal(last.items.length, 2);
     assert.equal(last.hasMore, false);
     assert.equal(last.total, all.items.length);
+  });
+});
+
+describe('every home feed × sort × filter answers', () => {
+  // «قريب منك» once failed with 500: its ORDER BY parameter was also sent to the count query.
+  it('feeds, sorts and filters combine; the total counts what is listed', async () => {
+    const all = (await get('limit=50')).total;
+    for (const feed of ['for_you', 'trending', 'offers', 'nearby', 'new']) {
+      for (const sort of ['', 'newest', 'price_asc', 'price_desc', 'discount', 'popular']) {
+        for (const filter of ['', 'sizes=M,L&minPrice=1000&maxPrice=999000', 'q=%D9%81%D8%B3%D8%AA%D8%A7%D9%86']) {
+          const page = await get(`limit=50&feed=${feed}${sort && `&sort=${sort}`}${filter && `&${filter}`}`);
+          assert.equal(page.total, page.items.length, `${feed} ${sort} ${filter}`);
+          if (feed !== 'offers' && !filter) assert.equal(page.total, all, `${feed} ${sort}`);
+        }
+      }
+    }
+    // A signed-in customer (her city sorts «قريب منك») too.
+    const res = await app.inject({ url: '/v1/products?feed=nearby&limit=3', headers: { 'x-user-id': '00000000-0000-0000-0000-000000000004' } });
+    assert.equal(res.statusCode, 200, res.body);
   });
 });
 

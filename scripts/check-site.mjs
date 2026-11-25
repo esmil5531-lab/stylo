@@ -72,12 +72,22 @@ if (health.status === 0) {
   record(false, 'server reachable', `${health.error} — is "npm start" running and is the address right?`);
   process.exit(1);
 }
-record(health.status === 200 && health.data?.database === 'connected', 'GET /health (database)', health.body.slice(0, 160));
+record(health.data?.database === 'connected', 'database connected', health.data?.hint ?? health.body.slice(0, 160));
+if (health.data?.migrations === 'pending') {
+  record(false, 'database migrations', `not applied: ${health.data.pending.join(', ')} — run: npm run db:migrate, then restart the server`);
+} else if (health.status === 200) {
+  record(true, 'database migrations', health.data?.migrations ?? '');
+}
 
 // 2. API data used by the pages (and real ids for the dynamic routes)
 await api('/v1/home'); // banners, feeds and looks of the home screen
 await api('/v1/categories', (d) => Array.isArray(d.items ?? d));
 const products = await api('/v1/products?limit=1', (d) => Array.isArray(d.items) && typeof d.total === 'number');
+// Every list the app builds: feeds, sorts, filters, Arabic search, a category.
+for (const q of ['feed=for_you', 'feed=trending', 'feed=offers', 'feed=nearby', 'feed=new', 'sort=newest', 'sort=price_asc', 'sort=popular',
+  'sort=discount', 'sizes=M,L', 'minPrice=1000&maxPrice=999000', 'q=%D9%81%D8%B3%D8%AA%D8%A7%D9%86', 'category=women']) {
+  await api(`/v1/products?limit=2&${q}`, (d) => Array.isArray(d.items));
+}
 await api('/v1/products/facets');
 await api('/v1/cities');
 const looks = await api('/v1/looks');
@@ -85,7 +95,13 @@ const stores = await api('/v1/stores');
 const productId = products?.items?.[0]?.id;
 const lookId = (looks?.items ?? looks ?? [])[0]?.id;
 const storeSlug = (stores?.items ?? stores ?? [])[0]?.slug;
-if (productId) await api(`/v1/products/${productId}/reviews`);
+if (productId) {
+  await api(`/v1/products/${productId}`);
+  await api(`/v1/products/${productId}/reviews`);
+  await api(`/v1/products/${productId}/complete-the-look`);
+}
+if (lookId) await api(`/v1/looks/${lookId}`);
+if (storeSlug) await api(`/v1/stores/${storeSlug}`);
 // A guest session (what the site creates on the first add to cart).
 const guest = await get('/v1/auth/guest', { method: 'POST' });
 record(guest.status === 200 || guest.status === 201 || guest.status === 429, 'API POST /v1/auth/guest', `status ${guest.status}`);

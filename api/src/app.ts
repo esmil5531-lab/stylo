@@ -6,6 +6,7 @@ import type { Config } from './config.js';
 import type { Pool } from './db.js';
 import type { Ctx } from './lib/context.js';
 import { diagnoseDbError } from './lib/database.js';
+import { isOutdatedSchemaError, pendingMigrations } from './lib/migrations.js';
 import { AppError } from './lib/errors.js';
 import { createMessenger, type FetchLike, type Messenger } from './lib/messaging.js';
 import { createStorage, type MediaStorage } from './lib/media.js';
@@ -161,6 +162,19 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
     if (pgCode === '23514' && (err as { constraint?: string }).constraint === 'orders_shipped_needs_driver') {
       return reply.status(400).send({ error: { code: 'driver_required', message: 'أسندي الطلب لسائق أولاً' } });
     }
+    // New code on an old database (a migration was not applied): say so instead of a bare 500.
+    if (isOutdatedSchemaError(err)) {
+      req.log.error({ err }, 'database schema is older than the code: run `npm run db:migrate`');
+      const dev = config.env !== 'production';
+      return reply.status(503).send({
+        error: {
+          code: 'database_outdated',
+          message: dev
+            ? 'قاعدة البيانات أقدم من نسخة الخادم: شغّلي npm run db:migrate ثم أعيدي تشغيل الخادم'
+            : 'الخدمة غير متاحة مؤقتاً، حاولي بعد قليل',
+        },
+      });
+    }
     if (pgCode === '22P02') {
       return reply.status(400).send({ error: { code: 'invalid_id', message: 'معرّف غير صالح' } });
     }
@@ -194,7 +208,18 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
   app.get('/health', async (_req, reply) => {
     try {
       await pool.query('SELECT 1');
-      return { ok: true, database: 'connected' };
+      const pending = await pendingMigrations(pool);
+      if (pending && pending.length > 0) {
+        // Reachable but older than the code: some endpoints would fail. Not healthy until migrated.
+        return reply.status(503).send({
+          ok: false,
+          database: 'connected',
+          migrations: 'pending',
+          pending,
+          ...(config.env !== 'production' ? { hint: 'شغّلي npm run db:migrate ثم أعيدي تشغيل الخادم' } : {}),
+        });
+      }
+      return { ok: true, database: 'connected', migrations: pending ? 'up_to_date' : 'unknown' };
     } catch (err) {
       const problem = diagnoseDbError(err, config.database.url);
       return reply.status(503).send({

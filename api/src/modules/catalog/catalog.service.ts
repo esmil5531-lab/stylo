@@ -90,6 +90,9 @@ export async function listProducts(ctx: Ctx, input: ListProductsInput): Promise<
   }
   if (input.minPrice !== undefined) where.push(`p.base_price >= ${add(input.minPrice)}`);
   if (input.maxPrice !== undefined) where.push(`p.base_price <= ${add(input.maxPrice)}`);
+  // The count query only has the filters: take its parameters now, before the ORDER BY ones
+  // («قريب منك» sorts by the customer's city) and LIMIT/OFFSET — otherwise Postgres refuses it.
+  const countParams = [...params];
 
   let order: string;
   switch (input.feed) {
@@ -105,7 +108,9 @@ export async function listProducts(ctx: Ctx, input: ListProductsInput): Promise<
       order = '(p.compare_at_price - p.base_price)::numeric / p.compare_at_price DESC, p.sold_count DESC';
       break;
     case 'nearby':
-      order = `(s.city = ${add(city)}) DESC, s.prep_hours ASC, p.rating_avg DESC`;
+      // Only bind the city when this order is used: a «ترتيب» below replaces it, and Postgres
+      // refuses a parameter that the query never references.
+      order = input.sort ? '' : `(s.city = ${add(city)}) DESC, s.prep_hours ASC, p.rating_avg DESC`;
       break;
     case 'for_you':
     default:
@@ -132,7 +137,6 @@ export async function listProducts(ctx: Ctx, input: ListProductsInput): Promise<
   }
 
   const filtered = `${PRODUCT_SUMMARY_SELECT} ${where.length ? `AND ${where.join(' AND ')}` : ''}`;
-  const countParams = [...params];
   const [list, count] = await Promise.all([
     ctx.db.query(`${filtered} ORDER BY ${order}, p.id LIMIT ${add(input.limit)} OFFSET ${add(input.offset)}`, params),
     ctx.db.query<{ n: number }>(`SELECT count(*)::int AS n FROM (${filtered}) x`, countParams),

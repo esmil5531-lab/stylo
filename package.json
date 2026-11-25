@@ -4,7 +4,9 @@
   "description": "ستايلو — كل ستايل في مكان واحد",
   "scripts": {
     "install:all": "npm --prefix api install && npm --prefix admin install && npm --prefix mobile install",
+    "setup": "npm run install:all && npm run db:migrate && npm run build",
     "db:reset": "npm --prefix api run db:reset",
+    "db:migrate": "npm --prefix api run db:migrate",
     "db:check": "npm --prefix api run db:check",
     "dev:api": "npm --prefix api run dev",
     "dev:mobile": "npm --prefix mobile run start:lan",
