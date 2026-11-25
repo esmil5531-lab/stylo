@@ -316,3 +316,14 @@ export interface DriverOrders {
   active: DriverOrder[];
   deliveredToday: DriverOrder[];
 }
+
+export interface NotificationItem {
+  id: string;
+  orderId: string;
+  orderNumber: number;
+  storeName: string;
+  status: OrderStatusValue;
+  /** Cancellation reason (only for cancelled). */
+  note: string | null;
+  at: string;
+}

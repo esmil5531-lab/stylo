@@ -234,6 +234,29 @@ describe('looks, sharing and checkout', () => {
     await req('DELETE', '/cart');
   });
 
+  it('notifications: the customer own order updates, newest first', async () => {
+    const res = await req('GET', '/me/notifications');
+    assert.equal(res.statusCode, 200, res.body);
+    const items = res.json().items;
+    assert.ok(items.length > 0);
+    assert.ok(items.every((n: { orderId: string }) => typeof n.orderId === 'string'));
+    for (let i = 1; i < items.length; i++) assert.ok(items[i - 1].at >= items[i].at);
+    const mine = new Set((await req('GET', '/orders?limit=50')).json().items.map((o: { id: string }) => o.id));
+    assert.ok(items.every((n: { orderId: string }) => mine.has(n.orderId)), 'only my orders');
+  });
+
+  it('Fastify body errors answer in Arabic', async () => {
+    const send = (payload: string, type: string) =>
+      app.inject({ method: 'POST', url: '/v1/cart/items', payload, headers: { 'x-user-id': SARA, 'content-type': type } });
+    let res = await send('{not json', 'application/json');
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.json().error, { code: 'invalid_json', message: 'بيانات غير صالحة' });
+    res = await send('hello', 'text/csv');
+    assert.equal(res.statusCode, 415);
+    assert.equal(res.json().error.code, 'unsupported_media_type');
+    assert.match(res.json().error.message, /[\u0600-\u06FF]/);
+  });
+
   it('users cannot read other users orders', async () => {
     const orders = (await req('GET', '/orders')).json().items;
     assert.equal((await req('GET', `/orders/${orders[0].id}`, undefined, MARYAM)).statusCode, 404);

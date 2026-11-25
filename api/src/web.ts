@@ -311,6 +311,8 @@ function collectRoutes(root: string): RouteTable {
       }
       if (!name.endsWith('.html')) continue;
       const file = relative(root, full).split(sep).join('/');
+      // Expo's developer route list: never a public page (falls through to the 404 page).
+      if (file === '_sitemap.html') continue;
       if (file === '+not-found.html') {
         table.notFound = file;
         continue;

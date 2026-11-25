@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { Id, IdParams, Pagination } from '../../lib/validation.js';
 import { DELIVERY_MODES } from '../delivery/delivery.js';
 import { notifyOrderStatus } from './notify.js';
-import { checkout, getOrder, listOrders } from './orders.service.js';
+import { checkout, getOrder, listNotifications, listOrders } from './orders.service.js';
 
 export async function ordersRoutes(app: FastifyInstance) {
   app.post('/checkout', async (req, reply) => {
@@ -20,6 +20,11 @@ export async function ordersRoutes(app: FastifyInstance) {
   app.get('/orders', async (req) => {
     const q = Pagination.parse(req.query);
     return { items: await listOrders(app.ctx(req), q) };
+  });
+
+  app.get('/me/notifications', async (req) => {
+    const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(50).default(30) }).parse(req.query);
+    return listNotifications(app.ctx(req), limit);
   });
 
   app.get('/orders/:id', async (req) => {

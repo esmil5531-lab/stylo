@@ -7,7 +7,7 @@
 1. **استضافة حقيقية:** الملفات جاهزة (`Dockerfile`، `deploy/`، الدليل في `docs/DEPLOY.md`). يبقى: شراء النطاق، وخادم VPS، وتوجيه DNS، وملء `.env.production`، ثم `docker compose up -d --build` و `bootstrap` لأول مدير. يُستحسن بعدها مراقبة الأخطاء (Sentry) ومراقبة توفر الموقع (UptimeRobot).
 2. **Google Search Console:** التحقق من النطاق وإرسال `sitemap.xml` (الكود جاهز: robots، sitemap، الوسوم، JSON-LD).
 3. **حساب WhatsApp Business:** حساب Meta Business موثّق، ورقم مخصص لستايلو، و System User بتوكن دائم، واعتماد قالبين بالعربية: `stylo_login_code` (Authentication) و `stylo_order_status` (Utility). ثم `MESSAGING_PROVIDER=whatsapp` (الإعداد في `api/.env.example`). يُستحسن بديل SMS ليبي (`sms_http`) لمن لا يستخدم واتساب.
-4. **نسخ المتاجر (EAS Build):** حساب Expo، و `eas build` لأندرويد (Google Play) و iOS (App Store)، وأيقونة وشاشة بداية نهائية، وسياسة الخصوصية. وضع المندوب داخل نفس التطبيق، فلا يلزم تطبيق ثانٍ.
+4. **نسخ المتاجر (EAS Build):** حساب Expo، و `eas build` لأندرويد (Google Play) و iOS (App Store)، واستبدال الأيقونة وشاشة البداية المؤقتتين (بهوية ستايلو) بالشعار الرسمي، وسياسة الخصوصية. وضع المندوب داخل نفس التطبيق، فلا يلزم تطبيق ثانٍ.
 5. **الصفحات القانونية:** الشروط والأحكام، وسياسة الخصوصية، وسياسة الاستبدال والإرجاع، واتفاقية المتاجر (العمولة ومواعيد التحويل).
 
 ## ثانياً — مهم بعد الإطلاق مباشرة

@@ -55,6 +55,16 @@ export interface BuildAppOptions {
   mediaFetch?: FetchLike;
 }
 
+/** Arabic answers for Fastify's built-in client errors (their messages are English). */
+const FASTIFY_ERRORS: Record<string, [string, string]> = {
+  FST_ERR_CTP_EMPTY_JSON_BODY: ['empty_body', 'لم تُرسل أي بيانات'],
+  FST_ERR_CTP_INVALID_JSON_BODY: ['invalid_json', 'بيانات غير صالحة'],
+  FST_ERR_CTP_BODY_TOO_LARGE: ['body_too_large', 'حجم البيانات أكبر من المسموح'],
+  FST_ERR_CTP_INVALID_MEDIA_TYPE: ['unsupported_media_type', 'نوع البيانات غير مدعوم'],
+  FST_ERR_CTP_INVALID_CONTENT_LENGTH: ['bad_request', 'طلب غير صالح'],
+  FST_ERR_VALIDATION: ['validation_error', 'بيانات غير صالحة'],
+};
+
 export async function buildApp({ pool, config, now = () => new Date(), logger = true, fetch, mediaFetch }: BuildAppOptions) {
   const app: FastifyInstance = Fastify({
     logger: logger ? { level: config.logLevel } : false,
@@ -161,7 +171,10 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
     }
     const status = (err as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) {
-      return reply.status(status).send({ error: { code: 'bad_request', message: (err as Error).message } });
+      // Fastify's own errors (body parsing, size, content type) are English: answer in Arabic.
+      const known = FASTIFY_ERRORS[(err as { code?: string }).code ?? ''];
+      const [code, message] = known ?? ['bad_request', 'طلب غير صالح'];
+      return reply.status(status).send({ error: { code, message } });
     }
     req.log.error(err);
     return reply.status(500).send({ error: { code: 'internal', message: 'حدث خطأ غير متوقع، حاولي مرة أخرى' } });

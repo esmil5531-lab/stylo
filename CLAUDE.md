@@ -85,6 +85,9 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - Anything that adds to the cart (product, look, shared cart) must go through `useStoreConflictGuard()` (`components/cart/StoreConflictDialog.tsx`) so a store conflict opens the two-choice dialog instead of an error.
 - API URL (`src/api/client.ts`): native = `EXPO_PUBLIC_API_URL` from `mobile/.env` (see `mobile/.env.example`; e.g. `http://<LAN IP>:4000/v1`), else the Metro host on port 4000 (LAN mode — a tunnel does not carry the API). **Web always uses its own origin** and ignores the variable, so a phone setting can never leak into the website build. In dev the network error shows the URL that failed and Metro logs `[stylo] API: …`.
 - In SDK 57, `<Link asChild>` throws if the child gets an **array** style. Use `Pressable` + `router.push(...)` for styled tappable cards.
+- **Notifications («الإشعارات»)**: the home bell opens `/notifications`, built from `GET /v1/me/notifications` (the customer's `order_status_history`, newest first; the note is shown only for cancellations). Read state is per device (`lib/notificationsSeen.ts`); on first use only the last 48 h count as new. The bell shows the unread count like the cart badge.
+- Unknown links render `src/app/+not-found.tsx` (Arabic, branded; the server answers 404 with it). Expo's `_sitemap.html` is never served.
+- Icon, adaptive icon, splash (`expo-splash-screen` plugin: white background, burgundy STYLO) and favicon in `mobile/assets/` are **temporary Stylo artwork** (Cinzel «S» / «STYLO» on `#5B0E2D`) until the owner sends the official logo — replace the PNGs at the same sizes (1024², favicon 196²).
 - Product/banner photos come from the API (`product_images`, `banners.image_url`). Without a photo, `ProductImage` draws a tinted tile with a garment icon — keep that fallback.
 
 ### Code
@@ -155,6 +158,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 ## 6. API rules
 
 - Routes are versioned under `/v1`. Each area = `*.routes.ts` (parse input with zod, call the service) + `*.service.ts` (SQL and business rules). Services take a `Ctx` (`db`, `config`, `userId`, `now`) — never read globals, so tests can inject a clock.
+- Fastify's own client errors (bad JSON, empty body, 413, 415) are answered in Arabic via `FASTIFY_ERRORS` in `app.ts` — never forward English framework messages.
 - Errors: throw `AppError` helpers from `src/lib/errors.ts` with an **Arabic, user-safe message**; the global handler returns `{ error: { code, message, details } }`. Zod errors → 400, malformed UUIDs → 400.
 - Money is integer dirhams end to end. Never use floats for money.
 - Multi-step writes (checkout) run in `withTransaction` and lock the rows they change (`FOR UPDATE`).

@@ -1,15 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useCart } from '@/api/hooks';
+import { useCart, useNotifications } from '@/api/hooks';
 import { BRAND } from '@/constants/brand';
+import { ar } from '@/i18n/ar';
+import { isUnread, useNotificationsSeenAt } from '@/lib/notificationsSeen';
 import { colors, fonts, spacing } from '@/theme';
 
 /** Reference top bar: bag + heart (start/right), STYLO wordmark (center), bell (end/left). */
 export function AppHeader() {
   const cart = useCart();
   const count = cart.data?.itemsCount ?? 0;
+  const notes = useNotifications();
+  const seenAt = useNotificationsSeenAt();
+  const unread = (notes.data ?? []).filter((n) => isUnread(n.at, seenAt)).length;
   return (
     <View style={styles.bar}>
       <View style={styles.side}>
@@ -29,8 +34,18 @@ export function AppHeader() {
         {BRAND.wordmark}
       </Text>
       <View style={[styles.side, styles.end]}>
-        <Pressable hitSlop={8} accessibilityLabel="الإشعارات">
+        <Pressable
+          onPress={() => router.push('/notifications' as Href)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={unread > 0 ? ar.notifications.bellUnread(unread) : ar.notifications.bell}
+        >
           <Ionicons name="notifications-outline" size={24} color={colors.ink} />
+          {unread > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
+            </View>
+          )}
         </Pressable>
       </View>
     </View>

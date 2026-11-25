@@ -16,6 +16,7 @@ import type {
   DriverOrder,
   DriverOrders,
   DriverStatus,
+  NotificationItem,
   Me,
   Address,
   AddressInput,
@@ -39,6 +40,7 @@ export const queryKeys = {
   cart: ['cart'] as const,
   sharedCart: (token: string) => ['shared-cart', token] as const,
   orders: ['orders'] as const,
+  notifications: ['notifications'] as const,
   order: (id: string) => ['orders', id] as const,
   wishlist: ['wishlist'] as const,
   me: ['me'] as const,
@@ -95,6 +97,15 @@ export const useCart = () => {
 
 export const useSharedCart = (token: string) =>
   useQuery({ queryKey: queryKeys.sharedCart(token), queryFn: () => api.get<SharedCart>(`/shared-carts/${token}`) });
+
+/** Latest updates of the customer's orders (the bell). Refreshed every 2 minutes while open. */
+export const useNotifications = () =>
+  useQuery({
+    enabled: useSession().signedIn,
+    queryKey: queryKeys.notifications,
+    queryFn: () => api.get<{ items: NotificationItem[] }>('/me/notifications').then((r) => r.items),
+    refetchInterval: 120_000,
+  });
 
 export const useOrders = () =>
   useQuery({
@@ -160,6 +171,7 @@ export function useCheckout() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.cart });
       qc.invalidateQueries({ queryKey: queryKeys.orders });
+      qc.invalidateQueries({ queryKey: queryKeys.notifications });
       // Stock and "trending" changed.
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['product'] });

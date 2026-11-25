@@ -9,7 +9,7 @@ import type { Queryable } from './db.js';
  * <title>, description, canonical, OpenGraph/Twitter, robots, JSON-LD (Product / Store / WebSite),
  * and a <noscript> summary of the page content.
  *
- * Private pages (cart, account, orders, driver, login, shared carts) are `noindex`.
+ * Private pages (cart, account, orders, notifications, driver, login, shared carts) are `noindex`.
  * Indexing is on only in production (or SEO_INDEXING=true) so staging never shows up in Google.
  */
 
@@ -40,9 +40,9 @@ const DEFAULT_DESCRIPTION =
   'ستايلو — كل ستايل في مكان واحد. تسوّقي أزياء النساء والأحذية والحقائب من أفضل المتاجر الليبية في مكان واحد، بالدينار الليبي، مع توصيل سريع في طرابلس وبنغازي والدفع عند الاستلام.';
 
 /** Pages that belong to one person: never indexed. */
-const PRIVATE = /^(cart|wishlist|account|login|profile|addresses(\/.*)?|orders(\/.*)?|driver|shared-cart\/.+)$/;
+const PRIVATE = /^(cart|wishlist|account|login|profile|notifications|addresses(\/.*)?|orders(\/.*)?|driver|shared-cart\/.+)$/;
 
-export const DISALLOWED_PATHS = ['/admin/', '/v1/', '/cart', '/wishlist', '/account', '/login', '/orders', '/driver', '/addresses', '/profile', '/shared-cart/'];
+export const DISALLOWED_PATHS = ['/admin/', '/v1/', '/cart', '/wishlist', '/account', '/login', '/orders', '/driver', '/addresses', '/profile', '/notifications', '/shared-cart/'];
 
 function lyd(dirhams: number): string {
   const v = (dirhams / 1000).toFixed(3).replace(/\.?0+$/, '');

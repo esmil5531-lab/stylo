@@ -54,3 +54,13 @@ export function whatsappNumber(phone: string): string {
   if (digits.startsWith('218')) return digits;
   return `218${digits.replace(/^0/, '')}`;
 }
+
+/** "اليوم 3:05 م" / "أمس 9:10 ص" / "24/11/2026" — calendar days in Libya time (UTC+2). */
+export function formatWhen(iso: string, now = new Date()): string {
+  const day = (d: Date) => Math.floor((d.getTime() + 2 * 3_600_000) / 86_400_000);
+  const d = new Date(iso);
+  const diff = day(now) - day(d);
+  if (diff === 0) return ar.notifications.today(formatLibyaTime(iso));
+  if (diff === 1) return ar.notifications.yesterday(formatLibyaTime(iso));
+  return formatDate(iso);
+}

@@ -44,6 +44,7 @@ npm run dev           # http://localhost:4000  (watch mode)
 | POST | `/shared-carts/:token/import` | نسخها إلى سلة المستخدم الحالي (`{ replaceCart? }`) |
 | POST | `/checkout` | `{ deliveryMode: 'fastest' \| 'standard', addressId? }` → طلب واحد للمتجر |
 | GET | `/orders` · `/orders/:id` | الطلبات / التفاصيل مع سجل الحالات |
+| GET | `/me/notifications?limit=` | الإشعارات: آخر تحديثات حالات طلبات الزبونة (الأحدث أولاً)، مع سبب الإلغاء فقط |
 | GET / PUT / DELETE | `/wishlist` · `/wishlist/:productId` | المفضلة |
 | GET · PATCH | `/me` | المستخدم وعنوانه الأساسي وعدد عناوينه · تعديل الاسم `{ fullName }` |
 | GET | `/cities` | المدن التي يوصل لها ستايلو (مدينة العنوان من هذه القائمة) |

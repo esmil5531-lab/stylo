@@ -124,6 +124,19 @@ describe('customer build problems', () => {
     }
   });
 
+  it("Expo's developer route list (/_sitemap) is not a public page", async () => {
+    const dir = site({ script: true, bundle: true });
+    writeFileSync(join(dir, '_sitemap.html'), '<html><body>Sitemap</body></html>');
+    const a = await appFor(dir);
+    try {
+      const res = await a.inject('/_sitemap');
+      assert.equal(res.statusCode, 404);
+      assert.ok(!res.body.includes('Sitemap</body>'));
+    } finally {
+      await a.close();
+    }
+  });
+
   it('a normal page is served unchanged (one script)', async () => {
     const a = await appFor(site({ script: true, bundle: true }));
     try {

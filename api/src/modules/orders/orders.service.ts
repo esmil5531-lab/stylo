@@ -183,3 +183,33 @@ export async function getOrder(ctx: Ctx, id: string) {
     })),
   };
 }
+
+/**
+ * «الإشعارات»: the latest status changes of the customer's own orders (newest first), from
+ * order_status_history — the same log the order page shows. Read state is kept on the device.
+ */
+export async function listNotifications(ctx: Ctx, limit = 30) {
+  const userId = requireUser(ctx);
+  const { rows } = await ctx.db.query(
+    `SELECT h.id, h.to_status, h.note, h.changed_at, o.id AS order_id, o.order_number, s.name_ar AS store_name
+       FROM order_status_history h
+       JOIN orders o ON o.id = h.order_id
+       JOIN stores s ON s.id = o.store_id
+      WHERE o.customer_id = $1
+      ORDER BY h.changed_at DESC, h.id DESC
+      LIMIT $2`,
+    [userId, limit],
+  );
+  return {
+    items: rows.map((r) => ({
+      id: String(r.id),
+      orderId: r.order_id as string,
+      orderNumber: Number(r.order_number),
+      storeName: r.store_name as string,
+      status: r.to_status as string,
+      // Only the cancellation reason is meant for the customer; other notes are operational.
+      note: r.to_status === 'cancelled' ? ((r.note as string | null) ?? null) : null,
+      at: (r.changed_at as Date).toISOString(),
+    })),
+  };
+}
