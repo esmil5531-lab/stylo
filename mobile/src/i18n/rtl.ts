@@ -22,4 +22,6 @@ export const isRTL = true;
 export const directionalIcons = {
   back: isRTL ? 'arrow-forward' : 'arrow-back',
   next: isRTL ? 'chevron-back' : 'chevron-forward',
+  /** «تسوقي ←» call-to-action arrow (points the way the reader goes). */
+  forward: isRTL ? 'arrow-back' : 'arrow-forward',
 } as const;

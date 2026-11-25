@@ -11,12 +11,12 @@ export const ORDER_STATUSES = [
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export const ORDER_STATUS_META: Record<OrderStatus, { labelAr: string; color: string }> = {
-  pending: { labelAr: 'قيد الانتظار', color: '#9A7B4F' },
-  confirmed: { labelAr: 'مؤكد', color: '#2F6FB0' },
-  processing: { labelAr: 'قيد التجهيز', color: '#7A4FB0' },
-  shipped: { labelAr: 'تم الشحن', color: '#B0702F' },
-  delivered: { labelAr: 'تم التسليم', color: '#2F8A57' },
-  cancelled: { labelAr: 'ملغي', color: '#B03A3A' },
+  pending: { labelAr: 'قيد الانتظار', color: '#8A5A00' },
+  confirmed: { labelAr: 'مؤكد', color: '#2F5E8C' },
+  processing: { labelAr: 'قيد التجهيز', color: '#5B4B8A' },
+  shipped: { labelAr: 'تم الشحن', color: '#355E5A' },
+  delivered: { labelAr: 'تم التسليم', color: '#2D6A4F' },
+  cancelled: { labelAr: 'ملغي', color: '#9E3A2B' },
 };
 
 // Same rules as order_status_can_transition() in the database.

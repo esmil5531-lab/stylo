@@ -54,3 +54,28 @@ install(join(icons, 'png', 'favicon-196.png'), join(assets, 'favicon.png'));
 install(join(ROOT, 'splash', 'splash-1024.png'), join(assets, 'splash-icon.png'));
 install(join(icons, 'favicon.svg'), join(REPO, 'admin', 'public', 'favicon.svg'));
 install(join(icons, 'png', 'favicon-180.png'), join(REPO, 'admin', 'public', 'apple-touch-icon.png'));
+
+// 5. Artwork used inside the app (onboarding, hero without a photo, login).
+const appBrand = join(assets, 'brand');
+for (const [from, to] of [
+  [join(ROOT, 'textures', 'navy-fabric-portrait.jpg'), 'navy-fabric-portrait.jpg'],
+  [join(ROOT, 'textures', 'navy-fabric-wide.jpg'), 'navy-fabric-wide.jpg'],
+  [join(ROOT, 'logo', 'png', 'stylo-logo-reversed-transparent.png'), 'logo-reversed.png'],
+  [join(ROOT, 'logo', 'png', 'stylo-logo-primary.png'), 'logo-primary.png'],
+  [join(ROOT, 'logo', 'png', 'stylo-mark-silver.png'), 'mark-silver.png'],
+  [join(ROOT, 'logo', 'png', 'stylo-mark-navy.png'), 'mark-navy.png'],
+]) {
+  install(from, join(appBrand, to));
+}
+
+// 6. Back office (STYLO Admin / STYLO Store): logo + fabric, served from admin/public/brand/.
+const adminBrand = join(REPO, 'admin', 'public', 'brand');
+for (const [from, to] of [
+  [join(ROOT, 'logo', 'stylo-logo-horizontal-reversed.svg'), 'logo-horizontal-reversed.svg'],
+  [join(ROOT, 'logo', 'stylo-logo-horizontal.svg'), 'logo-horizontal.svg'],
+  [join(ROOT, 'logo', 'stylo-logo-primary.svg'), 'logo-primary.svg'],
+  [join(ROOT, 'logo', 'stylo-mark-silver.svg'), 'mark-silver.svg'],
+  [join(ROOT, 'textures', 'navy-fabric-wide.jpg'), 'navy-fabric-wide.jpg'],
+]) {
+  install(from, join(adminBrand, to));
+}

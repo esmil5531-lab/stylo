@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -110,7 +111,13 @@ export default function LoginScreen() {
       <ScreenHeader title={ar.auth.title} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
-          <Text style={styles.word}>{BRAND.wordmark}</Text>
+          <Image source={FABRIC} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <Image
+            source={LOGO}
+            style={styles.logo}
+            contentFit="contain"
+            accessibilityLabel={`${BRAND.wordmark} — ${BRAND.descriptorEn}`}
+          />
           <Text style={styles.tagline}>{BRAND.taglineAr}</Text>
         </View>
 
@@ -202,18 +209,23 @@ export default function LoginScreen() {
   );
 }
 
+const FABRIC = require('../../assets/brand/navy-fabric-wide.jpg');
+const LOGO = require('../../assets/brand/logo-reversed.png');
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, gap: spacing.lg },
+  // Navy fabric + the reversed STYLO logo (brand/), the Arabic tagline under it.
   hero: {
-    backgroundColor: colors.heroBackground,
-    borderRadius: radius.lg,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    overflow: 'hidden',
     paddingVertical: spacing.lg,
     alignItems: 'center',
-    gap: 4,
+    gap: spacing.sm,
   },
-  word: { fontFamily: fonts.brand, fontSize: 34, letterSpacing: 3, color: colors.primary, writingDirection: 'ltr' },
-  tagline: { fontFamily: fonts.semiBold, fontSize: 15, color: colors.primaryDark },
+  logo: { width: 150, height: 172 },
+  tagline: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 24, color: colors.white },
   form: { gap: spacing.sm },
   sub: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 24, color: colors.inkSecondary },
   ltr: { writingDirection: 'ltr', fontFamily: fonts.bold, color: colors.ink },
@@ -272,8 +284,8 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   welcome: { fontFamily: fonts.bold, fontSize: 15, color: colors.primary, marginTop: spacing.sm },
-  dev: { backgroundColor: '#FFF7E0', borderWidth: 1, borderStyle: 'dashed', borderColor: '#D9B44A', borderRadius: radius.sm, padding: 10 },
-  devText: { fontFamily: fonts.semiBold, fontSize: 13, color: '#6B4E00' },
+  dev: { backgroundColor: colors.warningSoft, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.warning, borderRadius: radius.sm, padding: 10 },
+  devText: { fontFamily: fonts.semiBold, fontSize: 13, color: colors.warning },
   row: { flexDirection: 'row', gap: spacing.sm },
   small: { flex: 1, minHeight: 42 },
   errorBox: {

@@ -9,7 +9,7 @@ import { colors, fonts } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-/** Own label: the default one clips Cairo's tall ascenders/descenders. */
+/** Own label: the default one clips Arabic ascenders/descenders. */
 function label(text: string) {
   function TabLabel({ color }: { color: ColorValue }) {
     return <Text style={{ fontFamily: fonts.semiBold, fontSize: 11, lineHeight: 18, color }}>{text}</Text>;
@@ -35,7 +35,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.ink,
-        // Cairo's tall line metrics need more room than the default bar gives the label.
+        // Arabic line metrics need more room than the default bar gives the label.
         tabBarStyle: {
           borderTopColor: colors.border,
           backgroundColor: colors.background,

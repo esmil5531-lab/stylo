@@ -14,7 +14,6 @@ import type { Banner, BannerState } from '@/api/types';
 import { Async, Badge, Empty, ErrorAlert, Field, Icon, Modal, PageHead } from '@/components/ui';
 import { ImageUpload } from '@/components/ImageUpload';
 import { isImageUrl, mediaVariant } from '@/lib/media';
-import { iconPath } from '@/lib/categoryIcons';
 import { formatDateTime } from '@/lib/format';
 
 const STATE: Record<BannerState, { label: string; tone: 'green' | 'amber' | 'gray' | 'red' }> = {
@@ -28,7 +27,7 @@ const STATE: Record<BannerState, { label: string; tone: 'green' | 'amber' | 'gra
 const MAX_ON_HOME = 5;
 
 /**
- * «بنرات الرئيسية»: the pink hero carousel of the app. Order, schedule, show/hide, and where the
+ * «بنرات الرئيسية»: the navy hero carousel of the app. Order, schedule, show/hide, and where the
  * button leads (a screen inside the app, picked from a list — never a typed URL).
  */
 export function BannersPage() {
@@ -48,7 +47,7 @@ export function BannersPage() {
     <div className="stack">
       <PageHead
         title="بنرات الرئيسية"
-        subtitle={`الشريط الوردي أعلى الصفحة الرئيسية في التطبيق. يظهر أول ${MAX_ON_HOME} بنرات معروضة بالترتيب، ويمكن جدولة البنر لفترة محددة.`}
+        subtitle={`الشريط أعلى الصفحة الرئيسية في التطبيق. يظهر أول ${MAX_ON_HOME} بنرات معروضة بالترتيب، ويمكن جدولة البنر لفترة محددة.`}
         actions={
           <button className="btn btn-primary" onClick={() => setEditing('new')}>
             <Icon name="plus" />
@@ -114,24 +113,22 @@ export function BannersPage() {
 }
 
 /** Same layout as the app's HeroCarousel: text + button on the start side, visual on the end side. */
+/** Same look as the app's home hero (mobile/src/components/home/HeroCarousel.tsx). */
 function HeroPreview({ banner: b }: { banner: Pick<Banner, 'title' | 'subtitle' | 'cta' | 'imageUrl'> }) {
   return (
     <div className="hero-preview" aria-label="معاينة البنر">
+      {b.imageUrl ? (
+        <>
+          <img className="hero-photo" src={mediaVariant(b.imageUrl, 800)} alt="" />
+          <span className="hero-veil" />
+        </>
+      ) : (
+        <img className="hero-mark" src={`${import.meta.env.BASE_URL}brand/mark-silver.svg`} alt="" />
+      )}
       <div className="hero-text">
         <div className="hero-title">{b.title || 'عنوان البنر'}</div>
-        {b.cta && <span className="hero-cta">{b.cta}</span>}
         {b.subtitle && <div className="hero-sub">{b.subtitle}</div>}
-      </div>
-      <div className="hero-visual">
-        {b.imageUrl ? (
-          <img src={mediaVariant(b.imageUrl, 800)} alt="" />
-        ) : (
-          <span className="hero-ring">
-            <svg viewBox="0 0 24 24" width={34} height={34}>
-              <path d={iconPath('hanger')} fill="#fff" />
-            </svg>
-          </span>
-        )}
+        {b.cta && <span className="hero-cta">{b.cta} ←</span>}
       </div>
     </div>
   );
@@ -380,7 +377,7 @@ function BannerForm({ banner, onClose }: { banner: Banner | null; onClose: () =>
         </Field>
 
         <div className="form-section">الصورة والجدولة</div>
-        <Field label="صورة البنر" error={show(errors.imageUrl)} hint="اختياري — بدونها يظهر الرسم الوردي. صورة عرضية (1600×700 تقريباً)" full group>
+        <Field label="صورة البنر" error={show(errors.imageUrl)} hint="اختياري — بدونها يظهر القماش الكحلي مع شعار ستايلو. صورة عرضية (1600×700 تقريباً)" full group>
           <ImageUpload purpose="banner" shape="wide" value={f.imageUrl} onChange={(u) => set('imageUrl', u)} />
         </Field>
         <Field label="يبدأ في" hint="اختياري">

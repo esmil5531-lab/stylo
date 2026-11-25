@@ -80,9 +80,9 @@ export default function SharedCartScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, gap: spacing.md },
-  banner: { backgroundColor: colors.heroBackground, borderRadius: radius.lg, padding: spacing.md, gap: 4 },
-  bannerTitle: { fontFamily: fonts.extraBold, fontSize: 18, color: colors.primary },
-  bannerMeta: { fontFamily: fonts.regular, fontSize: 13, color: colors.primaryDark },
+  banner: { backgroundColor: colors.primary, borderRadius: radius.md, padding: spacing.md, gap: 4 },
+  bannerTitle: { fontFamily: fonts.semiBold, fontSize: 18, lineHeight: 28, color: colors.white },
+  bannerMeta: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, color: colors.silver },
   footer: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,

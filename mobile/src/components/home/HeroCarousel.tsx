@@ -1,19 +1,22 @@
-import { mediaUrl } from '@/api/client';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { mediaUrl } from '@/api/client';
 import type { Banner } from '@/api/types';
+import { directionalIcons } from '@/i18n/rtl';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const ROTATE_MS = 5000;
+const FABRIC = require('../../../assets/brand/navy-fabric-wide.jpg');
+const MARK = require('../../../assets/brand/mark-silver.png');
 
 /**
- * Pink hero from the reference: headline + "تسوقي الآن" on the start side, visual on the end side,
- * page dots underneath. Rotates automatically; dots switch banners. Banners without a photo get a
- * branded illustration until real campaign photos are uploaded (banners.image_url).
+ * Home hero in the STYLO reference style: a dark editorial card — the campaign photo (with a navy
+ * veil for legibility) or, without a photo, navy fabric with the silver monogram — white headline,
+ * silver line and an ivory «اكتشفي ←» button. Rotates; the dots switch banners.
  */
 export function HeroCarousel({ banners }: { banners: Banner[] }) {
   const [index, setIndex] = useState(0);
@@ -29,27 +32,37 @@ export function HeroCarousel({ banners }: { banners: Banner[] }) {
 
   return (
     <View>
-      <Pressable style={styles.card} onPress={() => b.link && router.push(b.link as Href)}>
+      <Pressable
+        style={styles.card}
+        onPress={() => b.link && router.push(b.link as Href)}
+        accessibilityRole="link"
+        accessibilityLabel={[b.title, b.subtitle].filter(Boolean).join('. ')}
+      >
+        {b.imageUrl ? (
+          <>
+            <Image source={{ uri: mediaUrl(b.imageUrl) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            <View style={[StyleSheet.absoluteFill, styles.veil]} />
+          </>
+        ) : (
+          <>
+            <Image source={FABRIC} style={StyleSheet.absoluteFill} contentFit="cover" />
+            <Image source={MARK} style={styles.mark} contentFit="contain" />
+          </>
+        )}
         <View style={styles.text}>
-          <Text style={styles.title}>{b.title}</Text>
+          <Text style={styles.title} numberOfLines={2}>
+            {b.title}
+          </Text>
+          {b.subtitle && (
+            <Text style={styles.subtitle} numberOfLines={2}>
+              {b.subtitle}
+            </Text>
+          )}
           {b.cta && (
             <View style={styles.cta}>
               <Text style={styles.ctaText}>{b.cta}</Text>
+              <Ionicons name={directionalIcons.forward} size={14} color={colors.primary} />
             </View>
-          )}
-          {b.subtitle && <Text style={styles.subtitle}>{b.subtitle}</Text>}
-        </View>
-        <View style={styles.visual}>
-          {b.imageUrl ? (
-            <Image source={{ uri: mediaUrl(b.imageUrl) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" />
-          ) : (
-            <>
-              <View style={[styles.blob, styles.blobLarge]} />
-              <View style={[styles.blob, styles.blobSmall]} />
-              <View style={styles.iconRing}>
-                <MaterialCommunityIcons name="hanger" size={46} color={colors.white} />
-              </View>
-            </>
           )}
         </View>
       </Pressable>
@@ -73,36 +86,30 @@ export function HeroCarousel({ banners }: { banners: Banner[] }) {
 const styles = StyleSheet.create({
   card: {
     marginHorizontal: spacing.md,
-    height: 168,
-    borderRadius: radius.lg,
-    backgroundColor: colors.heroBackground,
-    flexDirection: 'row',
+    height: 188,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
     overflow: 'hidden',
-  },
-  text: { flex: 1.15, justifyContent: 'center', paddingHorizontal: spacing.md, gap: 8 },
-  title: { fontFamily: fonts.extraBold, fontSize: 22, lineHeight: 32, color: colors.primary },
-  cta: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.primary,
-    borderRadius: radius.pill,
-    paddingHorizontal: 16,
-    paddingVertical: 5,
-  },
-  ctaText: { fontFamily: fonts.bold, fontSize: 13, color: colors.white },
-  subtitle: { fontFamily: fonts.regular, fontSize: 11, color: colors.primaryDark },
-  visual: { flex: 0.85, alignItems: 'center', justifyContent: 'center' },
-  blob: { position: 'absolute', borderRadius: 999, backgroundColor: colors.primary },
-  blobLarge: { width: 170, height: 170, opacity: 0.12, bottom: -40, end: -30 },
-  blobSmall: { width: 60, height: 60, opacity: 0.1, top: 12, start: 6 },
-  iconRing: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
     justifyContent: 'center',
   },
+  veil: { backgroundColor: colors.overlay },
+  mark: { position: 'absolute', width: 120, height: 120, end: -14, bottom: -10, opacity: 0.55 },
+  text: { width: '68%', paddingHorizontal: spacing.lg, gap: 6 },
+  title: { fontFamily: fonts.semiBold, fontSize: 24, lineHeight: 34, color: colors.white },
+  subtitle: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, color: colors.silver },
+  cta: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    backgroundColor: colors.background,
+    borderRadius: radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  ctaText: { fontFamily: fonts.semiBold, fontSize: 13, lineHeight: 20, color: colors.primary },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: spacing.sm },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.border },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.borderStrong },
   dotActive: { width: 18, backgroundColor: colors.primary },
 });

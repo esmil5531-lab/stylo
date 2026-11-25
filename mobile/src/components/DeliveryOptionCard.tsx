@@ -74,6 +74,6 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.bold, fontSize: 15, color: colors.ink },
   hint: { fontFamily: fonts.regular, fontSize: 12, color: colors.inkMuted },
   meta: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
-  eta: { fontFamily: fonts.semiBold, fontSize: 12, color: colors.success },
+  eta: { fontFamily: fonts.semiBold, fontSize: 12, color: colors.secondary },
   fee: { fontFamily: fonts.bold, fontSize: 13, color: colors.ink },
 });

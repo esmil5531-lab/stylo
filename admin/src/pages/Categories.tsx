@@ -104,7 +104,7 @@ export function CategoriesPage() {
 }
 
 function Tile({ category, size = 44 }: { category: Pick<Category, 'icon' | 'color' | 'imageUrl'>; size?: number }) {
-  const color = category.color ?? '#5B0E2D';
+  const color = category.color ?? '#0B1F2E';
   if (category.imageUrl) {
     return <img className="cat-tile" src={mediaVariant(category.imageUrl, 320)} alt="" style={{ width: size, height: size }} />;
   }
@@ -207,7 +207,7 @@ function CategoryForm({
     slug: category?.slug ?? '',
     parentId: category?.parentId ?? parentId ?? '',
     icon: category?.icon ?? 'hanger',
-    color: category?.color ?? '#5B0E2D',
+    color: category?.color ?? '#0B1F2E',
     imageUrl: category?.imageUrl ?? '',
     isActive: category?.isActive ?? true,
   });
@@ -270,7 +270,7 @@ function CategoryForm({
       }
     >
       <div className="cat-preview">
-        <Tile category={{ icon: f.icon, color: /^#[0-9A-Fa-f]{6}$/.test(f.color) ? f.color : '#5B0E2D', imageUrl: f.imageUrl || null }} size={72} />
+        <Tile category={{ icon: f.icon, color: /^#[0-9A-Fa-f]{6}$/.test(f.color) ? f.color : '#0B1F2E', imageUrl: f.imageUrl || null }} size={72} />
         <div>
           <div className="strong">{f.nameAr || 'اسم القسم'}</div>
           <div className="muted small">هكذا يظهر المربع في تطبيق الزبائن</div>

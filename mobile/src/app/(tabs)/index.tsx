@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { Redirect, router, type Href } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { QueryState } from '@/components/QueryState';
 import { SectionHeader } from '@/components/SectionHeader';
 import { StoreAvatar } from '@/components/StoreAvatar';
 import { ar } from '@/i18n/ar';
+import { useOnboardingSeen } from '@/lib/onboarding';
 import { colors, fonts, spacing } from '@/theme';
 
 /** Home, laid out like the approved reference: header → search → feed tabs → hero →
@@ -24,11 +25,16 @@ export default function HomeScreen() {
   const home = useHome();
   const products = useProducts({ feed, limit: 10 });
 
+  const onboarded = useOnboardingSeen();
+
   const refreshing = home.isRefetching || products.isRefetching;
   const refresh = () => {
     home.refetch();
     products.refetch();
   };
+
+  // First launch of the app: the brand introduction, once.
+  if (onboarded === false) return <Redirect href={'/onboarding' as Href} />;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

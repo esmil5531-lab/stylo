@@ -48,9 +48,10 @@ export function Button({
 }
 
 const styles = StyleSheet.create({
+  // STYLO buttons: tailored 4 px corners, navy fill or a 1 px navy outline, 48 px tall.
   base: {
-    minHeight: 50,
-    borderRadius: radius.md,
+    minHeight: 48,
+    borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -58,8 +59,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   primary: { backgroundColor: colors.primary },
-  outline: { borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.surface },
-  disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.85 },
-  text: { fontFamily: fonts.bold, fontSize: 15 },
+  outline: { borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surface },
+  disabled: { opacity: 0.45 },
+  pressed: { opacity: 0.88 },
+  text: { fontFamily: fonts.semiBold, fontSize: 15, lineHeight: 22, letterSpacing: 0.2 },
 });

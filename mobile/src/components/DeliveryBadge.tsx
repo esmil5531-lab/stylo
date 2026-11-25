@@ -7,9 +7,10 @@ import { colors, fonts, radius } from '@/theme';
 /** Green "يصلك اليوم" pill with a truck, as on the reference product cards. */
 export function DeliveryBadge({ dayOffset, compact }: { dayOffset: number; compact?: boolean }) {
   const fast = dayOffset <= 1;
-  const tint = fast ? colors.success : colors.inkMuted;
+  // «يصلك اليوم / غداً»: the brand teal (owner decision), neutral for later days.
+  const tint = fast ? colors.secondary : colors.inkMuted;
   return (
-    <View style={[styles.badge, { backgroundColor: fast ? colors.successSoft : colors.surfaceMuted }]}>
+    <View style={[styles.badge, { backgroundColor: fast ? colors.secondarySoft : colors.surfaceMuted }]}>
       <Text style={[styles.text, compact && styles.compact, { color: tint }]} numberOfLines={1}>
         {arrivalLabel(dayOffset)}
       </Text>

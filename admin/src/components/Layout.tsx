@@ -76,8 +76,12 @@ function SignedIn() {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-word">STYLO</div>
-          <div className="brand-sub">لوحة الإدارة والعمل</div>
+          <img className="brand-logo" src={`${import.meta.env.BASE_URL}brand/logo-horizontal-reversed.svg`} alt="STYLO — MORE THAN FASHION" />
+          {/* STYLO Admin for Stylo staff, STYLO Store for a store's own team. */}
+          <div className="brand-sub">
+            <span className="brand-pill">{me.data?.store ? 'STYLO STORE' : 'STYLO ADMIN'}</span>
+            {me.data?.store ? 'لوحة المتجر' : 'لوحة الإدارة والعمل'}
+          </div>
         </div>
         {NAV.filter(
           (n) => me.data?.permissions.includes(n.permission) && (!n.storeOnly || !!me.data?.store),

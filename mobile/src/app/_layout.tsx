@@ -1,11 +1,12 @@
-import { Cinzel_600SemiBold } from '@expo-google-fonts/cinzel';
+import { Cinzel_500Medium } from '@expo-google-fonts/cinzel';
 import {
-  Cairo_400Regular,
-  Cairo_600SemiBold,
-  Cairo_700Bold,
-  Cairo_800ExtraBold,
+  IBMPlexSansArabic_400Regular,
+  IBMPlexSansArabic_500Medium,
+  IBMPlexSansArabic_600SemiBold,
+  IBMPlexSansArabic_700Bold,
   useFonts,
-} from '@expo-google-fonts/cairo';
+} from '@expo-google-fonts/ibm-plex-sans-arabic';
+import { PlayfairDisplay_400Regular } from '@expo-google-fonts/playfair-display';
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -14,6 +15,7 @@ import { AppState, Platform, StyleSheet, useWindowDimensions, View } from 'react
 
 import { ApiError } from '@/api/client';
 import { ensureRTL } from '@/i18n/rtl';
+import { loadOnboarding, useOnboardingSeen } from '@/lib/onboarding';
 import { loadSession, useSession } from '@/lib/session';
 import { colors } from '@/theme';
 
@@ -40,16 +42,19 @@ function createQueryClient() {
 export default function RootLayout() {
   const [queryClient] = useState(createQueryClient);
   const [fontsLoaded, fontError] = useFonts({
-    Cairo_400Regular,
-    Cairo_600SemiBold,
-    Cairo_700Bold,
-    Cairo_800ExtraBold,
-    Cinzel_600SemiBold,
+    IBMPlexSansArabic_400Regular,
+    IBMPlexSansArabic_500Medium,
+    IBMPlexSansArabic_600SemiBold,
+    IBMPlexSansArabic_700Bold,
+    Cinzel_500Medium,
+    PlayfairDisplay_400Regular,
   });
 
   const session = useSession();
+  const onboarded = useOnboardingSeen();
   useEffect(() => {
     void loadSession();
+    void loadOnboarding();
   }, []);
 
   // Sign-in / sign-out: drop the previous person's cart, ♡, orders and product hearts. Done during
@@ -61,11 +66,11 @@ export default function RootLayout() {
   }
 
   const { width } = useWindowDimensions();
-  // On a computer the site keeps the approved phone layout, centred on the brand's soft pink.
+  // On a computer the site keeps the phone layout, centred on the brand's sand tone.
   const framed = Platform.OS === 'web' && width > 640;
 
   // If fonts fail to load, fall back to system fonts rather than blocking the app.
-  if ((!fontsLoaded && !fontError) || !session.ready) return null;
+  if ((!fontsLoaded && !fontError) || !session.ready || onboarded === null) return null;
 
   const stack = (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />
@@ -85,7 +90,7 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: colors.heroBackground, alignItems: 'center' },
+  page: { flex: 1, backgroundColor: colors.surfaceMuted, alignItems: 'center' },
   frame: {
     flex: 1,
     width: '100%',

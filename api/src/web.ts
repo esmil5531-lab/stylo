@@ -196,19 +196,19 @@ function notBuiltPage(site: 'customer' | 'admin', production: boolean, incomplet
   return `<!doctype html>
 <html lang="ar" dir="rtl"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<meta name="robots" content="noindex"/><meta name="theme-color" content="#5B0E2D"/>
+<meta name="robots" content="noindex"/><meta name="theme-color" content="#0B1F2E"/>
 <title>ستايلو — ${title}</title>
 <style>
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
-       font-family:Cairo,'Segoe UI',Tahoma,sans-serif;background:#F4DFE6;color:#1A1A1C;padding:16px;box-sizing:border-box}
-  main{background:#fff;border-radius:20px;padding:28px 24px;max-width:560px;width:100%;box-shadow:0 4px 18px rgba(91,14,45,.08)}
-  .word{font-family:Cinzel,Georgia,serif;font-size:34px;letter-spacing:4px;color:#5B0E2D;text-align:center;margin:0}
-  .tag{text-align:center;color:#3F0820;font-weight:600;margin:4px 0 20px}
+       font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;background:#F8F6F1;color:#0B1F2E;padding:16px;box-sizing:border-box}
+  main{background:#fff;border:1px solid #E6E1D6;border-radius:8px;padding:28px 24px;max-width:560px;width:100%;box-shadow:0 4px 14px rgba(11,31,46,.05)}
+  .word{font-family:Cinzel,Georgia,serif;font-size:34px;letter-spacing:.3em;padding-inline-start:.3em;color:#0B1F2E;text-align:center;margin:0}
+  .tag{text-align:center;color:#4A5560;font-weight:600;margin:4px 0 20px}
   p{line-height:1.8;margin:8px 0}
-  pre{background:#F4F1F2;border-radius:10px;padding:10px 14px;font-size:15px;margin:8px 0;overflow-x:auto}
-  code{background:#F4F1F2;border-radius:6px;padding:1px 6px;white-space:nowrap;unicode-bidi:isolate}
-  .muted{color:#625D60;font-size:14px}
-  a{color:#5B0E2D;font-weight:700}
+  pre{background:#EFEBE0;border-radius:10px;padding:10px 14px;font-size:15px;margin:8px 0;overflow-x:auto}
+  code{background:#EFEBE0;border-radius:6px;padding:1px 6px;white-space:nowrap;unicode-bidi:isolate}
+  .muted{color:#5F6870;font-size:14px}
+  a{color:#355E5A;font-weight:700}
   ul{padding-inline-start:20px;line-height:1.9}
 </style></head>
 <body><main>

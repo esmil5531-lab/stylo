@@ -18,7 +18,7 @@ This file is the source of truth for every session working on this repo. Read it
 
 Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the name or tagline elsewhere.
 
-> **Identity migration (owner decision, Nov 2026):** the old burgundy look (`#5B0E2D`, Cairo font, pink hero) is retired. Step 1 (done): brand assets, logo, icons, splash, tokens. Step 3 (pending): screens, theme (`mobile/src/theme`), admin CSS and server pages move to `brand/tokens.json` — until then some screens still show the old colours; never add new burgundy UI.
+> **Identity (owner decision, Nov 2026):** the old burgundy look (`#5B0E2D`, Cairo, pink hero) is retired everywhere. `brand/tokens.json` is the single source: `node brand/scripts/build-tokens.mjs` generates `mobile/src/theme/tokens.ts` (read by `mobile/src/theme/index.ts`) and `admin/src/tokens.css` (`--stylo-*`, mapped in `admin/src/styles.css`). Never hard-code a brand hex in a screen. Navy surfaces (hero, login, onboarding) use the generated navy fabric (`brand/textures/`, `build_textures.py`) — never photos of people. Category tile tints moved to the palette in migration 0013. Garment colour names (e.g. «عنابي» in `admin/src/lib/sizes.ts`) are product data, not identity.
 
 ### Core features (must keep working)
 - **One store per cart and per order** (owner decision). A cart holds items from a single store. Adding an item from another store shows a dialog with two choices: «ابدئي سلة جديدة من …» (empties the cart and rebinds it) or «الإبقاء على سلتي الحالية». Never mix stores in a cart, order, shared cart or look.
@@ -33,8 +33,8 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - **Driver cash custody («عُهدة المناديب»)** — orders are cash on delivery; the cash a driver collects stays in their custody until staff close it («تقفيل العُهدة») in the back office, recording amount received, time and receiving employee. Custody then resets to zero.
 
 ### Colors & contrast
-- Body/secondary text must meet WCAG AA (≥ 4.5:1): use `ink`, `inkSecondary` or `inkMuted`. `inkFaint` (3.9:1) is only for icons, disabled controls and decoration — never for text people must read.
-- White text only on `primary` / `primaryDark` / `sale` / `success`. Contrast ratios are documented at the top of `theme/index.ts`; re-check them when changing a color.
+- Body/secondary text must meet WCAG AA (≥ 4.5:1): use `ink` (navy), `inkSecondary` or `inkMuted`. `inkFaint` (3.0:1) is only for icons, disabled controls and decoration — never for text people must read. `silver` is for text/lines **on navy only** (1.5:1 on ivory).
+- White text only on `primary` / `primaryDark` / `secondary` / `sale` / `success`. Screens are ivory (`background`), cards white (`surface`), fields/chips sand (`surfaceMuted`). «يصلك اليوم/غداً» badges and delivery ETAs use `secondary` (teal) on `secondarySoft`. Buttons: 4 px corners (`radius.sm`), navy fill or 1 px navy outline; feed tabs are underlined, not pills. Contrast ratios are documented at the top of `theme/index.ts` and in `brand/tokens.json`; re-check them when changing a colour.
 
 ## 2. Repository layout
 
@@ -67,7 +67,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - **Mobile:** Expo **SDK 57** (`expo ~57.0.x`, React Native 0.86, React 19.2), TypeScript strict, Expo Router (file-based, `src/app`), TanStack React Query for server state, expo-image.
 - **API:** Node 20+, Fastify 5, `pg`, zod 4, TypeScript (ESM, `.js` import suffixes), run with `tsx`.
 - **Database:** **PostgreSQL** (16 in dev; 14+ supported). Extensions: `pgcrypto`, `citext`.
-- **Fonts:** brand fonts are **IBM Plex Sans Arabic** (all UI text), **Cinzel** (STYLO and store wordmarks), **Playfair Display** (English editorial titles) and **Montserrat** (spaced Latin capitals) — files + OFL licences in `brand/fonts/`. The app still loads Cairo + Cinzel in `src/app/_layout.tsx` until the screen migration (identity step 3).
+- **Fonts:** **IBM Plex Sans Arabic** 400/500/600/700 (all UI text; `fonts.extraBold` = 700, Plex has no 800), **Cinzel** 500 (STYLO and store wordmarks), **Playfair Display** 400 (English editorial titles only) — loaded in `src/app/_layout.tsx` (`@expo-google-fonts/*`) and in the admin via `@fontsource/*`. Montserrat is used only inside the outlined logo files. Files + OFL licences in `brand/fonts/`.
 - Do not upgrade the Expo SDK without an explicit request. Expo APIs change every SDK — check the versioned docs at `https://docs.expo.dev/versions/v57.0.0/` instead of relying on memory.
 
 ## 4. Mobile rules
@@ -83,7 +83,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - Text whose first character is Latin or a digit (sizes like `L`, dates, `× 1`) resolves as LTR and aligns left. Put the Arabic part first, or add `writingDirection: 'rtl'`.
 - Directional icons must be mirrored: use `directionalIcons` from `src/i18n/rtl.ts` (back = `arrow-forward`).
 - All user-facing text goes in `src/i18n/ar.ts` — no inline Arabic strings in screens.
-- Use `fonts.*` from `@/theme` instead of `fontWeight` (with custom fonts each weight is a separate family). Cairo is tall: give labels a `lineHeight` (the tab bar renders its own label for this reason).
+- Use `fonts.*` from `@/theme` instead of `fontWeight` (with custom fonts each weight is a separate family). Give Arabic labels a `lineHeight` (the tab bar renders its own label for this reason).
 - Prices arrive as integers in minor units; always display with `formatPrice()` from `src/lib/format.ts` → `199 د.ل`.
 
 ### Data & navigation
@@ -94,6 +94,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - In SDK 57, `<Link asChild>` throws if the child gets an **array** style. Use `Pressable` + `router.push(...)` for styled tappable cards.
 - **Notifications («الإشعارات»)**: the home bell opens `/notifications`, built from `GET /v1/me/notifications` (the customer's `order_status_history`, newest first; the note is shown only for cancellations). Read state is per device (`lib/notificationsSeen.ts`); on first use only the last 48 h count as new. The bell shows the unread count like the cart badge.
 - Unknown links render `src/app/+not-found.tsx` (Arabic, branded; the server answers 404 with it). Expo's `_sitemap.html` is never served.
+- **Onboarding** (`src/app/onboarding.tsx`): three slides on navy fabric with the reversed logo (no people), shown **once on the app's first launch** (`lib/onboarding.ts`, SecureStore flag; the home screen redirects); never on the website (reachable at `/onboarding`, `noindex`). Brand artwork used by screens lives in `mobile/assets/brand/` (installed by `render.mjs`).
 - Icon, adaptive icon (navy background), splash (`expo-splash-screen`: navy `#0B1F2E` + silver monogram, STYLO, Arabic tagline, MORE THAN FASHION) and favicon in `mobile/assets/` are **generated** from `brand/` — never edit them by hand: `python brand/scripts/build_logo.py && node brand/scripts/render.mjs` (also installs `admin/public/favicon.svg` + `apple-touch-icon.png`).
 - Product/banner photos come from the API (`product_images`, `banners.image_url`). Without a photo, `ProductImage` draws a tinted tile with a garment icon — keep that fallback.
 
@@ -113,6 +114,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - Update (PATCH) schemas must not contain zod `.default()`s — `.partial()` keeps defaults and would silently reset fields the client didn't send. Defaults belong on create schemas only.
 - Money inputs are typed in د.ل by staff and sent to the API in dirhams (`parseLYD` in `admin/src/lib/format.ts`).
 - Order numbers next to Arabic text must be direction-isolated: `<OrderNo>` in admin, `\u2066…\u2069` in mobile strings — otherwise "#100001" renders as "100001#".
+- The back office shows the logo (`admin/public/brand/`, installed by `render.mjs`) with a **STYLO ADMIN** badge for Stylo staff and **STYLO STORE** for a store's team; the login page sits on the navy fabric.
 - Staff and store owners sign in with their phone + one-time code (`admin/src/pages/Login.tsx`, `app: 'admin'`). Only active `staff_members` get in; the back office never creates accounts. The token lives in localStorage and admin sessions last 12 hours. Change user ⇒ the query cache is cleared **during render** (never in an effect: that cancels the first requests and leaves screens spinning).
 
 ### Store panel (لوحة المتجر)
@@ -219,6 +221,7 @@ delivered, cancelled → (terminal)
 - Checkout creates **one `orders` row** for the cart's store with `delivery_mode` `fastest` | `standard` (CHECK `orders_delivery_mode_single_store`). `unified` stays in the enum only for historical orders.
 - Guests, refresh tokens, deletion, failed delivery (migration 0012): `user_role` + `guest`; `users.deleted_at`; `users_contact_chk` allows guests/deleted; **`users_phone_format`** (`+2189[1-5]XXXXXXX`, NOT VALID = new rows) so one number = one account; `sessions.refresh_hash/refresh_expires_at/previous_refresh_hash/refreshed_at`; `orders.delivery_failure` (+ CHECK only when cancelled) and the shipped → cancelled transition.
 - Media (migration 0011): `media(purpose, store_id, storage, key UNIQUE, url, width, height, bytes, created_by)` — one row per upload.
+- Category colours (migration 0013): the default tree's tile tints mapped from the burgundy palette to the STYLO palette (exact old values only).
 - Banners & looks (migration 0010): `banners/looks.updated_at` + `created_by`, length checks, `banners_link_in_app`, `banners_window`, `looks_slug_format`; permissions `banners.manage`, `looks.manage`.
 - Categories (migration 0009): `categories.icon/color/image_url/is_active/created_at/updated_at`, checks on icon/colour/slug/name, two-level trigger, default tree, permission `categories.manage`.
 - Addresses (migration 0008): `addresses.landmark` (أقرب معلم), `updated_at` + trigger, length CHECK `addresses_lengths`.

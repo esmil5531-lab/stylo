@@ -4,7 +4,7 @@ import { badRequest, notFound } from '../../lib/errors.js';
 import type { StaffContext } from './permissions.js';
 
 /**
- * Home banners (البنرات): the pink hero carousel. Up to 5 live banners are shown, in order.
+ * Home banners (البنرات): the navy hero carousel. Up to 5 live banners are shown, in order.
  * A banner is live when shown (is_active) and inside its optional window (starts_at … ends_at).
  * The link opens a screen inside the app — see BANNER_LINK (same rule as the DB CHECK).
  */

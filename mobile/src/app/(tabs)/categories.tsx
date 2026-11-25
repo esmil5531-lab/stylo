@@ -10,7 +10,8 @@ import { ar } from '@/i18n/ar';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 // Fallback tints when a category has no colour set in the back office.
-const TONES = ['#5B0E2D', '#B08A5B', '#3F0820', '#C9A9A6', '#8E8E8E', '#D4B8A8', '#B79B87'];
+// Fallback tile tints in the STYLO palette (navy, teal, sand, slate).
+const TONES = ['#0B1F2E', '#355E5A', '#8A7A5C', '#4A5560', '#7C8A8F', '#A79F8E', '#5F6870'];
 
 export default function CategoriesScreen() {
   const categories = useCategories();

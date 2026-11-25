@@ -40,7 +40,7 @@ const DEFAULT_DESCRIPTION =
   'ستايلو — كل ستايل في مكان واحد. تسوّقي أزياء النساء والأحذية والحقائب من أفضل المتاجر الليبية في مكان واحد، بالدينار الليبي، مع توصيل سريع في طرابلس وبنغازي والدفع عند الاستلام.';
 
 /** Pages that belong to one person: never indexed. */
-const PRIVATE = /^(cart|wishlist|account|login|profile|notifications|delete-account|addresses(\/.*)?|orders(\/.*)?|driver|shared-cart\/.+)$/;
+const PRIVATE = /^(cart|wishlist|account|login|profile|notifications|delete-account|onboarding|addresses(\/.*)?|orders(\/.*)?|driver|shared-cart\/.+)$/;
 
 export const DISALLOWED_PATHS = ['/admin/', '/v1/', '/cart', '/wishlist', '/account', '/login', '/orders', '/driver', '/addresses', '/profile', '/notifications', '/delete-account', '/shared-cart/'];
 
@@ -254,7 +254,7 @@ export function renderHead(meta: PageMeta, origin: string, cfg: SeoConfig): stri
     `<title>${esc(meta.title)}</title>`,
     `<meta name="description" content="${esc(meta.description)}"/>`,
     `<meta name="robots" content="${index ? 'index, follow, max-image-preview:large' : 'noindex, nofollow'}"/>`,
-    `<meta name="theme-color" content="#5B0E2D"/>`,
+    `<meta name="theme-color" content="#0B1F2E"/>`,
     `<link rel="canonical" href="${esc(url)}"/>`,
     `<meta property="og:site_name" content="${SITE_NAME}"/>`,
     `<meta property="og:locale" content="ar_LY"/>`,

@@ -142,9 +142,13 @@
 ## 7. إعادة التوليد
 
 ```bash
-pip install fonttools uharfbuzz       # مرة واحدة
-python brand/scripts/build_logo.py    # يكتب كل ملفات SVG من تعريف واحد
-node brand/scripts/render.mjs         # PNG بكل المقاسات + نسخها إلى التطبيق واللوحة
+pip install fonttools uharfbuzz numpy pillow   # مرة واحدة
+python brand/scripts/build_logo.py             # كل ملفات الشعار SVG من تعريف واحد
+python brand/scripts/build_textures.py         # خامات القماش الكحلي (التعريف، البطل، تسجيل الدخول)
+node brand/scripts/render.mjs                  # PNG بكل المقاسات + نسخها إلى التطبيق واللوحة
+node brand/scripts/build-tokens.mjs            # tokens.json → mobile/src/theme/tokens.ts + admin/src/tokens.css
 ```
+
+**الخامات:** القماش الكحلي في `brand/textures/` مولَّد برمجياً (نسيج مائل وطيات ناعمة وتعتيم للأطراف)، فلا يحتاج صوراً ولا تراخيص. يُستخدم خلف الشعار في شاشة التعريف وتسجيل الدخول، وفي بنرات الرئيسية التي لا صورة لها. **لا تُستخدم صور أشخاص** في الواجهات إلا صور حملات حقيقية ترفعها ستايلو.
 
 **الرموز التصميمية:** `brand/tokens.json` هو المصدر الوحيد للألوان والخطوط والمسافات. منه يُولَّد ثيم التطبيق `mobile/src/theme` ومتغيرات CSS للوحة. لا تُنسخ أكواد الألوان يدوياً في الشاشات.

@@ -80,7 +80,8 @@ export const iconPath = (name: string | null | undefined) =>
   CATEGORY_ICONS.find((i) => i.name === name)?.path ?? mdiHanger;
 
 /** Tile tints offered for categories (the app's palette). */
-export const CATEGORY_COLORS = ['#5B0E2D', '#3F0820', '#A85C76', '#C9A9A6', '#B08A5B', '#B79B87', '#D4B8A8', '#8E8E8E'];
+/** Tile tints in the STYLO palette (navy, teal, neutrals) — same values as migration 0013. */
+export const CATEGORY_COLORS = ['#0B1F2E', '#13324A', '#355E5A', '#A79F8E', '#8A7A5C', '#7C8A8F', '#C9C4B8', '#5F6870'];
 
 /** The app draws the tile in a light tint of the colour with a deeper icon (same maths as mobile/src/lib/color.ts). */
 function mix(hex: string, target: number, amount: number): string {

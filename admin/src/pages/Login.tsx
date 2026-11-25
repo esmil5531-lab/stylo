@@ -74,9 +74,7 @@ export function LoginPage({ notice }: { notice?: string | null }) {
     <div className="login-wrap">
       <div className="card login-card">
         <div className="login-brand">
-          <div className="brand-word" style={{ color: 'var(--primary)', textAlign: 'center' }}>
-            STYLO
-          </div>
+          <img className="login-logo" src={`${import.meta.env.BASE_URL}brand/logo-primary.svg`} alt="STYLO — MORE THAN FASHION" />
           <div className="muted" style={{ textAlign: 'center' }}>
             لوحة الإدارة والمتاجر
           </div>

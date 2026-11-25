@@ -1,49 +1,73 @@
-// Visual tokens from the approved Stylo reference design (deep burgundy brand, soft pink accents).
-// Contrast (WCAG): primary on white 13.6:1 · inkMuted on white 6.5:1 · inkMuted on surfaceMuted 5.8:1
-// · success on successSoft 5.7:1 · inkFaint on white 3.9:1 (decorative / strike-through / large only).
+// STYLO visual tokens — values come from brand/tokens.json (generated into ./tokens.ts).
+// Deep Navy brand, Muted Teal accent, Soft Ivory backgrounds, Brushed Silver on navy only.
+// Contrast (WCAG 2.1): navy on ivory 15.6:1 · white on navy 16.8:1 · teal on ivory 6.7:1 ·
+// inkSecondary 7.0:1 · inkMuted on ivory 5.3:1 (4.8:1 on sand) · success on successSoft 5.5:1 ·
+// sale on saleSoft 5.6:1 · white on sale 6.8:1 · inkFaint 3.0:1 (icons / disabled only, never text).
+import { tokens } from './tokens';
+
+const c = tokens.color;
+
 export const colors = {
-  primary: '#5B0E2D',
-  primaryDark: '#3F0820',
-  primarySoft: '#F8EBEF',
-  heroBackground: '#F4DFE6',
-  ink: '#1A1A1C',
-  inkSecondary: '#4E4A4D',
-  inkMuted: '#625D60',
-  inkFaint: '#857F82',
-  background: '#FFFFFF',
-  surface: '#FFFFFF',
-  surfaceMuted: '#F4F1F2',
-  border: '#E9DFE3',
-  success: '#1E6B40',
-  successSoft: '#E3F3E9',
-  star: '#C77C00',
-  sale: '#B3261E',
-  saleSoft: '#FCE8E6',
-  danger: '#B3261E',
-  dangerSoft: '#FCE8E6',
-  white: '#FFFFFF',
+  primary: c.primary,
+  /** Deepest navy: text on navy tints, pressed states on dark surfaces. */
+  primaryDark: c.primaryDeep,
+  primaryPressed: c.primaryPressed,
+  /** Navy tint for selected chips and highlights. */
+  primarySoft: c.primarySoft,
+  /** Hero / banner background without a photo: deep navy (white + silver text on it). */
+  heroBackground: c.primary,
+  secondary: c.secondary,
+  secondarySoft: c.secondarySoft,
+  ink: c.ink,
+  inkSecondary: c.inkSecondary,
+  inkMuted: c.inkMuted,
+  inkFaint: c.inkFaint,
+  /** Screens: Soft Ivory. */
+  background: c.background,
+  /** Cards and sheets on ivory. */
+  surface: c.surface,
+  /** Sand: search field, chips, photo placeholders. */
+  surfaceMuted: c.surfaceMuted,
+  border: c.border,
+  borderStrong: c.borderStrong,
+  silver: c.silver,
+  success: c.success,
+  successSoft: c.successSoft,
+  star: c.star,
+  sale: c.sale,
+  saleSoft: c.saleSoft,
+  danger: c.danger,
+  dangerSoft: c.dangerSoft,
+  warning: c.warning,
+  warningSoft: c.warningSoft,
+  overlay: c.overlay,
+  white: c.onPrimary,
 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
 
-export const radius = { sm: 8, md: 14, lg: 20, pill: 999 } as const;
+/** Tailored corners: buttons 4, cards 8, sheets 12. */
+export const radius = { xs: tokens.radius.xs, sm: tokens.radius.sm, md: tokens.radius.md, lg: tokens.radius.lg, pill: 999 } as const;
 
-// Cairo — Arabic UI typeface. Cinzel — the STYLO wordmark and store logo wordmarks.
-// With custom fonts each weight is its own family, so use these instead of fontWeight.
+// IBM Plex Sans Arabic — all UI text (its Latin matches). Cinzel — STYLO and store wordmarks.
+// Playfair Display — English editorial titles only. Each weight is its own family (no fontWeight).
 export const fonts = {
-  regular: 'Cairo_400Regular',
-  semiBold: 'Cairo_600SemiBold',
-  bold: 'Cairo_700Bold',
-  extraBold: 'Cairo_800ExtraBold',
-  brand: 'Cinzel_600SemiBold',
+  regular: 'IBMPlexSansArabic_400Regular',
+  medium: 'IBMPlexSansArabic_500Medium',
+  semiBold: 'IBMPlexSansArabic_600SemiBold',
+  bold: 'IBMPlexSansArabic_700Bold',
+  /** Plex has no 800: the heaviest weight is 700. */
+  extraBold: 'IBMPlexSansArabic_700Bold',
+  brand: 'Cinzel_500Medium',
+  displayEn: 'PlayfairDisplay_400Regular',
 } as const;
 
 export const shadow = {
   card: {
     shadowColor: colors.primary,
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    elevation: 1,
   },
 } as const;
