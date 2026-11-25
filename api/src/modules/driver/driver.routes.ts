@@ -2,9 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 import { IdParams } from '../../lib/validation.js';
+import { DELIVERY_FAILURE_KEYS } from '../orders/delivery-failure.js';
 import { notifyOrderStatus } from '../orders/notify.js';
 import {
   deliverOrder,
+  failDelivery,
   getDriverHome,
   getDriverOrder,
   listDriverOrders,
@@ -41,6 +43,18 @@ export async function driverRoutes(app: FastifyInstance) {
     const ctx = app.ctx(req);
     const { id } = IdParams.parse(req.params);
     const order = await pickUpOrder(ctx, await loadDriver(ctx), id);
+    notifyOrderStatus(app, id);
+    return order;
+  });
+
+  /** «تعذّر التسليم»: reason required (list), note optional → cancelled, items back to stock. */
+  app.post('/orders/:id/failed', async (req) => {
+    const ctx = app.ctx(req);
+    const { id } = IdParams.parse(req.params);
+    const body = z
+      .object({ reason: z.enum(DELIVERY_FAILURE_KEYS), note: z.string().trim().max(200).optional() })
+      .parse(req.body);
+    const order = await failDelivery(ctx, await loadDriver(ctx), id, body.reason, body.note);
     notifyOrderStatus(app, id);
     return order;
   });

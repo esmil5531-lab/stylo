@@ -24,7 +24,7 @@ export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[
   pending: ['confirmed', 'cancelled'],
   confirmed: ['processing', 'cancelled'],
   processing: ['shipped', 'cancelled'],
-  shipped: ['delivered'],
+  shipped: ['delivered', 'cancelled'], // cancelled = failed delivery («تعذّر التسليم», reason required)
   delivered: [],
   cancelled: [],
 };

@@ -42,8 +42,10 @@ npm run dev           # http://localhost:4000  (watch mode)
 | POST | `/cart/share` | إنشاء رابط مشاركة → `{ token, url, expiresAt }` |
 | GET | `/shared-carts/:token` | عرض السلة المشتركة |
 | POST | `/shared-carts/:token/import` | نسخها إلى سلة المستخدم الحالي (`{ replaceCart? }`) |
-| POST | `/checkout` | `{ deliveryMode: 'fastest' \| 'standard', addressId? }` → طلب واحد للمتجر |
+| POST | `/checkout` | `{ deliveryMode: 'fastest' \| 'standard', addressId?, expectedTotal? }` → طلب واحد للمتجر. إن اختلف `expectedTotal` (ما رأته الزبونة) عن الإجمالي الحالي: `409 price_changed` |
 | GET | `/orders` · `/orders/:id` | الطلبات / التفاصيل مع سجل الحالات |
+| POST | `/orders/:id/cancel` | `{ reason? }` ⇐ تلغي الزبونة طلبها ما دام «قيد الانتظار»، وتعود القطع للمخزون |
+| DELETE | `/me` | «حذف حسابي»: يمحو الاسم والرقم والعناوين والسلة والمفضلة والرسائل. يُرفض مع طلب قيد التنفيذ (`active_orders`) ولحسابات الموظفين |
 | GET | `/me/notifications?limit=` | الإشعارات: آخر تحديثات حالات طلبات الزبونة (الأحدث أولاً)، مع سبب الإلغاء فقط |
 | GET / PUT / DELETE | `/wishlist` · `/wishlist/:productId` | المفضلة |
 | GET · PATCH | `/me` | المستخدم وعنوانه الأساسي وعدد عناوينه · تعديل الاسم `{ fullName }` |
@@ -60,7 +62,9 @@ npm run dev           # http://localhost:4000  (watch mode)
 | Method | Path | الوصف |
 |---|---|---|
 | POST | `/auth/otp/request` | `{ phone }` ⇐ يرسل رمزاً من 6 أرقام صالحاً 5 دقائق. في التطوير يعود الرمز في `devCode` |
-| POST | `/auth/otp/verify` | `{ phone, code, app: 'customer' \| 'admin', fullName? }` ⇐ `{ token, expiresAt, user }`. الرقم الجديد يحتاج `fullName`، وإلا يعود `name_required` |
+| POST | `/auth/otp/verify` | `{ phone, code, app: 'customer' \| 'admin', fullName? }` ⇐ `{ token, expiresAt, refreshToken, refreshExpiresAt, mergedGuestCart, user }` (لوحة الإدارة: بلا `refreshToken`). الرقم الجديد يحتاج `fullName`، وإلا يعود `name_required`. إن أُرسل مع جلسة زائرة (Bearer) تنتقل سلتها ومفضلتها إلى الحساب ويُحذف الزائر |
+| POST | `/auth/refresh` | `{ refreshToken }` ⇐ زوج جديد (رمز وصول 24 ساعة + رمز تجديد 180 يوماً يتجدد مع كل استخدام). الرمز القديم يتوقف، وإعادة استخدامه بعد 60 ثانية تُلغي الجلسة كلها (`session_expired`) |
+| POST | `/auth/guest` | جلسة زائرة بلا رقم: تصفّح وسلة ومفضلة (حد لكل IP). الإتمام والطلبات والعناوين تعيد `401 sign_in_required` |
 | POST | `/auth/logout` | ينهي الجلسة |
 
 بعد الدخول تُرسل كل الطلبات مع `Authorization: Bearer <token>`.
@@ -102,6 +106,7 @@ npm run dev           # http://localhost:4000  (watch mode)
 | GET | `/driver/orders` | `{ active, deliveredToday }` مع عنوان المتجر والزبون وهاتفيهما والمبلغ المطلوب تحصيله |
 | POST | `/driver/orders/:id/picked-up` | قيد التجهيز ⇐ تم الشحن (للمندوب المسند فقط) |
 | POST | `/driver/orders/:id/delivered` | تم الشحن ⇐ تم التسليم، ويدخل المبلغ عُهدة المندوب |
+| POST | `/driver/orders/:id/failed` | «تعذّر التسليم»: `{ reason: no_answer \| refused \| wrong_address \| postponed, note? }` ⇐ ملغي، تعود القطع للمخزون، لا تحصيل، ويظهر في `returnToStore` |
 
 ## مستحقات المتاجر (`/v1/admin/payouts`)
 
@@ -128,7 +133,7 @@ npm run dev           # http://localhost:4000  (watch mode)
 | GET · POST · PATCH | `/admin/staff` · `/admin/staff/:id` | `staff.read` / `staff.write` | الموظفون. لا يمكن منح دور أعلى من صلاحياتك |
 | GET · POST · PATCH | `/admin/drivers` · `/admin/drivers/:id` | `drivers.read` / `drivers.write` | السائقون وحالة التوفر |
 | GET | `/admin/orders?status=&q=&storeId=` · `/admin/orders/:id` | `orders.read` | الطلبات والتفاصيل وسجل الحالات و`allowedNext` |
-| POST | `/admin/orders/:id/status` | `orders.update_status` | `{ to, note?, cancelReason? }` |
+| POST | `/admin/orders/:id/status` | `orders.update_status` | `{ to, note?, cancelReason?, failureReason? }`. من «تم الشحن» إلى «ملغي» = تعذّر التسليم: `failureReason` إلزامي، ولفريق ستايلو فقط (لا المتاجر) |
 | POST | `/admin/orders/:id/driver` | `orders.assign_driver` | `{ driverId }`. للطلبات المؤكدة أو قيد التجهيز |
 | GET · PATCH | `/admin/my-store` | `store.profile` | إعدادات متجر الموظف (الأسماء، الهاتف، العنوان، وقت التجهيز) |
 | GET | `/admin/categories` | `categories.manage` أو `products.read` | كل الأقسام (رئيسية ثم فرعية) لمن يدير الأقسام، والظاهرة فقط لموظفي المتاجر |

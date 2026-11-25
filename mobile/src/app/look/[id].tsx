@@ -11,7 +11,6 @@ import { ProductGrid } from '@/components/ProductGrid';
 import { ProductImage } from '@/components/ProductImage';
 import { QueryState } from '@/components/QueryState';
 import { ScreenHeader } from '@/components/ScreenHeader';
-import { useRequireSignIn } from '@/lib/requireSignIn';
 import { StoreAvatar } from '@/components/StoreAvatar';
 import { ar } from '@/i18n/ar';
 import { formatPrice } from '@/lib/format';
@@ -22,7 +21,6 @@ export default function LookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const look = useLook(id);
   const add = useAddLookToCart();
-  const requireSignIn = useRequireSignIn();
   const guard = useStoreConflictGuard();
   const insets = useSafeAreaInsets();
 
@@ -91,7 +89,7 @@ export default function LookScreen() {
                 {add.isSuccess ? (
                   <Button title={ar.product.viewCart} variant="outline" onPress={() => router.navigate('/cart')} />
                 ) : (
-                  <Button title={ar.look.addAll} loading={add.isPending} onPress={() => requireSignIn(() => addAll(l.slug))} />
+                  <Button title={ar.look.addAll} loading={add.isPending} onPress={() => addAll(l.slug)} />
                 )}
               </View>
               {guard.dialog}

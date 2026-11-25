@@ -3,12 +3,24 @@ import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
 /**
- * The customer's session token (phone + code sign-in).
- * Native: expo-secure-store (Keychain / Keystore). Web: localStorage.
- * Kept in memory too, so the API client can read it synchronously.
+ * The session, kept on the device (native: expo-secure-store = Keychain / Keystore; web:
+ * localStorage) and in memory so the API client can read it synchronously.
+ *
+ *  - Customers: a short access token (24 h) + a long refresh token (180 days, renewed on every use):
+ *    the WhatsApp code is asked once per device; the client renews the pair silently.
+ *  - Guests: the same kind of session without a phone (`guest: true`), created on the first
+ *    add-to-cart / ♡. Signing in merges the guest's cart into the account (server side).
  */
+export interface StoredSession {
+  token: string;
+  refreshToken?: string;
+  /** Access token expiry (ISO). */
+  expiresAt?: string;
+  guest: boolean;
+}
+
 const KEY = 'stylo.session';
-let token: string | null = null;
+let session: StoredSession | null = null;
 let loaded = false;
 const listeners = new Set<() => void>();
 
@@ -16,32 +28,48 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
+function parse(raw: string | null): StoredSession | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as StoredSession;
+    if (v && typeof v.token === 'string') return { ...v, guest: v.guest === true };
+  } catch {
+    // Before Phase B the value was the bare token of a signed-in customer.
+    return { token: raw, guest: false };
+  }
+  return null;
+}
+
 export async function loadSession(): Promise<void> {
   if (loaded) return;
   try {
-    token =
-      Platform.OS === 'web'
-        ? (globalThis.localStorage?.getItem(KEY) ?? null)
-        : await SecureStore.getItemAsync(KEY);
+    session = parse(
+      Platform.OS === 'web' ? (globalThis.localStorage?.getItem(KEY) ?? null) : await SecureStore.getItemAsync(KEY),
+    );
   } catch {
-    token = null;
+    session = null;
   }
   loaded = true;
   emit();
 }
 
-export function getToken(): string | null {
-  return token;
+export function getSession(): StoredSession | null {
+  return session;
 }
 
-export async function setSession(next: string | null): Promise<void> {
-  token = next;
+export function getToken(): string | null {
+  return session?.token ?? null;
+}
+
+export async function setSession(next: StoredSession | null): Promise<void> {
+  session = next;
+  const raw = next ? JSON.stringify(next) : null;
   try {
     if (Platform.OS === 'web') {
-      if (next) globalThis.localStorage?.setItem(KEY, next);
+      if (raw) globalThis.localStorage?.setItem(KEY, raw);
       else globalThis.localStorage?.removeItem(KEY);
-    } else if (next) {
-      await SecureStore.setItemAsync(KEY, next);
+    } else if (raw) {
+      await SecureStore.setItemAsync(KEY, raw);
     } else {
       await SecureStore.deleteItemAsync(KEY);
     }
@@ -56,13 +84,15 @@ function subscribe(l: () => void) {
   return () => listeners.delete(l);
 }
 
-/** { ready, signedIn } — re-renders on sign-in / sign-out / expiry. */
+/**
+ * `signedIn`: a verified customer (phone) — orders, addresses, account, checkout.
+ * `hasSession`: signed in **or** guest — cart and ♡ work.
+ */
 export function useSession() {
   const snapshot = useSyncExternalStore(
     subscribe,
-    () => `${loaded}:${token ?? ''}`,
-    () => 'false:',
+    () => `${loaded ? 1 : 0}${session ? (session.guest ? 'g' : 'c') : '-'}`,
+    () => '0-',
   );
-  const [ready, value] = [snapshot.startsWith('true'), snapshot.slice(snapshot.indexOf(':') + 1)];
-  return { ready, signedIn: value.length > 0 };
+  return { ready: snapshot[0] === '1', signedIn: snapshot[1] === 'c', hasSession: snapshot[1] !== '-' };
 }

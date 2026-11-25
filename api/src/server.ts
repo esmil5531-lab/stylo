@@ -2,6 +2,7 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createPool } from './db.js';
 import { databaseHost, diagnoseDbError, redactUrl, resolveSslMode } from './lib/database.js';
+import { purgeIdleGuests } from './modules/auth/auth.service.js';
 
 const config = loadConfig();
 const pool = createPool(config.database);
@@ -40,3 +41,11 @@ try {
       'Check with: npm run db:check',
   );
 }
+
+// Guests (cart without an account) idle for 30 days are deleted: at start-up, then daily.
+const purgeGuests = () =>
+  purgeIdleGuests(pool, new Date(), config.auth.guestRetentionDays)
+    .then((n) => n > 0 && app.log.info(`deleted ${n} idle guest account(s)`))
+    .catch((err) => app.log.warn({ err }, 'guest clean-up failed'));
+void purgeGuests();
+setInterval(purgeGuests, 24 * 3_600_000).unref();

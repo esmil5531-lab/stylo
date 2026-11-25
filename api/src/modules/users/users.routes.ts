@@ -11,7 +11,7 @@ import {
   updateAddress,
   updateProfile,
 } from './addresses.service.js';
-import { getMe } from './users.service.js';
+import { deleteAccount, getMe } from './users.service.js';
 
 const Optional = (max: number) => z.string().trim().max(max).nullish();
 
@@ -42,6 +42,9 @@ export async function usersRoutes(app: FastifyInstance) {
   });
 
   /** Cities Stylo delivers to (the address city must be one of them). */
+  /** «حذف حسابي»: erases the personal data (see deleteAccount). */
+  app.delete('/me', async (req) => deleteAccount(app.ctx(req)));
+
   app.get('/cities', async () => ({ items: CITIES }));
 
   // ------------------------------------------------------------ «عناويني»

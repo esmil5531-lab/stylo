@@ -1,5 +1,4 @@
 import { useSession } from '@/lib/session';
-import { SignInPrompt } from '@/components/SignInPrompt';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,14 +9,15 @@ import { ar } from '@/i18n/ar';
 import { colors, fonts, spacing } from '@/theme';
 
 export default function WishlistScreen() {
-  const { signedIn } = useSession();
+  const { hasSession } = useSession();
   const wishlist = useWishlist();
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Text style={styles.title}>{ar.wishlist.title}</Text>
       <ScrollView contentContainerStyle={styles.content}>
-        {!signedIn ? (
-          <SignInPrompt />
+        {/* ♡ works for guests too; without any session the list is simply empty. */}
+        {!hasSession ? (
+          <EmptyState icon="heart-outline" title={ar.wishlist.empty} hint={ar.wishlist.emptyHint} />
         ) : (
         <QueryState query={wishlist}>
           {(items) =>

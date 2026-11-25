@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-import { getToken, setSession } from '@/lib/session';
+import { getSession, getToken, setSession, type StoredSession } from '@/lib/session';
 
 const API_PORT = 4000;
 const TIMEOUT_MS = 15000;
@@ -63,7 +63,88 @@ export class ApiError extends Error {
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
-export async function apiRequest<T>(method: Method, path: string, body?: unknown): Promise<T> {
+interface IssuedSession {
+  token: string;
+  expiresAt?: string;
+  refreshToken?: string;
+}
+
+const asStored = (r: IssuedSession, guest: boolean): StoredSession => ({
+  token: r.token,
+  refreshToken: r.refreshToken,
+  expiresAt: r.expiresAt,
+  guest,
+});
+
+/** POST without the session machinery (used by refresh / guest creation themselves). */
+async function rawPost<T>(path: string, body?: unknown): Promise<{ ok: boolean; status: number; data: T | null }> {
+  const res = await fetch(`${resolveApiUrl()}${path}`, {
+    method: 'POST',
+    headers: { accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  return { ok: res.ok, status: res.status, data: (await res.json().catch(() => null)) as T | null };
+}
+
+let refreshing: Promise<boolean> | null = null;
+
+/**
+ * Renews the access token with the refresh token — one request at a time (rotation: a second
+ * parallel refresh with the same token would look like a stolen token). false = signed out.
+ */
+export function refreshSession(): Promise<boolean> {
+  const current = getSession();
+  if (!current?.refreshToken) return Promise.resolve(false);
+  refreshing ??= (async () => {
+    try {
+      const r = await rawPost<IssuedSession>('/auth/refresh', { refreshToken: current.refreshToken });
+      if (r.ok && r.data) {
+        await setSession(asStored(r.data, current.guest));
+        return true;
+      }
+      // Expired, revoked or replayed: this device signs in again (a guest simply starts over).
+      if (r.status === 401 || r.status === 400) await setSession(null);
+      return false;
+    } catch {
+      return false; // offline: keep the session, try again later
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
+}
+
+let creatingGuest: Promise<void> | null = null;
+
+/** Cart and ♡ work without an account: the first use creates an anonymous guest session. */
+export function ensureSession(): Promise<void> {
+  if (getToken()) return Promise.resolve();
+  creatingGuest ??= (async () => {
+    try {
+      const r = await rawPost<IssuedSession>('/auth/guest');
+      if (!r.ok || !r.data) throw new ApiError(r.status, 'guest_failed', 'تعذّر بدء السلة، حاولي مرة أخرى');
+      await setSession(asStored(r.data, true));
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+      throw new ApiError(0, 'network', 'تعذّر الاتصال بالخادم، تحققي من الإنترنت وحاولي مرة أخرى');
+    } finally {
+      creatingGuest = null;
+    }
+  })();
+  return creatingGuest;
+}
+
+/** Called after phone verification (the server has already merged the guest cart). */
+export function startCustomerSession(r: IssuedSession): Promise<void> {
+  return setSession(asStored(r, false));
+}
+
+export async function apiRequest<T>(method: Method, path: string, body?: unknown, retried = false): Promise<T> {
+  // Renew a little before the access token runs out (no failed request first).
+  const s = getSession();
+  if (s?.refreshToken && s.expiresAt && Date.parse(s.expiresAt) - Date.now() < 60_000 && !path.startsWith('/auth/')) {
+    await refreshSession();
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   const headers: Record<string, string> = { accept: 'application/json' };
@@ -91,8 +172,14 @@ export async function apiRequest<T>(method: Method, path: string, body?: unknown
 
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    // Expired or revoked session: sign out locally; screens then offer «تسجيل الدخول».
-    if (res.status === 401 && token) await setSession(null);
+    if (res.status === 401 && token) {
+      // Expired access token: renew once with the refresh token and repeat the request.
+      if (!retried && getSession()?.refreshToken && !path.startsWith('/auth/') && (await refreshSession())) {
+        return apiRequest<T>(method, path, body, true);
+      }
+      // A guest asked for something that needs the phone: keep the guest session (and its cart).
+      if (data?.error?.code !== 'sign_in_required') await setSession(null);
+    }
     const err = data?.error;
     throw new ApiError(res.status, err?.code ?? 'http_error', err?.message ?? 'حدث خطأ غير متوقع', err?.details);
   }

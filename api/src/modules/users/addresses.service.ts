@@ -1,5 +1,5 @@
 import { inTransaction, type Queryable } from '../../db.js';
-import { requireUser, type Ctx } from '../../lib/context.js';
+import { requireAccount, type Ctx } from '../../lib/context.js';
 import { conflict, notFound } from '../../lib/errors.js';
 import { normalisePhone } from '../../lib/phone.js';
 
@@ -49,7 +49,7 @@ const clean = (v: string | null | undefined) => {
 };
 
 export async function listAddresses(ctx: Ctx) {
-  const userId = requireUser(ctx);
+  const userId = requireAccount(ctx);
   const { rows } = await ctx.db.query(`${SELECT} WHERE user_id = $1 ORDER BY is_default DESC, updated_at DESC`, [
     userId,
   ]);
@@ -75,7 +75,7 @@ async function makeDefault(db: Queryable, userId: string, id: string) {
 }
 
 export async function createAddress(ctx: Ctx, input: AddressInput) {
-  const userId = requireUser(ctx);
+  const userId = requireAccount(ctx);
   const phone = normalisePhone(input.phone);
   const id = await inTransaction(ctx.db, async (db) => {
     // Serialise per user so the count and the "first is default" rule hold under double taps.
@@ -108,7 +108,7 @@ export async function createAddress(ctx: Ctx, input: AddressInput) {
 }
 
 export async function updateAddress(ctx: Ctx, id: string, input: Partial<AddressInput>) {
-  const userId = requireUser(ctx);
+  const userId = requireAccount(ctx);
   await inTransaction(ctx.db, async (db) => {
     await findOwn(db, userId, id, true);
     const sets: string[] = [];
@@ -129,7 +129,7 @@ export async function updateAddress(ctx: Ctx, id: string, input: Partial<Address
 }
 
 export async function setDefaultAddress(ctx: Ctx, id: string) {
-  const userId = requireUser(ctx);
+  const userId = requireAccount(ctx);
   await inTransaction(ctx.db, async (db) => {
     await findOwn(db, userId, id, true);
     await makeDefault(db, userId, id);
@@ -138,7 +138,7 @@ export async function setDefaultAddress(ctx: Ctx, id: string) {
 }
 
 export async function deleteAddress(ctx: Ctx, id: string) {
-  const userId = requireUser(ctx);
+  const userId = requireAccount(ctx);
   await inTransaction(ctx.db, async (db) => {
     const row = await findOwn(db, userId, id, true);
     await db.query(`DELETE FROM addresses WHERE id = $1`, [id]);
@@ -155,7 +155,7 @@ export async function deleteAddress(ctx: Ctx, id: string) {
 }
 
 export async function updateProfile(ctx: Ctx, input: { fullName: string }) {
-  const userId = requireUser(ctx);
+  const userId = requireAccount(ctx);
   const name = input.fullName.trim().replace(/\s+/g, ' ');
   await ctx.db.query(`UPDATE users SET full_name = $2 WHERE id = $1`, [userId, name]);
 }

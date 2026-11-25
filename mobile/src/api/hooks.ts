@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useSession } from '@/lib/session';
 
-import { api, query } from './client';
+import { api, ApiError, ensureSession, query } from './client';
 import type {
   Cart,
   Category,
@@ -13,6 +13,7 @@ import type {
   List,
   Look,
   DriverHome,
+  DeliveryFailure,
   DriverOrder,
   DriverOrders,
   DriverStatus,
@@ -90,9 +91,10 @@ export const useLook = (id: string) =>
   useQuery({ queryKey: queryKeys.look(id), queryFn: () => api.get<Look>(`/looks/${id}`) });
 
 /** Signed-in customers only (the cart lives on the server). */
+/** The cart works for guests too (anonymous session created on the first add). */
 export const useCart = () => {
-  const { signedIn } = useSession();
-  return useQuery({ queryKey: queryKeys.cart, queryFn: () => api.get<Cart>('/cart'), enabled: signedIn });
+  const { hasSession } = useSession();
+  return useQuery({ queryKey: queryKeys.cart, queryFn: () => api.get<Cart>('/cart'), enabled: hasSession });
 };
 
 export const useSharedCart = (token: string) =>
@@ -123,7 +125,7 @@ export const useOrder = (id: string) =>
 
 export const useWishlist = () =>
   useQuery({
-    enabled: useSession().signedIn,
+    enabled: useSession().hasSession,
     queryKey: queryKeys.wishlist,
     queryFn: () => api.get<List<ProductSummary>>('/wishlist').then((r) => r.items),
   });
@@ -136,7 +138,14 @@ export const useMe = () =>
 
 function useCartMutation<V>(fn: (v: V) => Promise<Cart>) {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: fn, onSuccess: (cart) => qc.setQueryData(queryKeys.cart, cart) });
+  return useMutation({
+    // No account needed: a guest session is created on first use.
+    mutationFn: async (v: V) => {
+      await ensureSession();
+      return fn(v);
+    },
+    onSuccess: (cart) => qc.setQueryData(queryKeys.cart, cart),
+  });
 }
 
 /** `replaceCart: true` empties a cart from another store and starts a new one (after asking). */
@@ -162,12 +171,18 @@ export const useAddLookToCart = () =>
       .then((r) => r.cart),
   );
 
-export const useShareCart = () => useMutation({ mutationFn: () => api.post<ShareResult>('/cart/share') });
+export const useShareCart = () =>
+  useMutation({ mutationFn: () => ensureSession().then(() => api.post<ShareResult>('/cart/share')) });
 
 export function useCheckout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { deliveryMode: DeliveryMode; addressId?: string }) => api.post<CheckoutResult>('/checkout', v),
+    mutationFn: (v: { deliveryMode: DeliveryMode; addressId?: string; expectedTotal?: number }) =>
+      api.post<CheckoutResult>('/checkout', v),
+    onError: (err) => {
+      // A price or delivery fee changed since the cart was shown: show the new totals.
+      if (err instanceof ApiError && err.code === 'price_changed') qc.invalidateQueries({ queryKey: queryKeys.cart });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.cart });
       qc.invalidateQueries({ queryKey: queryKeys.orders });
@@ -179,12 +194,29 @@ export function useCheckout() {
   });
 }
 
+/** Cancel own order while «قيد الانتظار» (items go back to stock). */
+export function useCancelOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: string; reason?: string }) =>
+      api.post<OrderDetail>(`/orders/${v.id}/cancel`, { reason: v.reason }),
+    onSuccess: (order) => {
+      qc.setQueryData(queryKeys.order(order.id), order);
+      qc.invalidateQueries({ queryKey: queryKeys.orders });
+      qc.invalidateQueries({ queryKey: queryKeys.notifications });
+      qc.invalidateQueries({ queryKey: ['product'] });
+    },
+  });
+}
+
 /** Heart toggle; refreshes every list that shows the heart state. */
 export function useToggleWishlist() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { productId: string; wishlisted: boolean }) =>
-      v.wishlisted ? api.put(`/wishlist/${v.productId}`) : api.delete(`/wishlist/${v.productId}`),
+    mutationFn: async (v: { productId: string; wishlisted: boolean }) => {
+      await ensureSession(); // ♡ works for guests too
+      return v.wishlisted ? api.put(`/wishlist/${v.productId}`) : api.delete(`/wishlist/${v.productId}`);
+    },
     onSuccess: () => {
       for (const key of [queryKeys.wishlist, ['products'], ['product'], queryKeys.home, ['store'], ['look']]) {
         qc.invalidateQueries({ queryKey: key });
@@ -219,6 +251,10 @@ export const useDriverPickUp = () =>
   useDriverMutation((id: string) => api.post<DriverOrder>(`/driver/orders/${id}/picked-up`));
 export const useDriverDeliver = () =>
   useDriverMutation((id: string) => api.post<DriverOrder>(`/driver/orders/${id}/delivered`));
+export const useDriverFail = () =>
+  useDriverMutation((v: { id: string; reason: DeliveryFailure; note?: string }) =>
+    api.post<DriverOrder>(`/driver/orders/${v.id}/failed`, { reason: v.reason, note: v.note }),
+  );
 export const useDriverStatus = () =>
   useDriverMutation((status: Exclude<DriverStatus, 'busy'>) => api.patch<DriverHome>('/driver/me/status', { status }));
 

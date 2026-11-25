@@ -1,9 +1,12 @@
 import { useSession } from '@/lib/session';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { useOrder } from '@/api/hooks';
+import { errorMessage } from '@/api/client';
+import { useCancelOrder, useOrder } from '@/api/hooks';
+import { Button } from '@/components/Button';
 import type { OrderDetail } from '@/api/types';
 import { QueryState } from '@/components/QueryState';
 import { ScreenHeader } from '@/components/ScreenHeader';
@@ -58,6 +61,12 @@ function OrderBody({ order }: { order: OrderDetail }) {
         )}
       </View>
 
+      {cancelled && order.cancelReason && (
+        <View style={[styles.card, styles.reasonCard]}>
+          <Text style={styles.reasonText}>{ar.orders.cancelReason(order.cancelReason)}</Text>
+        </View>
+      )}
+
       <Text style={styles.section}>{ar.orders.statusesTitle}</Text>
       <View style={styles.card}>
         {steps.map((s, i) => {
@@ -110,7 +119,34 @@ function OrderBody({ order }: { order: OrderDetail }) {
           </Text>
         )}
       </View>
+
+      {order.status === 'pending' && <CancelOrder id={order.id} />}
     </ScrollView>
+  );
+}
+
+/** «قيد الانتظار» only: the store has not confirmed yet, the customer may still cancel. */
+function CancelOrder({ id }: { id: string }) {
+  const cancel = useCancelOrder();
+  const [confirming, setConfirming] = useState(false);
+  if (!confirming) {
+    return <Button title={ar.orders.cancel} variant="outline" onPress={() => setConfirming(true)} />;
+  }
+  return (
+    <View style={[styles.card, styles.confirm]}>
+      <Text style={styles.value}>{ar.orders.cancelConfirm}</Text>
+      <Text style={styles.meta}>{ar.orders.cancelHint}</Text>
+      <View style={styles.actions}>
+        <Button
+          title={ar.orders.cancelYes}
+          loading={cancel.isPending}
+          onPress={() => cancel.mutate({ id }, { onSettled: () => setConfirming(false) })}
+          style={{ flex: 1 }}
+        />
+        <Button title={ar.common.back} variant="outline" onPress={() => setConfirming(false)} style={{ flex: 1 }} />
+      </View>
+      {cancel.isError && <Text style={styles.error}>{errorMessage(cancel.error)}</Text>}
+    </View>
   );
 }
 
@@ -138,6 +174,11 @@ const styles = StyleSheet.create({
   store: { fontFamily: fonts.bold, fontSize: 16, color: colors.ink },
   section: { fontFamily: fonts.extraBold, fontSize: 16, color: colors.ink, marginTop: spacing.sm },
   meta: { fontFamily: fonts.regular, fontSize: 13, color: colors.inkMuted },
+  reasonCard: { backgroundColor: colors.dangerSoft, borderColor: colors.dangerSoft },
+  reasonText: { fontFamily: fonts.semiBold, fontSize: 14, lineHeight: 22, color: colors.danger },
+  confirm: { borderColor: colors.primary },
+  actions: { flexDirection: 'row', gap: spacing.sm },
+  error: { fontFamily: fonts.semiBold, fontSize: 13, lineHeight: 20, color: colors.danger },
   value: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
   strong: { fontFamily: fonts.extraBold, fontSize: 16, color: colors.ink },
   itemName: { flex: 1, fontFamily: fonts.regular, fontSize: 13, color: colors.ink },

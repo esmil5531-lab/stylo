@@ -2,12 +2,11 @@ import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { api, ApiError, errorMessage } from '@/api/client';
+import { api, ApiError, errorMessage, startCustomerSession } from '@/api/client';
 import { Button } from '@/components/Button';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { BRAND } from '@/constants/brand';
 import { ar } from '@/i18n/ar';
-import { setSession } from '@/lib/session';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 interface Sent {
@@ -79,13 +78,18 @@ export default function LoginScreen() {
     setBusy(true);
     setError(null);
     try {
-      const r = await api.post<{ token: string; user: { role: string } }>('/auth/otp/verify', {
-        phone: sent.phone,
-        code,
-        app: 'customer',
-        fullName: needsName ? name.trim() : undefined,
-      });
-      await setSession(r.token);
+      // A guest's bearer token goes with this request: the server moves the guest cart and ♡ into
+      // the account.
+      const r = await api.post<{ token: string; refreshToken?: string; expiresAt?: string; user: { role: string } }>(
+        '/auth/otp/verify',
+        {
+          phone: sent.phone,
+          code,
+          app: 'customer',
+          fullName: needsName ? name.trim() : undefined,
+        },
+      );
+      await startCustomerSession(r);
       // Drivers land on their own panel («لوحة المندوب»).
       const home = r.user.role === 'driver' ? '/driver' : '/';
       router.replace((next && next.startsWith('/') && next !== '/login' ? next : home) as Href);

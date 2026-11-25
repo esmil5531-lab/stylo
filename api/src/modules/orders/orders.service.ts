@@ -1,14 +1,17 @@
 import { randomUUID } from 'node:crypto';
 
-import { withTransaction, type Pool } from '../../db.js';
-import { requireUser, type Ctx } from '../../lib/context.js';
+import { inTransaction, withTransaction, type Pool } from '../../db.js';
+import { requireAccount, type Ctx } from '../../lib/context.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { buildCartView, loadLines } from '../cart/cart.service.js';
+import { restockOrder } from './restock.js';
 import type { DeliveryMode } from '../delivery/delivery.js';
 
 export interface CheckoutInput {
   deliveryMode: DeliveryMode;
   addressId?: string;
+  /** The total the customer saw (dirhams). If prices or the fee changed since: 409 price_changed. */
+  expectedTotal?: number;
 }
 
 /**
@@ -16,7 +19,7 @@ export interface CheckoutInput {
  * snapshots the lines, decrements stock, updates sales counters and empties the cart.
  */
 export async function checkout(pool: Pool, baseCtx: Ctx, input: CheckoutInput) {
-  const userId = requireUser(baseCtx);
+  const userId = requireAccount(baseCtx);
 
   return withTransaction(pool, async (client) => {
     const ctx: Ctx = { ...baseCtx, db: client };
@@ -42,6 +45,13 @@ export async function checkout(pool: Pool, baseCtx: Ctx, input: CheckoutInput) {
     }
 
     const option = cart.delivery[input.deliveryMode];
+    const total = cart.subtotal + option.fee;
+    if (input.expectedTotal !== undefined && input.expectedTotal !== total) {
+      throw conflict('price_changed', 'تغيّر سعر بعض المنتجات أو رسوم التوصيل. راجعي السلة قبل تأكيد الطلب', {
+        expectedTotal: input.expectedTotal,
+        total,
+      });
+    }
     const { rows: created } = await client.query(
       `INSERT INTO orders (checkout_id, customer_id, store_id, currency, subtotal, shipping_fee,
                            shipping_address, delivery_mode, estimated_delivery_at, commission_bps)
@@ -133,7 +143,7 @@ function mapOrder(r: any) {
 }
 
 export async function listOrders(ctx: Ctx, opts: { limit: number; offset: number }) {
-  const userId = requireUser(ctx);
+  const userId = requireAccount(ctx);
   const { rows } = await ctx.db.query(
     `${ORDER_LIST_SELECT} WHERE o.customer_id = $1 ORDER BY o.placed_at DESC, o.order_number DESC LIMIT $2 OFFSET $3`,
     [userId, opts.limit, opts.offset],
@@ -142,7 +152,7 @@ export async function listOrders(ctx: Ctx, opts: { limit: number; offset: number
 }
 
 export async function getOrder(ctx: Ctx, id: string) {
-  const userId = requireUser(ctx);
+  const userId = requireAccount(ctx);
   const { rows } = await ctx.db.query(`${ORDER_LIST_SELECT} WHERE o.id = $1 AND o.customer_id = $2`, [id, userId]);
   if (!rows[0]) throw notFound('الطلب');
 
@@ -189,7 +199,7 @@ export async function getOrder(ctx: Ctx, id: string) {
  * order_status_history — the same log the order page shows. Read state is kept on the device.
  */
 export async function listNotifications(ctx: Ctx, limit = 30) {
-  const userId = requireUser(ctx);
+  const userId = requireAccount(ctx);
   const { rows } = await ctx.db.query(
     `SELECT h.id, h.to_status, h.note, h.changed_at, o.id AS order_id, o.order_number, s.name_ar AS store_name
        FROM order_status_history h
@@ -212,4 +222,33 @@ export async function listNotifications(ctx: Ctx, limit = 30) {
       at: (r.changed_at as Date).toISOString(),
     })),
   };
+}
+
+/**
+ * The customer cancels her own order while it is still «قيد الانتظار» (the store has not confirmed
+ * it). Later, only the store or Stylo can cancel. Items go back to stock; history records her.
+ */
+export async function cancelOwnOrder(ctx: Ctx, id: string, reason?: string) {
+  const userId = requireAccount(ctx);
+  await inTransaction(ctx.db, async (db) => {
+    const { rows } = await db.query(`SELECT status FROM orders WHERE id = $1 AND customer_id = $2 FOR UPDATE`, [
+      id,
+      userId,
+    ]);
+    if (!rows[0]) throw notFound('الطلب');
+    if (rows[0].status !== 'pending') {
+      throw conflict('cannot_cancel', 'لا يمكن إلغاء الطلب بعد أن أكّده المتجر. تواصلي مع خدمة العملاء');
+    }
+    const note = reason?.trim() ? `ألغته الزبونة: ${reason.trim()}` : 'ألغته الزبونة';
+    await db.query(`SELECT set_config('stylo.actor_id', $1, true), set_config('stylo.status_note', $2, true)`, [
+      userId,
+      note,
+    ]);
+    await db.query(`UPDATE orders SET status = 'cancelled', cancel_reason = $2 WHERE id = $1`, [
+      id,
+      reason?.trim() || 'ألغته الزبونة',
+    ]);
+    await restockOrder(db, id);
+  });
+  return getOrder(ctx, id);
 }

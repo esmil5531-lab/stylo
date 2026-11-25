@@ -16,7 +16,6 @@ import { Rating } from '@/components/Rating';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { SectionHeader } from '@/components/SectionHeader';
 import { VariantPicker } from '@/components/product/VariantPicker';
-import { useRequireSignIn } from '@/lib/requireSignIn';
 import { WishlistButton } from '@/components/WishlistButton';
 import { ar } from '@/i18n/ar';
 import { formatPrice } from '@/lib/format';
@@ -44,7 +43,6 @@ function ProductBody({ product }: { product: ProductDetail }) {
   const [variantId, setVariantId] = useState<string | undefined>(firstInStock?.id);
   const variant = product.variants.find((v) => v.id === variantId);
   const add = useAddToCart();
-  const requireSignIn = useRequireSignIn();
   const guard = useStoreConflictGuard();
   // Heads-up before the dialog: the cart is bound to another store.
   const cart = useCart();
@@ -140,7 +138,7 @@ function ProductBody({ product }: { product: ProductDetail }) {
             }
             disabled={!variant || variant.stock === 0}
             loading={add.isPending}
-            onPress={() => variant && requireSignIn(() => addToCart(variant.id))}
+            onPress={() => variant && addToCart(variant.id)}
           />
         )}
       </View>

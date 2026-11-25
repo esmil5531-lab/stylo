@@ -2,6 +2,8 @@ import { inTransaction, type Queryable } from '../../db.js';
 import type { Ctx } from '../../lib/context.js';
 import { conflict, forbidden, notFound, unauthorized } from '../../lib/errors.js';
 import { refreshDriverStatus, STATUS_AR, type OrderStatus } from '../admin/orders.admin.js';
+import { failureNote, type DeliveryFailure } from '../orders/delivery-failure.js';
+import { restockOrder } from '../orders/restock.js';
 
 /**
  * Driver mode (وضع المندوب) inside the Stylo app. A driver signs in with their phone like everyone
@@ -101,6 +103,7 @@ export async function setDriverStatus(ctx: Ctx, driver: DriverCtx, status: 'avai
 
 const ORDER_SELECT = `
   SELECT o.id, o.order_number, o.status, o.payment_method, o.payment_status, o.total, o.delivery_mode,
+         o.delivery_failure, o.cancel_reason,
          o.shipping_address, o.placed_at, o.estimated_delivery_at, o.cash_collected_at, o.assigned_at,
          s.name_ar AS store_name, s.phone AS store_phone, s.city AS store_city, s.district AS store_district,
          s.address_line AS store_address,
@@ -150,6 +153,10 @@ function mapDriverOrder(r: any) {
     items: r.items as { name: string; size: string | null; color: string | null; quantity: number }[],
     canPickUp: r.status === 'processing',
     canDeliver: r.status === 'shipped',
+    /** «تعذّر التسليم»: only while the parcel is with the driver. */
+    canFail: r.status === 'shipped',
+    /** Failed delivery: the reason (the pieces go back to the store). */
+    failure: r.delivery_failure ? (r.cancel_reason as string) : null,
   };
 }
 
@@ -159,7 +166,10 @@ export async function listDriverOrders(ctx: Ctx, driver: DriverCtx) {
       WHERE o.driver_id = $1
         AND (o.status IN ('confirmed', 'processing', 'shipped')
              OR (o.status = 'delivered'
-                 AND (o.cash_collected_at AT TIME ZONE '${TZ}')::date = ($2::timestamptz AT TIME ZONE '${TZ}')::date))
+                 AND (o.cash_collected_at AT TIME ZONE '${TZ}')::date = ($2::timestamptz AT TIME ZONE '${TZ}')::date)
+             -- failed today: the driver still has to take the pieces back to the store
+             OR (o.status = 'cancelled' AND o.delivery_failure IS NOT NULL
+                 AND (o.updated_at AT TIME ZONE '${TZ}')::date = (now() AT TIME ZONE '${TZ}')::date))
       ORDER BY CASE o.status WHEN 'shipped' THEN 0 WHEN 'processing' THEN 1 WHEN 'confirmed' THEN 2 ELSE 3 END,
                o.cash_collected_at DESC NULLS LAST,
                (o.delivery_mode = 'fastest') DESC, o.estimated_delivery_at NULLS LAST, o.assigned_at`,
@@ -167,8 +177,10 @@ export async function listDriverOrders(ctx: Ctx, driver: DriverCtx) {
   );
   const orders = rows.map(mapDriverOrder);
   return {
-    active: orders.filter((o) => o.status !== 'delivered'),
+    active: orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled'),
     deliveredToday: orders.filter((o) => o.status === 'delivered'),
+    /** Failed today: return the pieces to the store. */
+    returnToStore: orders.filter((o) => o.status === 'cancelled'),
   };
 }
 
@@ -209,4 +221,32 @@ export async function getDriverOrder(ctx: Ctx, driver: DriverCtx, id: string) {
   const { rows } = await ctx.db.query(`${ORDER_SELECT} WHERE o.id = $1 AND o.driver_id = $2`, [id, driver.id]);
   if (!rows[0]) throw notFound('الطلب');
   return mapDriverOrder(rows[0]);
+}
+
+/**
+ * «تعذّر التسليم»: the customer did not answer, refused, wrong address or asked to postpone.
+ * shipped → cancelled with the reason (required, from the list) + an optional note; the items go
+ * back to stock, no cash is collected, and the reason shows in the order history (Stylo + store).
+ */
+export async function failDelivery(ctx: Ctx, driver: DriverCtx, id: string, reason: DeliveryFailure, note?: string) {
+  await inTransaction(ctx.db, async (db) => {
+    const { rows } = await db.query(`SELECT status, driver_id FROM orders WHERE id = $1 FOR UPDATE`, [id]);
+    const o = rows[0];
+    if (!o || o.driver_id !== driver.id) throw notFound('الطلب');
+    if (o.status !== 'shipped') {
+      throw conflict('invalid_transition', `الطلب الآن «${STATUS_AR[o.status as OrderStatus]}»`);
+    }
+    const text = failureNote(reason, note);
+    await db.query(`SELECT set_config('stylo.actor_id', $1, true), set_config('stylo.status_note', $2, true)`, [
+      driver.id,
+      text,
+    ]);
+    await db.query(
+      `UPDATE orders SET status = 'cancelled', delivery_failure = $2, cancel_reason = $3 WHERE id = $1`,
+      [id, reason, text],
+    );
+    await restockOrder(db, id);
+    await refreshDriverStatus(db, driver.id);
+  });
+  return getDriverOrder(ctx, driver, id);
 }

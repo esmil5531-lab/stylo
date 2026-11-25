@@ -1,5 +1,4 @@
 import { useSession } from '@/lib/session';
-import { SignInPrompt } from '@/components/SignInPrompt';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { router, type Href } from 'expo-router';
@@ -22,7 +21,7 @@ import { colors, fonts, radius, spacing } from '@/theme';
 const MODES: DeliveryMode[] = ['fastest', 'standard'];
 
 export default function CartScreen() {
-  const { signedIn } = useSession();
+  const { signedIn, hasSession } = useSession();
   const cart = useCart();
   const share = useShareCart();
   const [shareLink, setShareLink] = useState<string | null>(null);
@@ -56,12 +55,10 @@ export default function CartScreen() {
 
       {placed ? (
         <OrderPlaced result={placed} onDone={() => setPlaced(null)} />
-      ) : !signedIn ? (
-        <SignInPrompt />
       ) : (
         <QueryState query={cart} minHeight={300}>
           {(data) =>
-            data.itemsCount === 0 ? (
+            !hasSession || data.itemsCount === 0 ? (
               <EmptyState
                 icon="bag-handle-outline"
                 title={ar.cart.empty}
@@ -73,6 +70,7 @@ export default function CartScreen() {
             ) : (
               <CartContent
                 cart={data}
+                signedIn={signedIn}
                 shareLink={shareLink}
                 shareError={share.isError ? errorMessage(share.error) : null}
                 onPlaced={(r) => {
@@ -90,11 +88,14 @@ export default function CartScreen() {
 
 function CartContent({
   cart,
+  signedIn,
   shareLink,
   shareError,
   onPlaced,
 }: {
   cart: Cart;
+  /** Guests see their cart; «إتمام الطلب» first asks for the phone (code once per device). */
+  signedIn: boolean;
   shareLink: string | null;
   shareError: string | null;
   onPlaced: (r: CheckoutResult) => void;
@@ -105,6 +106,8 @@ function CartContent({
   // The default address prices delivery in this quote (city → same-city or intercity).
   const me = useMe();
   const address = me.data?.defaultAddress ?? null;
+
+  const signIn = () => router.push({ pathname: '/login', params: { next: '/cart' } });
 
   // Non-empty carts always have a store, delivery quote and totals.
   if (!cart.store || !cart.delivery || !cart.totals) return null;
@@ -135,7 +138,19 @@ function CartContent({
         {setQty.isError && <Text style={styles.error}>{errorMessage(setQty.error)}</Text>}
 
         <Text style={styles.section}>{ar.cart.deliverTo}</Text>
-        {address ? (
+        {!signedIn ? (
+          <Pressable
+            style={[styles.addressCard, styles.addressMissing]}
+            onPress={signIn}
+            accessibilityRole="button"
+          >
+            <Ionicons name="phone-portrait-outline" size={22} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.addressTitle}>{ar.cart.guestTitle}</Text>
+              <Text style={styles.addressLine}>{ar.cart.guestHint}</Text>
+            </View>
+          </Pressable>
+        ) : address ? (
           <Pressable
             style={styles.addressCard}
             onPress={() => router.push('/addresses?select=1' as Href)}
@@ -199,10 +214,17 @@ function CartContent({
         <Button
           title={`${ar.cart.checkout} · ${formatPrice(total, cart.currency)}`}
           loading={checkout.isPending}
-          disabled={cart.hasIssues || !address}
-          onPress={() =>
-            address && checkout.mutate({ deliveryMode: mode, addressId: address.id }, { onSuccess: onPlaced })
-          }
+          disabled={cart.hasIssues || (signedIn && !address)}
+          onPress={() => {
+            if (!signedIn) return signIn();
+            if (address) {
+              // The total she saw: the server refuses if a price changed meanwhile (price_changed).
+              checkout.mutate(
+                { deliveryMode: mode, addressId: address.id, expectedTotal: total },
+                { onSuccess: onPlaced },
+              );
+            }
+          }}
         />
       </View>
     </>

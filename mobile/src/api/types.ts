@@ -310,11 +310,19 @@ export interface DriverOrder {
   items: { name: string; size: string | null; color: string | null; quantity: number }[];
   canPickUp: boolean;
   canDeliver: boolean;
+  /** «تعذّر التسليم» possible (parcel with the driver). */
+  canFail: boolean;
+  /** Failed delivery reason (for «أعِد إلى المتجر»). */
+  failure: string | null;
 }
+
+export type DeliveryFailure = 'no_answer' | 'refused' | 'wrong_address' | 'postponed';
 
 export interface DriverOrders {
   active: DriverOrder[];
   deliveredToday: DriverOrder[];
+  /** Failed today: the pieces go back to the store. */
+  returnToStore: DriverOrder[];
 }
 
 export interface NotificationItem {

@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { AppError, unauthorized } from '../../lib/errors.js';
 import { createRateLimiter } from '../../lib/rate-limit.js';
-import { requestOtp, revokeSession, verifyOtp } from './auth.service.js';
+import { createGuest, refreshSession, requestOtp, revokeSession, verifyOtp } from './auth.service.js';
 
 const Phone = z.string().trim().min(9).max(20);
 
@@ -34,7 +34,27 @@ export async function authRoutes(app: FastifyInstance) {
         fullName: z.string().trim().max(80).optional(),
       })
       .parse(req.body);
-    return verifyOtp(app.ctx(req), { ...body, userAgent: req.headers['user-agent'] });
+    const ctx = app.ctx(req);
+    // Signing in from a guest session (its bearer token): the guest's cart moves to the account.
+    return verifyOtp(ctx, { ...body, userAgent: req.headers['user-agent'], guestUserId: ctx.guest ? ctx.userId : null });
+  });
+
+  /** New access + refresh pair from a refresh token (rotation). No code, no bearer needed. */
+  app.post('/auth/refresh', async (req) => {
+    const { refreshToken } = z.object({ refreshToken: z.string().regex(/^[A-Za-z0-9_-]{20,200}$/) }).parse(req.body);
+    return refreshSession(app.ctx(req), refreshToken);
+  });
+
+  /** Anonymous guest session for browsing + cart (rate-limited per IP). */
+  const guestsPerIp = createRateLimiter(app.config.auth.guestMaxPerIpHour, 3_600_000);
+  app.post('/auth/guest', async (req, reply) => {
+    const wait = guestsPerIp.hit(req.ip);
+    if (wait > 0) {
+      reply.header('retry-after', String(wait));
+      throw new AppError(429, 'guest_limit', 'طلبات كثيرة من هذا الاتصال، حاولي بعد قليل', { retryAfter: wait });
+    }
+    reply.status(201);
+    return createGuest(app.ctx(req), req.headers['user-agent']);
   });
 
   app.post('/auth/logout', async (req) => {

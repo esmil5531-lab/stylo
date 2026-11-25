@@ -74,7 +74,7 @@ function useOrderMutation<V>(fn: (v: V) => Promise<AdminOrderDetail>) {
 }
 
 export const useChangeOrderStatus = (id: string) =>
-  useOrderMutation((v: { to: OrderStatus; note?: string; cancelReason?: string }) =>
+  useOrderMutation((v: { to: OrderStatus; note?: string; cancelReason?: string; failureReason?: string }) =>
     request<AdminOrderDetail>('POST', `/admin/orders/${id}/status`, v),
   );
 

@@ -106,8 +106,16 @@ export interface AuthConfig {
   /** At most this many code requests per IP address per hour (carrier NAT: keep it generous). */
   otpMaxPerIpHour: number;
   otpResendSeconds: number;
-  customerSessionDays: number;
+  /** Customer/guest access token lifetime; the app renews it silently with the refresh token. */
+  customerAccessHours: number;
+  /** Refresh token lifetime, renewed on every use: the code is asked once per device. */
+  customerRefreshDays: number;
+  /** Back-office sessions: no refresh, sign in again after this. */
   adminSessionHours: number;
+  /** Guests (cart without an account) idle longer than this are deleted. */
+  guestRetentionDays: number;
+  /** Guest sessions created per IP address per hour. */
+  guestMaxPerIpHour: number;
 }
 
 export interface MessagingConfig {
@@ -197,8 +205,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       otpMaxPerHour: 5,
       otpMaxPerIpHour: e.OTP_MAX_PER_IP_HOUR,
       otpResendSeconds: 30,
-      customerSessionDays: 60,
+      customerAccessHours: 24,
+      customerRefreshDays: 180,
       adminSessionHours: 12,
+      guestRetentionDays: 30,
+      guestMaxPerIpHour: 60,
     },
     messaging: {
       provider: e.MESSAGING_PROVIDER,

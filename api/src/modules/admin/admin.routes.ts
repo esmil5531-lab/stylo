@@ -42,6 +42,7 @@ import {
 } from './looks.admin.js';
 import { getDriverCustody, getSettlement, listCustody, listSettlements, settleCustody } from './custody.admin.js';
 import { notifyOrderStatus } from '../orders/notify.js';
+import { DELIVERY_FAILURE_KEYS } from '../orders/delivery-failure.js';
 import {
   createDriver,
   createStaff,
@@ -607,6 +608,8 @@ export async function adminRoutes(app: FastifyInstance) {
         to: z.enum(ORDER_STATUSES),
         note: z.string().trim().max(200).optional(),
         cancelReason: z.string().trim().max(200).optional(),
+        /** Required for shipped → cancelled (failed delivery). */
+        failureReason: z.enum(DELIVERY_FAILURE_KEYS).optional(),
       })
       .parse(req.body);
     const order = await changeOrderStatus(app.ctx(req), staff, id, body);

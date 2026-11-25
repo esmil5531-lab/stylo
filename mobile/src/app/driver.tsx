@@ -1,16 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ApiError, errorMessage } from '@/api/client';
 import {
   useDriverDeliver,
+  useDriverFail,
   useDriverHome,
   useDriverOrders,
   useDriverPickUp,
   useDriverStatus,
 } from '@/api/hooks';
-import type { DriverHome, DriverOrder } from '@/api/types';
+import type { DeliveryFailure, DriverHome, DriverOrder } from '@/api/types';
 import { Button } from '@/components/Button';
 import { QueryState } from '@/components/QueryState';
 import { ScreenHeader } from '@/components/ScreenHeader';
@@ -89,6 +90,17 @@ export default function DriverScreen() {
                     </View>
                   );
                 })}
+                {o.returnToStore.length > 0 && (
+                  <View style={styles.group}>
+                    <Text style={styles.section}>{t.returnTitle}</Text>
+                    <Text style={styles.muted}>{t.returnHint}</Text>
+                    <View style={styles.doneList}>
+                      {o.returnToStore.map((order) => (
+                        <ReturnRow key={order.id} order={order} />
+                      ))}
+                    </View>
+                  </View>
+                )}
                 {o.deliveredToday.length > 0 && (
                   <View style={styles.group}>
                     <Text style={styles.section}>{t.doneToday}</Text>
@@ -184,6 +196,7 @@ function OrderCard({ order }: { order: DriverOrder }) {
   const pickUp = useDriverPickUp();
   const deliver = useDriverDeliver();
   const [confirming, setConfirming] = useState<'pickup' | 'deliver' | null>(null);
+  const [failing, setFailing] = useState(false);
   const cash = formatPrice(order.amountToCollect);
   const cod = order.paymentMethod === 'cod';
   const pieces = order.items.reduce((s, i) => s + i.quantity, 0);
@@ -283,10 +296,89 @@ function OrderCard({ order }: { order: DriverOrder }) {
         </View>
       ) : order.canPickUp ? (
         <Button title={t.pickedUp} onPress={() => setConfirming('pickup')} />
+      ) : failing ? (
+        <FailPanel order={order} onClose={() => setFailing(false)} />
       ) : order.canDeliver ? (
-        <Button title={cod ? t.delivered(cash) : t.deliveredNoCash} onPress={() => setConfirming('deliver')} />
+        <>
+          <Button title={cod ? t.delivered(cash) : t.deliveredNoCash} onPress={() => setConfirming('deliver')} />
+          <Pressable
+            onPress={() => setFailing(true)}
+            style={styles.failBtn}
+            accessibilityRole="button"
+          >
+            <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
+            <Text style={styles.failText}>{t.fail}</Text>
+          </Pressable>
+        </>
       ) : null}
       {error && <Text style={styles.error}>{errorMessage(error)}</Text>}
+    </View>
+  );
+}
+
+const FAILURES: DeliveryFailure[] = ['no_answer', 'refused', 'wrong_address', 'postponed'];
+
+/** «تعذّر التسليم»: a reason is required (owner-approved list), a note is optional. */
+function FailPanel({ order, onClose }: { order: DriverOrder; onClose: () => void }) {
+  const fail = useDriverFail();
+  const [reason, setReason] = useState<DeliveryFailure | null>(null);
+  const [note, setNote] = useState('');
+  return (
+    <View style={[styles.confirm, styles.failPanel]}>
+      <Text style={styles.confirmTitle}>{t.failTitle}</Text>
+      <View style={styles.reasons} accessibilityRole="radiogroup">
+        {FAILURES.map((r) => {
+          const on = reason === r;
+          return (
+            <Pressable
+              key={r}
+              onPress={() => setReason(r)}
+              style={[styles.reason, on && styles.reasonOn]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on }}
+            >
+              <Text style={[styles.reasonText, on && styles.reasonTextOn]}>{t.failReasons[r]}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <TextInput
+        value={note}
+        onChangeText={setNote}
+        placeholder={t.failNote}
+        placeholderTextColor={colors.inkMuted}
+        maxLength={200}
+        style={styles.noteInput}
+      />
+      <Text style={styles.muted}>{t.failHint}</Text>
+      <View style={styles.row}>
+        <Button
+          title={t.failConfirm}
+          disabled={!reason}
+          loading={fail.isPending}
+          onPress={() =>
+            reason && fail.mutate({ id: order.id, reason, note: note.trim() || undefined }, { onSuccess: onClose })
+          }
+          style={{ flex: 1 }}
+        />
+        <Button title={t.cancel} variant="outline" onPress={onClose} style={{ flex: 1 }} />
+      </View>
+      {fail.isError && <Text style={styles.error}>{errorMessage(fail.error)}</Text>}
+    </View>
+  );
+}
+
+function ReturnRow({ order }: { order: DriverOrder }) {
+  return (
+    <View style={styles.doneRow}>
+      <Ionicons name="return-down-back-outline" size={20} color={colors.danger} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.doneTitle}>
+          {t.order(order.orderNumber)} · {order.pickup.storeName}
+        </Text>
+        {order.failure && <Text style={styles.muted}>{order.failure}</Text>}
+      </View>
+      <Text style={styles.returnPieces}>{t.items(order.items.reduce((s, i) => s + i.quantity, 0))}</Text>
     </View>
   );
 }
@@ -531,4 +623,39 @@ const styles = StyleSheet.create({
   doneTitle: { fontFamily: fonts.semiBold, fontSize: 14, lineHeight: 22, color: colors.ink },
   doneCash: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 20, color: colors.success },
   error: { fontFamily: fonts.semiBold, fontSize: 13, lineHeight: 20, color: colors.danger },
+  failBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 44,
+  },
+  failText: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 22, color: colors.danger },
+  failPanel: { backgroundColor: colors.dangerSoft },
+  reasons: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  reason: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.danger,
+    backgroundColor: colors.surface,
+  },
+  reasonOn: { backgroundColor: colors.danger },
+  reasonText: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 22, color: colors.danger },
+  reasonTextOn: { color: colors.white },
+  noteInput: {
+    minHeight: 44,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    color: colors.ink,
+    writingDirection: 'rtl',
+  },
+  returnPieces: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 20, color: colors.danger },
 });

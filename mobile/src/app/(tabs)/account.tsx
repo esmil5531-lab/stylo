@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/api/client';
@@ -13,6 +13,7 @@ import { BRAND } from '@/constants/brand';
 import { ar } from '@/i18n/ar';
 import { directionalIcons } from '@/i18n/rtl';
 import { setSession, useSession } from '@/lib/session';
+import { appVersion, supportWhatsAppUrl } from '@/lib/support';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 function formatPhone(p: string | null): string {
@@ -23,6 +24,7 @@ function formatPhone(p: string | null): string {
 export default function AccountScreen() {
   const me = useMe();
   const { signedIn } = useSession();
+  const support = supportWhatsAppUrl();
   const signOut = async () => {
     await api.post('/auth/logout').catch(() => undefined);
     await setSession(null);
@@ -80,8 +82,39 @@ export default function AccountScreen() {
           )}
         </QueryState>
         )}
+
+        {/* For everyone (guests too): help and the legal pages. */}
+        <Text style={styles.section}>{ar.account.help}</Text>
+        <View style={styles.list}>
+          {support && (
+            <Row
+              icon="logo-whatsapp"
+              label={ar.account.contact}
+              value={ar.account.contactHint}
+              onPress={() => void Linking.openURL(support)}
+            />
+          )}
+          <Row icon="document-text-outline" label={ar.account.terms} onPress={() => router.push('/legal/terms' as Href)} />
+          <Row
+            icon="shield-checkmark-outline"
+            label={ar.account.privacy}
+            onPress={() => router.push('/legal/privacy' as Href)}
+          />
+          <Row
+            icon="swap-horizontal-outline"
+            label={ar.account.returns}
+            onPress={() => router.push('/legal/returns' as Href)}
+          />
+        </View>
+        {signedIn && (
+          <Pressable style={styles.delete} onPress={() => router.push('/delete-account' as Href)} accessibilityRole="button">
+            <Ionicons name="trash-outline" size={18} color={colors.danger} />
+            <Text style={styles.deleteText}>{ar.account.deleteAccount}</Text>
+          </Pressable>
+        )}
         <Text style={styles.tagline}>
           {BRAND.nameAr} — {BRAND.taglineAr}
+          {appVersion ? `\n${ar.account.version(appVersion)}` : ''}
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -112,6 +145,9 @@ function Row({
 }
 
 const styles = StyleSheet.create({
+  section: { fontFamily: fonts.bold, fontSize: 15, lineHeight: 24, color: colors.inkSecondary, marginBottom: -spacing.sm },
+  delete: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, minHeight: 44 },
+  deleteText: { fontFamily: fonts.semiBold, fontSize: 14, lineHeight: 22, color: colors.danger },
   safe: { flex: 1, backgroundColor: colors.background },
   title: {
     fontFamily: fonts.extraBold,

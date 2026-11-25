@@ -40,9 +40,9 @@ const DEFAULT_DESCRIPTION =
   'ستايلو — كل ستايل في مكان واحد. تسوّقي أزياء النساء والأحذية والحقائب من أفضل المتاجر الليبية في مكان واحد، بالدينار الليبي، مع توصيل سريع في طرابلس وبنغازي والدفع عند الاستلام.';
 
 /** Pages that belong to one person: never indexed. */
-const PRIVATE = /^(cart|wishlist|account|login|profile|notifications|addresses(\/.*)?|orders(\/.*)?|driver|shared-cart\/.+)$/;
+const PRIVATE = /^(cart|wishlist|account|login|profile|notifications|delete-account|addresses(\/.*)?|orders(\/.*)?|driver|shared-cart\/.+)$/;
 
-export const DISALLOWED_PATHS = ['/admin/', '/v1/', '/cart', '/wishlist', '/account', '/login', '/orders', '/driver', '/addresses', '/profile', '/notifications', '/shared-cart/'];
+export const DISALLOWED_PATHS = ['/admin/', '/v1/', '/cart', '/wishlist', '/account', '/login', '/orders', '/driver', '/addresses', '/profile', '/notifications', '/delete-account', '/shared-cart/'];
 
 function lyd(dirhams: number): string {
   const v = (dirhams / 1000).toFixed(3).replace(/\.?0+$/, '');
@@ -70,6 +70,15 @@ export async function pageMeta(db: Queryable, path: string, query: URLSearchPara
       summary: { heading: `${SITE_NAME} — ${TAGLINE}`, lines: [DEFAULT_DESCRIPTION] },
     };
   }
+
+  // Legal pages: public, indexed (the stores and Google look for them).
+  const legal = /^legal\/(terms|privacy|returns)$/.exec(path);
+  if (legal) {
+    const titles = { terms: 'الشروط والأحكام', privacy: 'سياسة الخصوصية', returns: 'سياسة الاستبدال والإرجاع' } as const;
+    const title = titles[legal[1] as keyof typeof titles];
+    return { ...base, title: `${title} | ${SITE_NAME}`, description: clip(`${title} في ${SITE_NAME} — ${TAGLINE}.`) };
+  }
+  if (path.startsWith('legal/')) return { ...base, noindex: true, status: 404 };
 
   if (path === 'categories') {
     const { rows } = await db.query(
@@ -325,6 +334,9 @@ export async function sitemapXml(db: Queryable, origin: string): Promise<string>
   const entries = [
     url('/'),
     url('/categories'),
+    url('/legal/terms'),
+    url('/legal/privacy'),
+    url('/legal/returns'),
     ...categories.rows.map((r) => url(`/products?category=${encodeURIComponent(r.slug)}`)),
     ...stores.rows.map((r) => url(`/store/${encodeURIComponent(r.slug)}`, r.updated_at)),
     ...looks.rows.map((r) => url(`/look/${encodeURIComponent(r.slug)}`)),

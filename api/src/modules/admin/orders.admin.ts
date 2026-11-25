@@ -2,6 +2,8 @@ import { inTransaction, type Queryable } from '../../db.js';
 import type { Ctx } from '../../lib/context.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import type { StaffContext } from './permissions.js';
+import { restockOrder } from '../orders/restock.js';
+import { failureNote, type DeliveryFailure } from '../orders/delivery-failure.js';
 
 /** The six statuses and allowed moves — mirrors order_status_can_transition() in 0001_init.sql. */
 export const ORDER_STATUSES = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
@@ -11,7 +13,8 @@ export const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   pending: ['confirmed', 'cancelled'],
   confirmed: ['processing', 'cancelled'],
   processing: ['shipped', 'cancelled'],
-  shipped: ['delivered'],
+  // shipped → cancelled = failed delivery («تعذّر التسليم»), only with a reason (migration 0012).
+  shipped: ['delivered', 'cancelled'],
   delivered: [],
   cancelled: [],
 };
@@ -21,6 +24,8 @@ const STORE_STAFF_TARGETS: readonly OrderStatus[] = ['confirmed', 'processing', 
 
 export function allowedNextStatuses(staff: StaffContext, from: OrderStatus): OrderStatus[] {
   const next = TRANSITIONS[from];
+  // Once the parcel is with the driver it is Stylo's: stores cannot cancel a shipped order.
+  if (staff.storeId && from === 'shipped') return [];
   return staff.storeId ? next.filter((s) => STORE_STAFF_TARGETS.includes(s)) : [...next];
 }
 
@@ -170,7 +175,7 @@ export async function changeOrderStatus(
   ctx: Ctx,
   staff: StaffContext,
   id: string,
-  input: { to: OrderStatus; note?: string; cancelReason?: string },
+  input: { to: OrderStatus; note?: string; cancelReason?: string; failureReason?: DeliveryFailure },
 ) {
   await inTransaction(ctx.db, async (db) => {
     const row = await findScopedOrder(db, staff, id, true);
@@ -185,18 +190,26 @@ export async function changeOrderStatus(
     if (input.to === 'shipped' && !row.driver_id) {
       throw badRequest('driver_required', 'أسندي الطلب لسائق قبل تحويله إلى «تم الشحن»');
     }
-    if (input.to === 'cancelled' && !input.cancelReason?.trim()) {
+    const failed = from === 'shipped' && input.to === 'cancelled';
+    if (failed && !input.failureReason) {
+      throw badRequest('failure_reason_required', 'اختاري سبب تعذّر التسليم');
+    }
+    if (failed) {
+      // Failed delivery: the reason from the list is the cancellation reason (+ optional note).
+      input = { ...input, cancelReason: failureNote(input.failureReason!, input.cancelReason || input.note) };
+    } else if (input.to === 'cancelled' && !input.cancelReason?.trim()) {
       throw badRequest('cancel_reason_required', 'اكتبي سبب الإلغاء');
     }
 
     // Read by the status trigger → recorded in order_status_history.
     await db.query(`SELECT set_config('stylo.actor_id', $1, true), set_config('stylo.status_note', $2, true)`, [
       staff.userId,
-      input.note?.trim() ?? '',
+      failed ? input.cancelReason! : (input.note?.trim() ?? ''),
     ]);
     await db.query(
       `UPDATE orders SET status = $2::order_status,
               cancel_reason = CASE WHEN $2::order_status = 'cancelled' THEN $3::text ELSE cancel_reason END,
+              delivery_failure = $5::text,
               payment_status = CASE WHEN $2::order_status = 'delivered' AND payment_status = 'unpaid'
                                     THEN 'paid'::payment_status ELSE payment_status END,
               -- Cash on delivery: the driver now holds the money (driver custody) until it is handed over.
@@ -204,24 +217,10 @@ export async function changeOrderStatus(
                                         AND driver_id IS NOT NULL AND cash_collected_at IS NULL
                                        THEN $4::timestamptz ELSE cash_collected_at END
         WHERE id = $1`,
-      [id, input.to, input.cancelReason?.trim() ?? null, ctx.now],
+      [id, input.to, input.cancelReason?.trim() ?? null, ctx.now, failed ? input.failureReason : null],
     );
 
-    if (input.to === 'cancelled') {
-      // Put the items back on the shelf.
-      await db.query(
-        `UPDATE product_variants v SET stock_qty = v.stock_qty + oi.quantity
-           FROM order_items oi WHERE oi.order_id = $1 AND oi.variant_id = v.id`,
-        [id],
-      );
-      await db.query(
-        `UPDATE products p SET sold_count = GREATEST(0, p.sold_count - x.qty)
-           FROM (SELECT v.product_id, SUM(oi.quantity) AS qty FROM order_items oi
-                   JOIN product_variants v ON v.id = oi.variant_id WHERE oi.order_id = $1 GROUP BY 1) x
-          WHERE p.id = x.product_id`,
-        [id],
-      );
-    }
+    if (input.to === 'cancelled') await restockOrder(db, id);
     if (row.driver_id) await refreshDriverStatus(db, row.driver_id);
   });
   return getOrder(ctx, staff, id);

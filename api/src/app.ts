@@ -38,6 +38,7 @@ declare module 'fastify' {
   }
   interface FastifyRequest {
     userId: string | null;
+    userGuest: boolean;
   }
 }
 
@@ -73,8 +74,15 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
 
   app.decorate('db', pool);
   app.decorate('config', config);
-  app.decorate('ctx', (req: FastifyRequest): Ctx => ({ db: pool, config, userId: req.userId, now: now() }));
+  app.decorate('ctx', (req: FastifyRequest): Ctx => ({
+    db: pool,
+    config,
+    userId: req.userId,
+    guest: req.userGuest,
+    now: now(),
+  }));
   app.decorateRequest('userId', null);
+  app.decorateRequest('userGuest', false);
   app.decorate('messenger', createMessenger(config.messaging, { db: pool, log: (m) => app.log.info(m), fetch }));
   app.decorate('media', createStorage(config.media, mediaFetch));
 
@@ -99,7 +107,9 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
   app.addHook('onRequest', async (req) => {
     const token = bearerToken(req.headers.authorization);
     if (token) {
-      req.userId = await resolveSession(pool, token, now());
+      const session = await resolveSession(pool, token, now());
+      req.userId = session?.userId ?? null;
+      req.userGuest = session?.guest ?? false;
       return;
     }
     if (config.auth.devHeader) {

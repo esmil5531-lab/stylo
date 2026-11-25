@@ -77,7 +77,7 @@ function OrderView({ order }: { order: AdminOrderDetail }) {
                 {canCancel && (
                   <button className="btn btn-danger" onClick={() => setCancelOpen(true)} disabled={change.isPending}>
                     <Icon name="x" />
-                    إلغاء الطلب
+                    {order.status === 'shipped' ? 'تعذّر التسليم' : 'إلغاء الطلب'}
                   </button>
                 )}
               </div>
@@ -203,11 +203,13 @@ function OrderView({ order }: { order: AdminOrderDetail }) {
 
       {cancelOpen && (
         <CancelDialog
+          failedDelivery={order.status === 'shipped'}
           onClose={() => setCancelOpen(false)}
-          onConfirm={(reason) =>
-            change.mutate({ to: 'cancelled', cancelReason: reason, note: note || undefined }, {
-              onSuccess: () => setCancelOpen(false),
-            })
+          onConfirm={(reason, failureReason) =>
+            change.mutate(
+              { to: 'cancelled', cancelReason: reason || undefined, failureReason, note: note || undefined },
+              { onSuccess: () => setCancelOpen(false) },
+            )
           }
           pending={change.isPending}
           error={change.error}
@@ -284,21 +286,35 @@ function AssignDriver({ order }: { order: AdminOrderDetail }) {
   );
 }
 
+/** Owner-approved reasons for «تعذّر التسليم» (same list as the driver app and the API). */
+const DELIVERY_FAILURES = {
+  no_answer: 'الزبون لا يرد',
+  refused: 'رفض الاستلام',
+  wrong_address: 'عنوان غير صحيح',
+  postponed: 'تأجيل من الزبون',
+} as const;
+type DeliveryFailure = keyof typeof DELIVERY_FAILURES;
+
 function CancelDialog({
+  failedDelivery,
   onClose,
   onConfirm,
   pending,
   error,
 }: {
+  /** The parcel is with the driver: «تعذّر التسليم» with a reason from the list. */
+  failedDelivery: boolean;
   onClose: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, failureReason?: DeliveryFailure) => void;
   pending: boolean;
   error: unknown;
 }) {
   const [reason, setReason] = useState('');
+  const [failure, setFailure] = useState<DeliveryFailure | null>(null);
+  const ready = failedDelivery ? failure !== null : reason.trim().length > 0;
   return (
     <Modal
-      title="إلغاء الطلب"
+      title={failedDelivery ? 'تعذّر التسليم' : 'إلغاء الطلب'}
       onClose={onClose}
       footer={
         <>
@@ -307,17 +323,42 @@ function CancelDialog({
           </button>
           <button
             className="btn btn-danger"
-            disabled={!reason.trim() || pending}
-            onClick={() => onConfirm(reason.trim())}
+            disabled={!ready || pending}
+            onClick={() => onConfirm(reason.trim(), failure ?? undefined)}
           >
-            تأكيد الإلغاء
+            {failedDelivery ? 'تسجيل تعذّر التسليم' : 'تأكيد الإلغاء'}
           </button>
         </>
       }
     >
-      <p style={{ margin: 0 }}>سيُعاد المخزون إلى المتجر ولا يمكن التراجع عن الإلغاء.</p>
-      <Field label="سبب الإلغاء" hint="يظهر للعميلة في تفاصيل الطلب">
-        <textarea className="textarea" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+      <p style={{ margin: 0 }}>
+        {failedDelivery
+          ? 'يُلغى الطلب ولا يُحصَّل أي مبلغ، وتعود القطع إلى مخزون المتجر. على المندوب إرجاعها للمتجر.'
+          : 'سيُعاد المخزون إلى المتجر ولا يمكن التراجع عن الإلغاء.'}
+      </p>
+      {failedDelivery && (
+        <Field label="السبب" required group>
+          <div className="size-chips">
+            {(Object.keys(DELIVERY_FAILURES) as DeliveryFailure[]).map((k) => (
+              <button
+                key={k}
+                type="button"
+                className={`size-chip${failure === k ? ' on' : ''}`}
+                aria-pressed={failure === k}
+                onClick={() => setFailure(k)}
+              >
+                {DELIVERY_FAILURES[k]}
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
+      <Field
+        label={failedDelivery ? 'ملاحظة (اختياري)' : 'سبب الإلغاء'}
+        required={!failedDelivery}
+        hint="يظهر للعميلة في تفاصيل الطلب"
+      >
+        <textarea className="textarea" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus={!failedDelivery} />
       </Field>
       <ErrorAlert error={error} />
     </Modal>
