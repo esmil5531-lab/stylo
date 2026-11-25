@@ -7,15 +7,18 @@ This file is the source of truth for every session working on this repo. Read it
 | | |
 |---|---|
 | Name (Arabic) | **ستايلو** |
-| Name (Latin) | **Stylo** (header wordmark: **STYLO**, serif, deep burgundy) |
-| Official tagline | **كل ستايل في مكان واحد** (exact text — no rewording, no added punctuation) |
+| Name (Latin) | **STYLO** (wordmark: Cinzel capitals, wide tracking, deep navy) |
+| Official tagline | **كل ستايل في مكان واحد** — main Arabic tagline (exact text — no rewording, no added punctuation) |
+| English descriptor | **MORE THAN FASHION** — next to/under the logo (always capitals, wide tracking) |
 | Product | Multi-vendor fashion e-commerce marketplace: many independent stores sell on one platform |
 | Market | **Libya** (LY). Default city for estimates: طرابلس |
 | Currency | **Libyan dinar, LYD, shown as «د.ل»** (e.g. `199 د.ل`). LYD has **3 decimals**: money is stored in **dirhams** (1 د.ل = 1000), so 199 د.ل = `199000` |
 | Primary language | Arabic, RTL. English is secondary/optional |
-| Visual reference | The owner-approved mockup (deep burgundy `#5B0E2D`, soft pink hero, white cards, green «يصلك اليوم» badges). Tokens live in `mobile/src/theme/index.ts`. Do not invent a different look |
+| Visual identity | **Owner-approved STYLO brand (navy)** — read `brand/BRAND_GUIDELINES.md`. Logo: «S» monogram crossed by two parallel 47° blades + STYLO + MORE THAN FASHION (`brand/logo/`). Colours: **Deep Navy `#0B1F2E`** (primary), **Muted Teal `#355E5A`** (secondary; «يصلك اليوم» badges), **Soft Ivory `#F8F6F1`** (backgrounds), **Brushed Silver `#C9C9C9`** (logo/lines on navy only). Single source: `brand/tokens.json`. Global, premium, minimal — do not invent a different look, never use the reference boards' dollar prices or model photos as content |
 
 Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the name or tagline elsewhere.
+
+> **Identity migration (owner decision, Nov 2026):** the old burgundy look (`#5B0E2D`, Cairo font, pink hero) is retired. Step 1 (done): brand assets, logo, icons, splash, tokens. Step 3 (pending): screens, theme (`mobile/src/theme`), admin CSS and server pages move to `brand/tokens.json` — until then some screens still show the old colours; never add new burgundy UI.
 
 ### Core features (must keep working)
 - **One store per cart and per order** (owner decision). A cart holds items from a single store. Adding an item from another store shows a dialog with two choices: «ابدئي سلة جديدة من …» (empties the cart and rebinds it) or «الإبقاء على سلتي الحالية». Never mix stores in a cart, order, shared cart or look.
@@ -35,6 +38,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 ```
 /
 ├── CLAUDE.md                  ← this file
+├── brand/                     ← STYLO identity: logo (SVG/PNG), icons, splash, fonts, tokens.json, BRAND_GUIDELINES.md, scripts/
 ├── admin/                     ← back office web app (Vite + React + TS), RTL — see admin/README.md
 ├── api/                       ← HTTP API (Node 20+, Fastify 5, pg, zod) — see api/README.md
 │   ├── src/app.ts             ← app factory: CORS, dev auth, error handler, /v1 routes
@@ -60,7 +64,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - **Mobile:** Expo **SDK 57** (`expo ~57.0.x`, React Native 0.86, React 19.2), TypeScript strict, Expo Router (file-based, `src/app`), TanStack React Query for server state, expo-image.
 - **API:** Node 20+, Fastify 5, `pg`, zod 4, TypeScript (ESM, `.js` import suffixes), run with `tsx`.
 - **Database:** **PostgreSQL** (16 in dev; 14+ supported). Extensions: `pgcrypto`, `citext`.
-- **Fonts:** Cairo (Arabic UI) + Cinzel (STYLO and store wordmarks), loaded in `src/app/_layout.tsx`.
+- **Fonts:** brand fonts are **IBM Plex Sans Arabic** (all UI text), **Cinzel** (STYLO and store wordmarks), **Playfair Display** (English editorial titles) and **Montserrat** (spaced Latin capitals) — files + OFL licences in `brand/fonts/`. The app still loads Cairo + Cinzel in `src/app/_layout.tsx` until the screen migration (identity step 3).
 - Do not upgrade the Expo SDK without an explicit request. Expo APIs change every SDK — check the versioned docs at `https://docs.expo.dev/versions/v57.0.0/` instead of relying on memory.
 
 ## 4. Mobile rules
@@ -87,7 +91,7 @@ Brand constants live in `mobile/src/constants/brand.ts`. Never hard-code the nam
 - In SDK 57, `<Link asChild>` throws if the child gets an **array** style. Use `Pressable` + `router.push(...)` for styled tappable cards.
 - **Notifications («الإشعارات»)**: the home bell opens `/notifications`, built from `GET /v1/me/notifications` (the customer's `order_status_history`, newest first; the note is shown only for cancellations). Read state is per device (`lib/notificationsSeen.ts`); on first use only the last 48 h count as new. The bell shows the unread count like the cart badge.
 - Unknown links render `src/app/+not-found.tsx` (Arabic, branded; the server answers 404 with it). Expo's `_sitemap.html` is never served.
-- Icon, adaptive icon, splash (`expo-splash-screen` plugin: white background, burgundy STYLO) and favicon in `mobile/assets/` are **temporary Stylo artwork** (Cinzel «S» / «STYLO» on `#5B0E2D`) until the owner sends the official logo — replace the PNGs at the same sizes (1024², favicon 196²).
+- Icon, adaptive icon (navy background), splash (`expo-splash-screen`: navy `#0B1F2E` + silver monogram, STYLO, Arabic tagline, MORE THAN FASHION) and favicon in `mobile/assets/` are **generated** from `brand/` — never edit them by hand: `python brand/scripts/build_logo.py && node brand/scripts/render.mjs` (also installs `admin/public/favicon.svg` + `apple-touch-icon.png`).
 - Product/banner photos come from the API (`product_images`, `banners.image_url`). Without a photo, `ProductImage` draws a tinted tile with a garment icon — keep that fallback.
 
 ### Code
