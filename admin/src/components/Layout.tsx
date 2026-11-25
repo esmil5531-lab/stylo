@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet } from 'react-router';
+import { NavLink, Outlet, useLocation } from 'react-router';
 
 import { useMe } from '@/api/hooks';
 import type { Me, Permission } from '@/api/types';
@@ -8,7 +8,7 @@ import { request, ApiError, errorMessage } from '@/api/client';
 import { clearToken, getToken } from '@/lib/session';
 import { LoginPage } from '@/pages/Login';
 
-import { Async, Icon } from './ui';
+import { Async, Empty, Icon } from './ui';
 
 const NAV: {
   to: string;
@@ -65,6 +65,7 @@ export function Layout() {
 
 function SignedIn() {
   const me = useMe();
+  const location = useLocation();
   if (me.isError) {
     const err = me.error;
     // Signed in, but not (or no longer) allowed into the back office.
@@ -103,11 +104,28 @@ function SignedIn() {
           </button>
         </header>
         <main className="content">
-          <Async query={me}>{() => <Outlet />}</Async>
+          <Async query={me}>
+            {(m) =>
+              canOpen(m, location.pathname) ? (
+                <Outlet />
+              ) : (
+                <Empty title="ليست لديك صلاحية لهذه الصفحة" hint="اطلبي الصلاحية من مدير ستايلو إن كنتِ تحتاجينها." />
+              )
+            }
+          </Async>
         </main>
       </div>
     </div>
   );
+}
+
+/**
+ * A page typed directly in the address bar is opened only with its permission (the same one that
+ * shows it in the menu), so it never fires requests the API would refuse. The API stays the guard.
+ */
+function canOpen(me: Me, pathname: string): boolean {
+  const item = NAV.find((n) => n.to !== '/' && (pathname === n.to || pathname.startsWith(`${n.to}/`)));
+  return !item || me.permissions.includes(item.permission);
 }
 
 async function signOut() {

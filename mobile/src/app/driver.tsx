@@ -10,6 +10,7 @@ import {
   useDriverOrders,
   useDriverPickUp,
   useDriverStatus,
+  useMe,
 } from '@/api/hooks';
 import type { DeliveryFailure, DriverHome, DriverOrder } from '@/api/types';
 import { Button } from '@/components/Button';
@@ -35,9 +36,12 @@ const GROUPS = ['shipped', 'processing', 'confirmed'] as const;
  */
 export default function DriverScreen() {
   const { signedIn } = useSession();
+  const me = useMe();
   const home = useDriverHome();
   const orders = useDriverOrders();
-  const notDriver = home.error instanceof ApiError && home.error.status === 403;
+  const notDriver =
+    (me.data !== undefined && me.data.role !== 'driver') ||
+    (home.error instanceof ApiError && home.error.status === 403);
 
   return (
     <View style={styles.screen}>
@@ -46,6 +50,8 @@ export default function DriverScreen() {
         <SignInPrompt />
       ) : notDriver ? (
         <Text style={styles.notice}>{t.notDriver}</Text>
+      ) : me.isError ? (
+        <QueryState query={me}>{() => null}</QueryState>
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}

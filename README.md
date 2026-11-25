@@ -40,6 +40,14 @@ npm start
 
 بعد أي `npm run build` جديد أعيدي تشغيل `npm start` (الخادم يقرأ ملفات الموقعين عند بدء التشغيل).
 
+للتأكد أن كل شيء يعمل، شغّلي في نافذة ثانية والخادم يعمل:
+
+```bash
+npm run check:site
+```
+
+أو على عنوان الشبكة: `npm run check:site -- http://10.19.26.252:4000`. يفحص الاتصال بقاعدة البيانات، وكل صفحات موقع الزبائن (الثابتة والديناميكية بأرقام حقيقية من الـ API) وملفات JavaScript الخاصة بها، وصفحة 404، و`robots.txt` و`sitemap.xml`، وموقع الإدارة وملفاته، وأهم مسارات `/v1`. ينتهي بـ «N/N passed ✓» أو بقائمة ما فشل وسببه.
+
 ## قاعدة بيانات Supabase
 
 لاستخدام Supabase بدل PostgreSQL المحلي اتبعي [docs/SUPABASE.md](docs/SUPABASE.md) (استخدمي عنوان **Session pooler**، ثم `npm run db:check`).

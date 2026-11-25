@@ -289,9 +289,12 @@ export function useToggleWishlist() {
 }
 
 // ---------------------------------------------------------------- driver mode
+/** Driver endpoints are only called for a `driver` account (others would just get 403s). */
+const useIsDriver = () => useMe().data?.role === 'driver';
+
 export const useDriverHome = () =>
   useQuery({
-    enabled: useSession().signedIn,
+    enabled: useIsDriver(),
     queryKey: [...queryKeys.driver, 'me'],
     queryFn: () => api.get<DriverHome>('/driver/me'),
     refetchInterval: 60_000,
@@ -299,7 +302,7 @@ export const useDriverHome = () =>
 
 export const useDriverOrders = () =>
   useQuery({
-    enabled: useSession().signedIn,
+    enabled: useIsDriver(),
     queryKey: [...queryKeys.driver, 'orders'],
     queryFn: () => api.get<DriverOrders>('/driver/orders'),
     refetchInterval: 30_000,

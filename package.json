@@ -16,6 +16,7 @@
     "brand:tokens": "node brand/scripts/build-tokens.mjs",
     "brand:assets": "node brand/scripts/render.mjs",
     "check": "npm --prefix api run typecheck && npm --prefix admin run typecheck && npm --prefix mobile run typecheck && npm --prefix mobile run lint",
-    "test": "npm --prefix api test"
+    "test": "npm --prefix api test",
+    "check:site": "node scripts/check-site.mjs"
   }
 }
