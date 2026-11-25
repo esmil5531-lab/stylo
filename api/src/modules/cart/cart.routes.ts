@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
+import { enforceLimit, optionalLimiter } from '../../lib/rate-limit.js';
 import { Id } from '../../lib/validation.js';
 import {
   addToCart,
@@ -45,7 +46,9 @@ export async function cartRoutes(app: FastifyInstance) {
   app.delete('/cart', async (req) => clearCart(app.ctx(req)));
 
   // ------------------------------------------------------------ sharing
+  const shares = optionalLimiter(app.config.limits.enabled, app.config.limits.sharePerUserHour, 3_600_000);
   app.post('/cart/share', async (req, reply) => {
+    enforceLimit(shares, app.ctx(req).userId ?? req.ip, reply);
     reply.status(201);
     return shareCart(app.ctx(req));
   });

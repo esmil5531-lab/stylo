@@ -67,6 +67,10 @@ const EnvSchema = z.object({
   /** Max size of one uploaded photo in MB (before compression). */
   MEDIA_MAX_MB: z.coerce.number().positive().max(50).default(10),
   OTP_MAX_PER_IP_HOUR: z.coerce.number().int().positive().default(30),
+  /** Extra request limits (see LimitsConfig). Default: on, except in tests. */
+  RATE_LIMITS: bool,
+  /** Requests per IP address per minute on /v1 (carrier NAT: many customers share one IP). */
+  API_MAX_PER_IP_MINUTE: z.coerce.number().int().positive().default(1200),
   SUPABASE_URL: z.string().url().optional(),
   /** Supabase "service_role" key — server only, never in the app or the admin site. */
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
@@ -152,6 +156,7 @@ export interface Config {
   messaging: MessagingConfig;
   web: { customerDir?: string; adminDir?: string };
   media: MediaConfig;
+  limits: LimitsConfig;
   seo: SeoConfig;
   trustProxy: boolean;
   /** true = reflect any origin (development); otherwise the listed origins only. */
@@ -160,6 +165,22 @@ export interface Config {
   currency: 'LYD';
   delivery: DeliveryConfig;
   shareLinkBase: string;
+}
+
+/**
+ * In-memory request limits (one server process). The sign-in code limits live in AuthConfig and
+ * are always on; these protect the rest: brute force, spam orders, upload floods, scraping.
+ */
+export interface LimitsConfig {
+  enabled: boolean;
+  apiPerIpMinute: number;
+  /** Code checks per IP per hour (guessing codes across many numbers). */
+  otpVerifyPerIpHour: number;
+  refreshPerIpHour: number;
+  checkoutPerUserHour: number;
+  sharePerUserHour: number;
+  reviewsPerUserHour: number;
+  uploadsPerUserHour: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -242,6 +263,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         e.SUPABASE_URL && e.SUPABASE_SERVICE_ROLE_KEY
           ? { url: e.SUPABASE_URL.replace(/\/$/, ''), serviceKey: e.SUPABASE_SERVICE_ROLE_KEY, bucket: e.SUPABASE_STORAGE_BUCKET }
           : undefined,
+    },
+    limits: {
+      enabled: e.RATE_LIMITS ?? e.NODE_ENV !== 'test',
+      apiPerIpMinute: e.API_MAX_PER_IP_MINUTE,
+      otpVerifyPerIpHour: 60,
+      refreshPerIpHour: 600,
+      checkoutPerUserHour: 20,
+      sharePerUserHour: 30,
+      reviewsPerUserHour: 30,
+      uploadsPerUserHour: 300,
     },
     seo: {
       siteUrl: e.PUBLIC_SITE_URL?.replace(/\/$/, ''),

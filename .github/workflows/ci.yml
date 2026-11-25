@@ -1,0 +1,105 @@
+# Every push and pull request: the API against a real PostgreSQL, the back office and the
+# customer app (typecheck, lint, web export), then the whole site served by one server and
+# checked end to end with `npm run check:site` — the same check you run after each update.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  api:
+    name: API — typecheck, audit, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: stylo
+          POSTGRES_PASSWORD: stylo
+          POSTGRES_DB: stylo_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U stylo" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://stylo:stylo@localhost:5432/stylo_test
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      # sharp and @fastify/static handle untrusted uploads/paths: no known high-severity issues.
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm test
+
+  site:
+    name: Websites — build and check every route
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: stylo
+          POSTGRES_PASSWORD: stylo
+          POSTGRES_DB: stylo_dev
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U stylo" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://stylo:stylo@localhost:5432/stylo_dev
+      MESSAGING_PROVIDER: console
+      # The check makes many requests from one address in a few seconds.
+      API_MAX_PER_IP_MINUTE: '100000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            api/package-lock.json
+            admin/package-lock.json
+            mobile/package-lock.json
+      - name: Install
+        run: |
+          npm --prefix api ci
+          npm --prefix admin ci
+          npm --prefix mobile ci
+      - name: Typecheck and lint the apps
+        run: |
+          npm --prefix admin run typecheck
+          npm --prefix mobile run typecheck
+          npm --prefix mobile run lint
+      - name: Database (migrations + dev data)
+        run: npm run db:reset
+      - name: Build API, customer site, back office
+        run: npm run build
+      - name: Start the server
+        run: |
+          npm start > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:4000/health && break; sleep 1; done
+      - name: Check the site end to end
+        run: npm run check:site
+      - name: Server log
+        if: failure()
+        run: tail -n 200 server.log

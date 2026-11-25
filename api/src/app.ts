@@ -7,6 +7,8 @@ import type { Pool } from './db.js';
 import type { Ctx } from './lib/context.js';
 import { diagnoseDbError } from './lib/database.js';
 import { isOutdatedSchemaError, pendingMigrations } from './lib/migrations.js';
+import { enforceLimit, optionalLimiter } from './lib/rate-limit.js';
+import { securityHeaders } from './lib/security-headers.js';
 import { AppError } from './lib/errors.js';
 import { createMessenger, type FetchLike, type Messenger } from './lib/messaging.js';
 import { createStorage, type MediaStorage } from './lib/media.js';
@@ -92,13 +94,12 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
   // needs no CORS at all unless CORS_ORIGINS lists another site.
   await app.register(cors, { origin: config.corsOrigins });
 
+  // nosniff, referrer, no framing, CSP on the websites' HTML (src/lib/security-headers.ts).
+  // HSTS is set by Caddy in production (deploy/Caddyfile).
+  const production = config.env === 'production';
   app.addHook('onSend', async (req, reply, payload) => {
-    reply.header('x-content-type-options', 'nosniff');
-    reply.header('referrer-policy', 'strict-origin-when-cross-origin');
-    const url = req.url;
-    if (url.startsWith('/v1') || url.startsWith('/admin')) reply.header('x-robots-tag', 'noindex, nofollow');
-    if (url.startsWith('/admin')) reply.header('x-frame-options', 'DENY');
-    else reply.header('x-frame-options', 'SAMEORIGIN');
+    const type = String(reply.getHeader('content-type') ?? '');
+    reply.headers(securityHeaders(req.url, type, payload, { production }));
     return payload;
   });
 
@@ -232,6 +233,9 @@ export async function buildApp({ pool, config, now = () => new Date(), logger = 
 
   await app.register(
     async (v1) => {
+      // Every /v1 request counts per IP (scraping, floods). Generous: carriers NAT many phones.
+      const perIp = optionalLimiter(config.limits.enabled, config.limits.apiPerIpMinute, 60_000);
+      if (perIp) v1.addHook('onRequest', async (req, reply) => enforceLimit(perIp, req.ip, reply));
       await v1.register(authRoutes);
       await v1.register(homeRoutes);
       await v1.register(catalogRoutes);

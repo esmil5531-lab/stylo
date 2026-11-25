@@ -42,7 +42,10 @@
     "web": "expo start --web",
     "export:web": "expo export --platform web --output-dir dist && node scripts/fix-web-export.mjs dist",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "eas-build-post-install": "node scripts/check-eas-env.mjs",
+    "build:android:preview": "eas build --platform android --profile preview",
+    "build:production": "eas build --platform all --profile production"
   },
   "private": true
 }

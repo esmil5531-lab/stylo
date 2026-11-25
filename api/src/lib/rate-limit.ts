@@ -1,3 +1,5 @@
+import { AppError } from './errors.js';
+
 /**
  * Small in-memory sliding-window limiter (one server process, as deployed).
  * Used for sign-in codes per IP: each code is a paid WhatsApp/SMS message, so one address must
@@ -22,4 +24,26 @@ export function createRateLimiter(limit: number, windowMs: number) {
       return 0;
     },
   };
+}
+
+export type RateLimiter = ReturnType<typeof createRateLimiter>;
+
+/** A limiter for one action, or null when limits are off (tests). */
+export function optionalLimiter(enabled: boolean, limit: number, windowMs: number): RateLimiter | null {
+  return enabled ? createRateLimiter(limit, windowMs) : null;
+}
+
+/** Counts a hit; over the limit → 429 with Retry-After and an Arabic message. */
+export function enforceLimit(
+  limiter: RateLimiter | null,
+  key: string,
+  reply: { header(name: string, value: string): unknown },
+  code = 'rate_limited',
+  message = 'طلبات كثيرة، حاولي بعد قليل',
+): void {
+  const wait = limiter?.hit(key) ?? 0;
+  if (wait > 0) {
+    reply.header('retry-after', String(wait));
+    throw new AppError(429, code, message, { retryAfter: wait });
+  }
 }

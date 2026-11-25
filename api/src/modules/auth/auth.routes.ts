@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 import { AppError, unauthorized } from '../../lib/errors.js';
-import { createRateLimiter } from '../../lib/rate-limit.js';
+import { createRateLimiter, enforceLimit, optionalLimiter } from '../../lib/rate-limit.js';
 import { createGuest, refreshSession, requestOtp, revokeSession, verifyOtp } from './auth.service.js';
 
 const Phone = z.string().trim().min(9).max(20);
@@ -14,6 +14,9 @@ export function bearerToken(header: string | undefined): string | null {
 
 export async function authRoutes(app: FastifyInstance) {
   const perIp = createRateLimiter(app.config.auth.otpMaxPerIpHour, 3_600_000);
+  const { limits } = app.config;
+  const verifiesPerIp = optionalLimiter(limits.enabled, limits.otpVerifyPerIpHour, 3_600_000);
+  const refreshesPerIp = optionalLimiter(limits.enabled, limits.refreshPerIpHour, 3_600_000);
 
   app.post('/auth/otp/request', async (req, reply) => {
     const { phone } = z.object({ phone: Phone }).parse(req.body);
@@ -25,7 +28,9 @@ export async function authRoutes(app: FastifyInstance) {
     return requestOtp(app.ctx(req), app.messenger, phone);
   });
 
-  app.post('/auth/otp/verify', async (req) => {
+  app.post('/auth/otp/verify', async (req, reply) => {
+    // Per phone: 5 wrong attempts per code. Per IP: guessing across many numbers.
+    enforceLimit(verifiesPerIp, req.ip, reply, 'otp_verify_limit', 'محاولات كثيرة من هذا الاتصال، حاولي بعد قليل');
     const body = z
       .object({
         phone: Phone,
@@ -40,7 +45,8 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   /** New access + refresh pair from a refresh token (rotation). No code, no bearer needed. */
-  app.post('/auth/refresh', async (req) => {
+  app.post('/auth/refresh', async (req, reply) => {
+    enforceLimit(refreshesPerIp, req.ip, reply);
     const { refreshToken } = z.object({ refreshToken: z.string().regex(/^[A-Za-z0-9_-]{20,200}$/) }).parse(req.body);
     return refreshSession(app.ctx(req), refreshToken);
   });

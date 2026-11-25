@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
+import { enforceLimit, optionalLimiter } from '../../lib/rate-limit.js';
 import { Id, IdParams } from '../../lib/validation.js';
 import { assignDriver, changeOrderStatus, getOrder, listOrders, ORDER_STATUSES } from './orders.admin.js';
 import {
@@ -318,9 +319,11 @@ export async function adminRoutes(app: FastifyInstance) {
     look: 'looks.manage',
     category: 'categories.manage',
   };
+  const uploads = optionalLimiter(app.config.limits.enabled, app.config.limits.uploadsPerUserHour, 3_600_000);
   app.post('/uploads', async (req, reply) => {
     const { purpose } = z.object({ purpose: z.enum(['product', 'banner', 'look', 'category']) }).parse(req.query);
     const staff = can(req, UPLOAD_PERMISSION[purpose]);
+    enforceLimit(uploads, staff.userId, reply, 'upload_limit', 'صور كثيرة خلال ساعة، حاولي بعد قليل');
     if (!Buffer.isBuffer(req.body)) {
       throw badRequest('image_required', 'أرسلي الصورة نفسها (JPG أو PNG أو WebP)');
     }

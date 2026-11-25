@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 
 import { useMe } from '@/api/hooks';
@@ -66,6 +66,17 @@ export function Layout() {
 function SignedIn() {
   const me = useMe();
   const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const contentRef = useRef<HTMLElement>(null);
+  // Phones: the menu is a drawer; it closes on navigation and with Escape.
+  useEffect(() => setMenuOpen(false), [location.pathname]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
+  useTableCardLabels(contentRef);
   if (me.isError) {
     const err = me.error;
     // Signed in, but not (or no longer) allowed into the back office.
@@ -75,8 +86,8 @@ function SignedIn() {
     }
   }
   return (
-    <div className="shell">
-      <aside className="sidebar">
+    <div className={`shell${menuOpen ? ' menu-open' : ''}`}>
+      <aside className="sidebar" id="admin-menu">
         <div className="brand">
           <img className="brand-logo" src={`${import.meta.env.BASE_URL}brand/logo-horizontal-reversed.svg`} alt="STYLO — MORE THAN FASHION" />
           {/* STYLO Admin for Stylo staff, STYLO Store for a store's own team. */}
@@ -96,14 +107,26 @@ function SignedIn() {
         <div className="sidebar-foot">ستايلو — كل ستايل في مكان واحد</div>
       </aside>
 
+      <div className="menu-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />
+
       <div className="main">
         <header className="topbar">
+          <button
+            type="button"
+            className="menu-btn"
+            aria-label="القائمة"
+            aria-expanded={menuOpen}
+            aria-controls="admin-menu"
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            <Icon name={menuOpen ? 'x' : 'menu'} size={22} />
+          </button>
           {me.data ? <Who me={me.data} /> : <span />}
           <button className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
             تسجيل الخروج
           </button>
         </header>
-        <main className="content">
+        <main className="content" ref={contentRef}>
           <Async query={me}>
             {(m) =>
               canOpen(m, location.pathname) ? (
@@ -117,6 +140,33 @@ function SignedIn() {
       </div>
     </div>
   );
+}
+
+/**
+ * Phones show tables as cards (CSS, ≤ 700 px): each cell needs its column title as `data-label`.
+ * Pages keep plain <table className="table"> markup; this copies the <th> text onto the cells
+ * whenever the content changes. Add `table-scroll` to a table that must stay a grid (inputs matrix).
+ */
+function useTableCardLabels(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    const label = () => {
+      for (const table of root.querySelectorAll<HTMLTableElement>('table.table:not(.table-scroll)')) {
+        const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent?.trim() ?? '');
+        for (const row of table.querySelectorAll<HTMLTableRowElement>('tbody tr, tfoot tr')) {
+          [...row.cells].forEach((cell, i) => {
+            const text = cell.colSpan > 1 ? '' : (heads[i] ?? '');
+            if (cell.dataset.label !== text) cell.dataset.label = text;
+          });
+        }
+      }
+    };
+    label();
+    const observer = new MutationObserver(label);
+    observer.observe(root, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [ref]);
 }
 
 /**

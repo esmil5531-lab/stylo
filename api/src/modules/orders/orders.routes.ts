@@ -1,13 +1,18 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
+import { enforceLimit, optionalLimiter } from '../../lib/rate-limit.js';
 import { Id, IdParams, Pagination } from '../../lib/validation.js';
 import { DELIVERY_MODES } from '../delivery/delivery.js';
 import { notifyOrderStatus } from './notify.js';
 import { cancelOwnOrder, checkout, getOrder, listNotifications, listOrders } from './orders.service.js';
 
 export async function ordersRoutes(app: FastifyInstance) {
+  const { limits } = app.config;
+  const checkoutsPerUser = optionalLimiter(limits.enabled, limits.checkoutPerUserHour, 3_600_000);
+
   app.post('/checkout', async (req, reply) => {
+    enforceLimit(checkoutsPerUser, app.ctx(req).userId ?? req.ip, reply, 'checkout_limit', 'طلبات كثيرة خلال ساعة، تواصلي معنا إن احتجتِ المزيد');
     const body = z
       .object({
         deliveryMode: z.enum(DELIVERY_MODES),

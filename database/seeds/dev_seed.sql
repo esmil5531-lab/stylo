@@ -352,13 +352,15 @@ UPDATE orders o
  WHERE o.status = 'delivered' AND o.payment_method = 'cod' AND o.driver_id IS NOT NULL;
 
 -- Earlier days were handed over every evening to أحمد الزوي (one settlement per driver per day);
--- only deliveries of the last two days are still in custody.
+-- the deliveries of the last ~30 hours (whole Libya days) are still in custody. The cutoff is the
+-- start of the day 30 hours ago, not "yesterday": just after midnight, "yesterday" would settle the
+-- most recent seeded deliveries too and leave a driver with nothing in custody.
 WITH days AS (
   SELECT driver_id, (cash_collected_at AT TIME ZONE 'Africa/Tripoli')::date AS day,
          count(*)::int AS n, sum(total) AS amount
     FROM orders
    WHERE cash_collected_at IS NOT NULL
-     AND cash_collected_at < (date_trunc('day', now() AT TIME ZONE 'Africa/Tripoli') - interval '1 day') AT TIME ZONE 'Africa/Tripoli'
+     AND cash_collected_at < date_trunc('day', (now() - interval '30 hours') AT TIME ZONE 'Africa/Tripoli') AT TIME ZONE 'Africa/Tripoli'
    GROUP BY 1, 2
 ), ins AS (
   INSERT INTO driver_settlements (driver_id, orders_count, amount_expected, amount_received, received_by, settled_at, note)

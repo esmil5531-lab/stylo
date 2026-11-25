@@ -258,7 +258,7 @@ function ProductEditor({ initial }: { initial?: AdminProductDetail }) {
               <BulkFill onApply={(v) => matrix.forEach(({ key }) => setCell(key, { stock: v }))} />
             </div>
             <div className="table-wrap">
-              <table className="table matrix">
+              <table className="table matrix table-scroll">
                 <thead>
                   <tr>
                     <th>المقاس</th>
