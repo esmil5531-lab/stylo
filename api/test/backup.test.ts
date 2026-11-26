@@ -160,6 +160,8 @@ describe('backup → restore (database + photos)', () => {
       keepDays: 14,
       passphrase: 'a-long-test-passphrase-123',
       testDatabaseUrl: RESTORE_DB,
+      // CI points this at the server's version (several client versions may be installed).
+      pgBin: process.env.PG_BIN,
       production: false,
     };
   });
