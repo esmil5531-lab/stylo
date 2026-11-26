@@ -20,6 +20,7 @@ import { SignInPrompt } from '@/components/SignInPrompt';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ar } from '@/i18n/ar';
 import { deliveryModeLabel, formatDate, formatLibyaTime, formatPrice, whatsappNumber } from '@/lib/format';
+import { useNewAssignments } from '@/lib/driverNewOrders';
 import { useSession } from '@/lib/session';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
@@ -39,6 +40,7 @@ export default function DriverScreen() {
   const me = useMe();
   const home = useDriverHome();
   const orders = useDriverOrders();
+  const fresh = useNewAssignments(orders.data?.active.map((o) => o.id));
   const notDriver =
     (me.data !== undefined && me.data.role !== 'driver') ||
     (home.error instanceof ApiError && home.error.status === 403);
@@ -66,6 +68,20 @@ export default function DriverScreen() {
             />
           }
         >
+          {fresh.newIds.length > 0 && orders.data && (
+            <View style={styles.newBanner} accessibilityRole="alert">
+              <Ionicons name="notifications" size={20} color={colors.white} />
+              <Text style={styles.newBannerText}>
+                {t.newAssigned(
+                  orders.data.active.filter((o) => fresh.newIds.includes(o.id)).map((o) => o.orderNumber),
+                )}
+              </Text>
+              <Pressable onPress={fresh.dismiss} accessibilityRole="button" hitSlop={8} style={styles.newBannerOk}>
+                <Text style={styles.newBannerOkText}>{t.newAssignedOk}</Text>
+              </Pressable>
+            </View>
+          )}
+
           <QueryState query={home}>{(h) => <Summary home={h} />}</QueryState>
 
           <QueryState query={orders}>
@@ -91,7 +107,7 @@ export default function DriverScreen() {
                       </View>
                       <Text style={styles.muted}>{t.groups[status].hint}</Text>
                       {list.map((order) => (
-                        <OrderCard key={order.id} order={order} />
+                        <OrderCard key={order.id} order={order} isNew={fresh.newIds.includes(order.id)} />
                       ))}
                     </View>
                   );
@@ -198,7 +214,7 @@ function mapsUrl(parts: (string | null | undefined)[]): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
-function OrderCard({ order }: { order: DriverOrder }) {
+function OrderCard({ order, isNew }: { order: DriverOrder; isNew: boolean }) {
   const pickUp = useDriverPickUp();
   const deliver = useDriverDeliver();
   const [confirming, setConfirming] = useState<'pickup' | 'deliver' | null>(null);
@@ -237,10 +253,15 @@ function OrderCard({ order }: { order: DriverOrder }) {
   );
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, isNew && styles.cardNew]}>
       <View style={styles.rowBetween}>
         <Text style={styles.orderNo}>{t.order(order.orderNumber)}</Text>
         <View style={styles.row}>
+          {isNew && (
+            <View style={styles.newTag}>
+              <Text style={styles.newTagText}>{t.newTag}</Text>
+            </View>
+          )}
           {order.isExpress && (
             <View style={styles.express}>
               <Ionicons name="flash" size={12} color={colors.sale} />
@@ -558,6 +579,20 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   orderNo: { fontFamily: fonts.extraBold, fontSize: 16, lineHeight: 26, color: colors.ink },
+  cardNew: { borderWidth: 2, borderColor: colors.secondary },
+  newTag: { backgroundColor: colors.secondary, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  newTagText: { fontFamily: fonts.bold, fontSize: 12, lineHeight: 18, color: colors.white },
+  newBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.secondary,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  newBannerText: { flex: 1, fontFamily: fonts.bold, fontSize: 15, lineHeight: 24, color: colors.white },
+  newBannerOk: { backgroundColor: colors.white, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 6 },
+  newBannerOkText: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 22, color: colors.secondary },
   express: {
     flexDirection: 'row',
     alignItems: 'center',

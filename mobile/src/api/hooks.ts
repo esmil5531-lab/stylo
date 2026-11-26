@@ -305,7 +305,8 @@ export const useDriverOrders = () =>
     enabled: useIsDriver(),
     queryKey: [...queryKeys.driver, 'orders'],
     queryFn: () => api.get<DriverOrders>('/driver/orders'),
-    refetchInterval: 30_000,
+    // A newly assigned order shows (and vibrates) within 20 s while the app is open.
+    refetchInterval: 20_000,
   });
 
 function useDriverMutation<V, R>(fn: (v: V) => Promise<R>) {

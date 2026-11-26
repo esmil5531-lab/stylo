@@ -442,3 +442,15 @@ export interface AdminReview {
   storeName: string;
   customer: { name: string; phone: string | null };
 }
+
+/** «تنبيهات الطلبات» (GET /admin/alerts). */
+export interface OrderAlerts {
+  pending: { count: number; newestOrderNumber: number | null; newestAt: string | null };
+  late: {
+    count: number;
+    minutes: number;
+    items: { id: string; orderNumber: number; storeName: string; placedAt: string; waitingMinutes: number }[];
+  };
+  unassigned: { count: number; oldestAt: string | null } | null;
+  autoCancelMinutes: number;
+}

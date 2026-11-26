@@ -33,6 +33,7 @@ import type {
   Role,
   StaffMember,
   StoreStatus,
+  OrderAlerts,
   Vehicle,
 } from './types';
 
@@ -433,3 +434,14 @@ export const useSetReviewHidden = () =>
       request<{ ok: true }>('POST', `/admin/reviews/${id}/visibility`, { hidden }),
     [['reviews']],
   );
+
+// ---------------------------------------------------------------- order alerts
+/** Polled on every page (also while the tab is in the background) so new orders are never missed. */
+export const useOrderAlerts = (enabled: boolean) =>
+  useQuery({
+    enabled,
+    queryKey: ['order-alerts'],
+    queryFn: () => get<OrderAlerts>('/admin/alerts'),
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: true,
+  });

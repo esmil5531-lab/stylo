@@ -286,6 +286,12 @@ export const ar = {
     lastSettlement: (amount: string, by: string, when: string) => `آخر تسليم للعُهدة: ${amount} إلى ${by} — ${when}`,
     deliveredToday: (n: number) => `سلّمت اليوم: ${n}`,
     noActive: 'لا توجد طلبات مسندة إليك الآن',
+    newAssigned: (numbers: number[]) =>
+      numbers.length === 1
+        ? `طلب جديد مُسند إليك: \u2066#${numbers[0]}\u2069`
+        : `${numbers.length === 2 ? 'طلبان جديدان مُسندان' : `${numbers.length} طلبات جديدة مُسندة`} إليك`,
+    newAssignedOk: 'حسناً',
+    newTag: 'جديد',
     noActiveHint: 'ستظهر هنا فور إسناد طلب لك. اسحب الشاشة للأسفل للتحديث.',
     groups: {
       shipped: { title: 'في الطريق إلى الزبون', hint: 'سلّمها الآن وحصّل المبلغ' },

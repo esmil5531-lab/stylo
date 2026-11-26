@@ -67,6 +67,10 @@ const EnvSchema = z.object({
   /** Max size of one uploaded photo in MB (before compression). */
   MEDIA_MAX_MB: z.coerce.number().positive().max(50).default(10),
   OTP_MAX_PER_IP_HOUR: z.coerce.number().int().positive().default(30),
+  /** A pending order older than this (minutes) is flagged in the back office (late, unconfirmed). */
+  PENDING_ALERT_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(15),
+  /** Cancel pending orders the store has not confirmed after this many minutes. 0 = never (default). */
+  PENDING_AUTO_CANCEL_MINUTES: z.coerce.number().int().min(0).max(7 * 24 * 60).default(0),
   /** Extra request limits (see LimitsConfig). Default: on, except in tests. */
   RATE_LIMITS: bool,
   /** Requests per IP address per minute on /v1 (carrier NAT: many customers share one IP). */
@@ -157,6 +161,7 @@ export interface Config {
   web: { customerDir?: string; adminDir?: string };
   media: MediaConfig;
   limits: LimitsConfig;
+  orderAlerts: OrderAlertsConfig;
   seo: SeoConfig;
   trustProxy: boolean;
   /** true = reflect any origin (development); otherwise the listed origins only. */
@@ -181,6 +186,13 @@ export interface LimitsConfig {
   sharePerUserHour: number;
   reviewsPerUserHour: number;
   uploadsPerUserHour: number;
+}
+
+/** «تنبيهات الطلبات»: when an unconfirmed order counts as late, and the optional auto-cancel. */
+export interface OrderAlertsConfig {
+  pendingAlertMinutes: number;
+  /** 0 = off. Otherwise pending orders older than this are cancelled (restocked, customer told). */
+  autoCancelPendingMinutes: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -263,6 +275,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         e.SUPABASE_URL && e.SUPABASE_SERVICE_ROLE_KEY
           ? { url: e.SUPABASE_URL.replace(/\/$/, ''), serviceKey: e.SUPABASE_SERVICE_ROLE_KEY, bucket: e.SUPABASE_STORAGE_BUCKET }
           : undefined,
+    },
+    orderAlerts: {
+      pendingAlertMinutes: e.PENDING_ALERT_MINUTES,
+      autoCancelPendingMinutes: e.PENDING_AUTO_CANCEL_MINUTES,
     },
     limits: {
       enabled: e.RATE_LIMITS ?? e.NODE_ENV !== 'test',

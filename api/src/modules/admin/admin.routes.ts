@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { enforceLimit, optionalLimiter } from '../../lib/rate-limit.js';
 import { Id, IdParams } from '../../lib/validation.js';
+import { getOrderAlerts } from './alerts.admin.js';
 import { assignDriver, changeOrderStatus, getOrder, listOrders, ORDER_STATUSES } from './orders.admin.js';
 import {
   createProduct,
@@ -644,6 +645,8 @@ export async function adminRoutes(app: FastifyInstance) {
     notifyOrderStatus(app, id);
     return order;
   });
+  /** «تنبيهات الطلبات»: new / late pending orders (+ orders without a driver for dispatch). */
+  app.get('/alerts', async (req) => getOrderAlerts(app.ctx(req), can(req, 'orders.read')));
   app.post('/orders/:id/driver', async (req) => {
     const staff = can(req, 'orders.assign_driver');
     const { id } = IdParams.parse(req.params);

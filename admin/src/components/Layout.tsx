@@ -8,6 +8,7 @@ import { request, ApiError, errorMessage } from '@/api/client';
 import { clearToken, getToken } from '@/lib/session';
 import { LoginPage } from '@/pages/Login';
 
+import { OrderAlertsBar } from './OrderAlerts';
 import { Async, Empty, Icon } from './ui';
 
 const NAV: {
@@ -130,7 +131,10 @@ function SignedIn() {
           <Async query={me}>
             {(m) =>
               canOpen(m, location.pathname) ? (
-                <Outlet />
+                <>
+                  <OrderAlertsBar me={m} />
+                  <Outlet />
+                </>
               ) : (
                 <Empty title="ليست لديك صلاحية لهذه الصفحة" hint="اطلبي الصلاحية من مدير ستايلو إن كنتِ تحتاجينها." />
               )

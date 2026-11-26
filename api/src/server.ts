@@ -3,7 +3,9 @@ import { loadConfig } from './config.js';
 import { createPool } from './db.js';
 import { databaseHost, diagnoseDbError, redactUrl, resolveSslMode } from './lib/database.js';
 import { pendingMigrations } from './lib/migrations.js';
+import { autoCancelLatePending } from './modules/admin/alerts.admin.js';
 import { purgeIdleGuests } from './modules/auth/auth.service.js';
+import { notifyOrderStatus } from './modules/orders/notify.js';
 
 const config = loadConfig();
 const pool = createPool(config.database);
@@ -59,3 +61,17 @@ const purgeGuests = () =>
     .catch((err) => app.log.warn({ err }, 'guest clean-up failed'));
 void purgeGuests();
 setInterval(purgeGuests, 24 * 3_600_000).unref();
+
+// Optional (PENDING_AUTO_CANCEL_MINUTES > 0): every minute, cancel orders no store confirmed in time.
+const autoCancelMinutes = config.orderAlerts.autoCancelPendingMinutes;
+if (autoCancelMinutes > 0) {
+  app.log.info(`pending orders are cancelled automatically after ${autoCancelMinutes} minutes`);
+  setInterval(() => {
+    autoCancelLatePending(pool, new Date(), autoCancelMinutes)
+      .then((ids) => {
+        if (ids.length) app.log.warn(`auto-cancelled ${ids.length} order(s) not confirmed in ${autoCancelMinutes} min`);
+        for (const id of ids) notifyOrderStatus(app, id);
+      })
+      .catch((err) => app.log.warn({ err }, 'auto-cancel failed'));
+  }, 60_000).unref();
+}
