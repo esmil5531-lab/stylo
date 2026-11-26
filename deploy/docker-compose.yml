@@ -2,7 +2,8 @@
 #   caddy   → HTTPS certificates (Let's Encrypt) automatically, ports 80/443
 #   app     → API + both websites (built from ../Dockerfile)
 #   db      → PostgreSQL 16 (data in a named volume)
-#   backup  → daily pg_dump, kept 14 days / 8 weeks / 6 months in ./backups
+#   backup  → daily: database + photos in ONE encrypted file, kept in ./backups and copied
+#             off-site (BACKUP_S3_*); a restore test every week (docs/BACKUP.md)
 #
 #   cp .env.production.example .env.production   # fill it in
 #   docker compose up -d --build
@@ -58,20 +59,21 @@ services:
       - app
 
   backup:
-    image: prodrigestivill/postgres-backup-local:16
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: backup
     restart: unless-stopped
+    env_file: .env.production
     environment:
-      POSTGRES_HOST: db
-      POSTGRES_DB: stylo
-      POSTGRES_USER: stylo
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      SCHEDULE: "@daily"
-      BACKUP_KEEP_DAYS: 14
-      BACKUP_KEEP_WEEKS: 8
-      BACKUP_KEEP_MONTHS: 6
+      DATABASE_URL: postgresql://stylo:${POSTGRES_PASSWORD}@db:5432/stylo
+      BACKUP_DIR: /backups
+      UPLOADS_DIR: /app/uploads
       TZ: Africa/Tripoli
     volumes:
       - ./backups:/backups
+      # The photos, read-only: backed up in the same file as the database.
+      - uploads:/app/uploads:ro
     depends_on:
       db:
         condition: service_healthy

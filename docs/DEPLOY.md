@@ -44,19 +44,7 @@ cd stylo && git pull && cd deploy && docker compose up -d --build
 
 ### النسخ الاحتياطي
 
-خدمة `backup` تأخذ نسخة يومية في `deploy/backups` (14 يوماً، 8 أسابيع، 6 أشهر). انسخي هذا المجلد دورياً خارج الخادم (مثل تخزين سحابي). الاسترجاع:
-
-```bash
-gunzip -c backups/daily/<الملف>.sql.gz | docker compose exec -T db psql -U stylo -d stylo
-```
-
-**الصور المرفوعة** (`MEDIA_STORAGE=local`) في وحدة التخزين `uploads` وليست في نسخة قاعدة البيانات. انسخيها مع النسخ الاحتياطي:
-
-```bash
-docker run --rm -v deploy_uploads:/u -v "$PWD/backups":/b alpine tar czf /b/uploads-$(date +%F).tar.gz -C /u .
-```
-
-أو اختاري `MEDIA_STORAGE=supabase` فتُحفظ الصور في Supabase Storage خارج الخادم (`docs/SUPABASE.md`).
+خدمة `backup` تنسخ **قاعدة البيانات والصور معاً** في ملف واحد مشفّر كل ليلة. تحفظه في `deploy/backups` وترفعه خارج الخادم (Cloudflare R2 مجاناً)، وتجرّب الاستعادة كل جمعة. الإعداد والاستعادة بعد كارثة في **[docs/BACKUP.md](BACKUP.md)**. لا تُطلق قبل ضبط `BACKUP_PASSPHRASE` و `BACKUP_S3_*`.
 
 ## الظهور في Google
 

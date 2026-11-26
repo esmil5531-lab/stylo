@@ -10,6 +10,9 @@
     "db:seed": "tsx --env-file-if-exists=.env src/scripts/seed.ts",
     "db:reset": "npm run db:migrate && npm run db:seed",
     "db:check": "tsx --env-file-if-exists=.env src/scripts/db-check.ts",
+    "db:cleanup": "tsx --env-file-if-exists=.env src/scripts/cleanup.ts",
+    "backup": "tsx --env-file-if-exists=.env src/scripts/backup.ts",
+    "backup:test": "tsx --env-file-if-exists=.env src/scripts/backup.ts restore-test",
     "test": "tsx --env-file-if-exists=.env --test --test-concurrency=1 test/*.test.ts"
   },
   "dependencies": {

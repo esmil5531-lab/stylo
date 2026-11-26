@@ -5,6 +5,7 @@ import { databaseHost, diagnoseDbError, redactUrl, resolveSslMode } from './lib/
 import { pendingMigrations } from './lib/migrations.js';
 import { autoCancelLatePending } from './modules/admin/alerts.admin.js';
 import { purgeIdleGuests } from './modules/auth/auth.service.js';
+import { purgeExpiredData } from './modules/maintenance/cleanup.js';
 import { notifyOrderStatus } from './modules/orders/notify.js';
 
 const config = loadConfig();
@@ -54,13 +55,25 @@ try {
   );
 }
 
-// Guests (cart without an account) idle for 30 days are deleted: at start-up, then daily.
-const purgeGuests = () =>
-  purgeIdleGuests(pool, new Date(), config.auth.guestRetentionDays)
-    .then((n) => n > 0 && app.log.info(`deleted ${n} idle guest account(s)`))
-    .catch((err) => app.log.warn({ err }, 'guest clean-up failed'));
-void purgeGuests();
-setInterval(purgeGuests, 24 * 3_600_000).unref();
+// Daily clean-up, at start-up then every 24 h: idle guests (30 days), expired sign-in codes,
+// sessions and shared carts, and the old message log (modules/maintenance/cleanup.ts).
+const dailyCleanup = async () => {
+  const now = new Date();
+  try {
+    const guests = await purgeIdleGuests(pool, now, config.auth.guestRetentionDays);
+    const r = await purgeExpiredData(pool, now, { messageLogDays: config.maintenance.messageLogDays });
+    const total = guests + r.otpCodes + r.sessions + r.sharedCarts + r.messageLog;
+    if (total > 0) {
+      app.log.info(
+        `clean-up: ${guests} idle guests, ${r.otpCodes} codes, ${r.sessions} sessions, ${r.sharedCarts} shared carts, ${r.messageLog} message-log rows`,
+      );
+    }
+  } catch (err) {
+    app.log.warn({ err }, 'daily clean-up failed');
+  }
+};
+void dailyCleanup();
+setInterval(dailyCleanup, 24 * 3_600_000).unref();
 
 // Optional (PENDING_AUTO_CANCEL_MINUTES > 0): every minute, cancel orders no store confirmed in time.
 const autoCancelMinutes = config.orderAlerts.autoCancelPendingMinutes;

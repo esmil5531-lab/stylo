@@ -71,6 +71,8 @@ const EnvSchema = z.object({
   PENDING_ALERT_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(15),
   /** Cancel pending orders the store has not confirmed after this many minutes. 0 = never (default). */
   PENDING_AUTO_CANCEL_MINUTES: z.coerce.number().int().min(0).max(7 * 24 * 60).default(0),
+  /** Days the WhatsApp/SMS send log is kept (daily clean-up). */
+  MESSAGE_LOG_DAYS: z.coerce.number().int().min(7).max(3650).default(180),
   /** Extra request limits (see LimitsConfig). Default: on, except in tests. */
   RATE_LIMITS: bool,
   /** Requests per IP address per minute on /v1 (carrier NAT: many customers share one IP). */
@@ -162,6 +164,7 @@ export interface Config {
   media: MediaConfig;
   limits: LimitsConfig;
   orderAlerts: OrderAlertsConfig;
+  maintenance: { messageLogDays: number };
   seo: SeoConfig;
   trustProxy: boolean;
   /** true = reflect any origin (development); otherwise the listed origins only. */
@@ -276,6 +279,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
           ? { url: e.SUPABASE_URL.replace(/\/$/, ''), serviceKey: e.SUPABASE_SERVICE_ROLE_KEY, bucket: e.SUPABASE_STORAGE_BUCKET }
           : undefined,
     },
+    maintenance: { messageLogDays: e.MESSAGE_LOG_DAYS },
     orderAlerts: {
       pendingAlertMinutes: e.PENDING_ALERT_MINUTES,
       autoCancelPendingMinutes: e.PENDING_AUTO_CANCEL_MINUTES,

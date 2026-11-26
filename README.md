@@ -20,6 +20,7 @@
 sudo -u postgres psql -c "CREATE ROLE stylo LOGIN PASSWORD 'stylo';"
 sudo -u postgres psql -c "CREATE DATABASE stylo_dev OWNER stylo;"
 sudo -u postgres psql -c "CREATE DATABASE stylo_test OWNER stylo;"
+sudo -u postgres psql -c "CREATE DATABASE stylo_restore_test OWNER stylo;"
 sudo -u postgres psql -d stylo_dev -c "CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE EXTENSION IF NOT EXISTS citext;"
 cp api/.env.example api/.env
 npm run install:all
@@ -65,6 +66,10 @@ npm start
 - «Missing script: check:site» أو «setup» = النسخة عندك قديمة: نفّذي الخطوة 1.
 - خطأ 503 برسالة «قاعدة البيانات أقدم من نسخة الخادم» (أو `/health` يعرض `"migrations":"pending"`) = شغّلي `npm run db:migrate` ثم أعيدي تشغيل الخادم.
 - تغيّر اسم ملف `entry-….js` بعد كل بناء أمر طبيعي.
+
+## النسخ الاحتياطي
+
+`npm run backup` ينسخ قاعدة البيانات والصور في ملف واحد مشفّر، و`npm run backup:test` يجرّب استعادته في قاعدة مؤقتة ويتحقق من كل شيء. على الخادم يعمل ذلك تلقائياً كل ليلة مع نسخة خارج الخادم: [docs/BACKUP.md](docs/BACKUP.md).
 
 ## قاعدة بيانات Supabase
 

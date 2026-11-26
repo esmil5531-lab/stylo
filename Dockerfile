@@ -21,7 +21,21 @@ RUN npm --prefix api run build \
 # Production dependencies of the API only.
 RUN cd api && npm ci --omit=dev
 
-# ---------------------------------------------------------------- runtime
+# ---------------------------------------------------------------- backup
+# deploy/docker-compose.yml service `backup`: PostgreSQL 16 client tools (pg_dump/pg_restore of the
+# server's version) + Node, running dist/scripts/backup.js daemon (daily backup of the database AND
+# the photos, encrypted, copied off-site; weekly restore test). See docs/BACKUP.md.
+FROM postgres:16-bookworm AS backup
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+WORKDIR /app/api
+COPY --from=build /app/api/package.json package.json
+COPY --from=build /app/api/node_modules node_modules
+COPY --from=build /app/api/dist dist
+COPY --from=build /app/database/migrations /app/database/migrations
+ENV NODE_ENV=production BACKUP_DIR=/backups UPLOADS_DIR=/app/uploads
+CMD ["node", "dist/scripts/backup.js", "daemon"]
+
+# ---------------------------------------------------------------- runtime (default target)
 FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production \
