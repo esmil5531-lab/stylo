@@ -52,7 +52,7 @@ export function ProductCard({ product, width }: { product: ProductSummary; width
             <Text style={styles.compare}>{formatPrice(product.compareAtPrice, product.currency)}</Text>
           ) : null}
         </View>
-        <DeliveryBadge dayOffset={product.delivery.dayOffset} compact />
+        {product.delivery && <DeliveryBadge dayOffset={product.delivery.dayOffset} compact />}
       </View>
     </Pressable>
   );

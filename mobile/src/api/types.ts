@@ -31,7 +31,8 @@ export interface ProductSummary {
   inStock: boolean;
   isWishlisted: boolean;
   store: StoreRef;
-  delivery: { arrivesAt: string; dayOffset: number };
+  /** null when the customer's address is outside the delivery area (Tripoli only at launch). */
+  delivery: { arrivesAt: string; dayOffset: number } | null;
 }
 
 export interface Variant {
@@ -46,6 +47,8 @@ export interface Variant {
 
 export interface ProductDetail extends ProductSummary {
   description: string | null;
+  /** Why it cannot be delivered to her address (outside the delivery area); null when it can. */
+  coverageNote: string | null;
   images: { url: string; alt: string | null }[];
   variants: Variant[];
 }
@@ -159,6 +162,8 @@ export interface Cart {
   delivery: Record<DeliveryMode, DeliveryOption> | null;
   totals: Record<DeliveryMode, number> | null;
   hasIssues: boolean;
+  /** Outside the delivery area / store in another city: the message, and «إتمام الطلب» is blocked. */
+  coverage: { code: 'outside_coverage' | 'store_other_city'; message: string; servedCities: string[] } | null;
 }
 
 /** `details` of a 409 `cart_store_conflict`. */

@@ -72,6 +72,7 @@ import {
   type Permission,
   type StaffContext,
 } from './permissions.js';
+import { getServiceCities } from '../../lib/coverage.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -274,6 +275,8 @@ export async function adminRoutes(app: FastifyInstance) {
       role: { key: s.roleKey, name: s.roleName },
       store: s.storeId ? { id: s.storeId, name: s.storeName } : null,
       permissions: [...s.permissions],
+      /** Cities Stylo delivers to now (stores elsewhere are hidden from customers). */
+      serviceCities: await getServiceCities(app.db),
     };
   });
 

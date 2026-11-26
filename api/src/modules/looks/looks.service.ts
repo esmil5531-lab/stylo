@@ -3,7 +3,7 @@ import type { Ctx } from '../../lib/context.js';
 import { notFound } from '../../lib/errors.js';
 import { getProductsByIds } from '../catalog/catalog.service.js';
 import type { ProductSummary } from '../catalog/product-summary.js';
-import { getCustomerCity } from '../users/users.service.js';
+import { getDeliveryArea, storeServed, type DeliveryArea } from '../../lib/coverage.js';
 
 /** A curated outfit ("كمّل اللوك"). Every look belongs to one store (migration 0003). */
 export interface Look {
@@ -23,7 +23,7 @@ const LOOK_SELECT = `
          s.id AS store_id, s.slug AS store_slug, s.name_ar AS store_name, s.logo_text, s.brand_color,
          array_agg(li.product_id ORDER BY li.position) AS product_ids
     FROM looks l
-    JOIN stores s ON s.id = l.store_id AND s.status = 'active'
+    JOIN stores s ON s.id = l.store_id AND s.status = 'active' AND ${storeServed()}
     JOIN look_items li ON li.look_id = l.id
     JOIN products p ON p.id = li.product_id AND p.status = 'active'`;
 
@@ -31,8 +31,8 @@ const LOOK_SELECT = `
 const MIN_VISIBLE_ITEMS = 2;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function toLook(ctx: Ctx, r: any, city: string): Promise<Look> {
-  const items = await getProductsByIds(ctx, r.product_ids as string[], city);
+async function toLook(ctx: Ctx, r: any, area: DeliveryArea): Promise<Look> {
+  const items = await getProductsByIds(ctx, r.product_ids as string[], area);
   return {
     id: r.id,
     slug: r.slug,
@@ -68,8 +68,8 @@ export async function listLooks(
       LIMIT $1`,
     params,
   );
-  const city = await getCustomerCity(ctx);
-  return Promise.all(rows.map((r) => toLook(ctx, r, city)));
+  const area = await getDeliveryArea(ctx);
+  return Promise.all(rows.map((r) => toLook(ctx, r, area)));
 }
 
 export async function getLook(ctx: Ctx, idOrSlug: string): Promise<Look> {
@@ -79,5 +79,5 @@ export async function getLook(ctx: Ctx, idOrSlug: string): Promise<Look> {
     [idOrSlug],
   );
   if (!rows[0]) throw notFound('اللوك');
-  return toLook(ctx, rows[0], await getCustomerCity(ctx));
+  return toLook(ctx, rows[0], await getDeliveryArea(ctx));
 }

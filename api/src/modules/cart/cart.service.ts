@@ -5,7 +5,7 @@ import { inTransaction, type Queryable } from '../../db.js';
 import { requireUser, type Ctx } from '../../lib/context.js';
 import { AppError, badRequest, conflict, notFound } from '../../lib/errors.js';
 import { quoteDelivery, type DeliveryQuote } from '../delivery/delivery.js';
-import { getCustomerCity } from '../users/users.service.js';
+import { coverageIssue, getDeliveryArea, storeServed, type CoverageIssue, type DeliveryArea } from '../../lib/coverage.js';
 
 /**
  * One cart per user, bound to ONE store (table `carts`, migration 0003).
@@ -24,7 +24,8 @@ const LINE_SELECT = `
          COALESCE(pc.slug, c.slug) AS category_slug, COALESCE(c.icon, pc.icon) AS category_icon,
          (SELECT url FROM product_images i WHERE i.product_id = p.id ORDER BY i.sort_order LIMIT 1) AS image_url,
          s.id AS store_id, s.slug AS store_slug, s.name_ar AS store_name, s.logo_text, s.brand_color,
-         s.city AS store_city, s.prep_hours, s.delivery_fee, s.status AS store_status`;
+         s.city AS store_city, s.prep_hours, s.delivery_fee, s.status AS store_status,
+         (${storeServed()}) AS store_served`;
 
 const LINE_JOINS = `
   JOIN product_variants v ON v.id = x.variant_id
@@ -48,7 +49,8 @@ export async function loadLines(db: Queryable, source: LineSource, forUpdate = f
 }
 
 function lineIssue(r: LineRow): 'unavailable' | 'insufficient_stock' | null {
-  if (r.product_status !== 'active' || r.store_status !== 'active') return 'unavailable';
+  // A store outside the delivery area is hidden from customers: its items are no longer available.
+  if (r.product_status !== 'active' || r.store_status !== 'active' || !r.store_served) return 'unavailable';
   if (r.stock_qty < r.quantity) return 'insufficient_stock';
   return null;
 }
@@ -90,9 +92,15 @@ export interface CartView {
   delivery: DeliveryQuote | null;
   totals: { fastest: number; standard: number } | null;
   hasIssues: boolean;
+  /**
+   * Why this cart cannot be delivered to the customer's address (outside the delivery area, or a
+   * store in another city); null when it can. The app shows the message and blocks «إتمام الطلب».
+   */
+  coverage: CoverageIssue | null;
 }
 
-export function buildCartView(rows: LineRow[], customerCity: string, ctx: Ctx): CartView {
+export function buildCartView(rows: LineRow[], area: DeliveryArea, ctx: Ctx): CartView {
+  const customerCity = area.city;
   const first = rows[0];
   if (!first) {
     return {
@@ -104,6 +112,7 @@ export function buildCartView(rows: LineRow[], customerCity: string, ctx: Ctx): 
       delivery: null,
       totals: null,
       hasIssues: false,
+      coverage: null,
     };
   }
 
@@ -148,13 +157,14 @@ export function buildCartView(rows: LineRow[], customerCity: string, ctx: Ctx): 
     delivery,
     totals: { fastest: subtotal + delivery.fastest.fee, standard: subtotal + delivery.standard.fee },
     hasIssues: items.some((i) => i.issue),
+    coverage: coverageIssue(area, { city: first.store_city, name: first.store_name }),
   };
 }
 
 export async function getCart(ctx: Ctx): Promise<CartView> {
   const userId = requireUser(ctx);
-  const [rows, city] = await Promise.all([loadLines(ctx.db, { kind: 'cart', userId }), getCustomerCity(ctx)]);
-  return buildCartView(rows, city, ctx);
+  const [rows, area] = await Promise.all([loadLines(ctx.db, { kind: 'cart', userId }), getDeliveryArea(ctx)]);
+  return buildCartView(rows, area, ctx);
 }
 
 // ---------------------------------------------------------------- single-store guard
@@ -206,7 +216,7 @@ async function bindCartToStore(db: Queryable, userId: string, store: StoreRef, r
 
 async function getVariantForCart(db: Queryable, variantId: string) {
   const { rows } = await db.query(
-    `SELECT v.stock_qty, p.status AS product_status, s.status AS store_status,
+    `SELECT v.stock_qty, p.status AS product_status, s.status AS store_status, (${storeServed()}) AS store_served,
             s.id AS store_id, s.slug AS store_slug, s.name_ar AS store_name
        FROM product_variants v JOIN products p ON p.id = v.product_id JOIN stores s ON s.id = p.store_id
       WHERE v.id = $1`,
@@ -214,7 +224,7 @@ async function getVariantForCart(db: Queryable, variantId: string) {
   );
   const v = rows[0];
   if (!v) throw notFound('المنتج');
-  if (v.product_status !== 'active' || v.store_status !== 'active') {
+  if (v.product_status !== 'active' || v.store_status !== 'active' || !v.store_served) {
     throw conflict('unavailable', 'هذا المنتج غير متاح حالياً');
   }
   return {
@@ -294,7 +304,7 @@ export async function addLookToCart(
                 WHERE v.product_id = li.product_id AND v.stock_qty > 0
                 ORDER BY v.position, v.sku LIMIT 1) AS default_variant
          FROM looks l
-         JOIN stores s ON s.id = l.store_id AND s.status = 'active'
+         JOIN stores s ON s.id = l.store_id AND s.status = 'active' AND ${storeServed()}
          JOIN look_items li ON li.look_id = l.id
          JOIN products p ON p.id = li.product_id AND p.status = 'active'
         WHERE l.is_active AND (l.id::text = $1 OR l.slug = $1)
@@ -372,9 +382,9 @@ async function findSharedCart(db: Queryable, token: string, now: Date) {
 
 export async function getSharedCart(ctx: Ctx, token: string) {
   const sc = await findSharedCart(ctx.db, token, ctx.now);
-  const [rows, city] = await Promise.all([
+  const [rows, area] = await Promise.all([
     loadLines(ctx.db, { kind: 'shared', sharedCartId: sc.id }),
-    getCustomerCity(ctx),
+    getDeliveryArea(ctx),
   ]);
   return {
     token,
@@ -382,7 +392,7 @@ export async function getSharedCart(ctx: Ctx, token: string) {
     sharedBy: String(sc.full_name).split(' ')[0],
     createdAt: (sc.created_at as Date).toISOString(),
     expiresAt: (sc.expires_at as Date).toISOString(),
-    cart: buildCartView(rows, city, ctx),
+    cart: buildCartView(rows, area, ctx),
   };
 }
 

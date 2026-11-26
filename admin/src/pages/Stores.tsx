@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { useCreateStore, useStores, useUpdateStore, type StoreInput } from '@/api/hooks';
+import { useCreateStore, useMe, useStores, useUpdateStore, type StoreInput } from '@/api/hooks';
 import type { AdminStore, StoreStatus } from '@/api/types';
 import { Count, IntInput, Money, MoneyInput, Percent, PercentInput, Phone, PhoneInput, phoneToInput } from '@/components/inputs';
 import { Can, useCan } from '@/components/Layout';
@@ -83,6 +83,11 @@ export function StoresPage() {
                         <td>
                           {s.city}
                           {s.district && <div className="cell-sub">{s.district}</div>}
+                          {!s.inServiceArea && (
+                            <div>
+                              <Badge tone="amber">خارج منطقة التوصيل — لا يظهر للزبائن</Badge>
+                            </div>
+                          )}
                         </td>
                         <td className="strong">
                           <Money value={s.deliveryFee} />
@@ -130,6 +135,7 @@ function StoreForm({ store, onClose }: { store: AdminStore | null; onClose: () =
   const update = useUpdateStore();
   const mutation = store ? update : create;
   const canCommission = useCan('stores.commission');
+  const serviceCities = useMe().data?.serviceCities ?? [];
 
   const [f, setF] = useState({
     nameAr: store?.nameAr ?? '',
@@ -232,7 +238,15 @@ function StoreForm({ store, onClose }: { store: AdminStore | null; onClose: () =
         </Field>
 
         <div className="form-section">المنطقة والتوصيل</div>
-        <Field label="المدينة" required>
+        <Field
+          label="المدينة"
+          required
+          hint={
+            serviceCities.length > 0 && !serviceCities.includes(f.city)
+              ? `خارج منطقة التوصيل الحالية (${serviceCities.join('، ')}): لن يظهر المتجر للزبائن`
+              : undefined
+          }
+        >
           <select className="select" value={f.city} onChange={(e) => set('city', e.target.value)}>
             {LIBYAN_CITIES.map((c) => (
               <option key={c}>{c}</option>

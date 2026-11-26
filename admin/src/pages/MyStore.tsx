@@ -87,6 +87,13 @@ function MyStoreForm({ store }: { store: AdminStore }) {
             </div>
           </section>
 
+          {!store.inServiceArea && (
+            <div className="alert alert-error" role="alert">
+              مدينة متجرك ({store.city}) خارج منطقة التوصيل الحالية لستايلو، لذلك لا يظهر المتجر للزبائن حالياً.
+              سيظهر المتجر تلقائياً عند فتح التوصيل في مدينته.
+            </div>
+          )}
+
           <section className="card section-card">
             <h2>العنوان والتجهيز</h2>
             <div className="form-grid">

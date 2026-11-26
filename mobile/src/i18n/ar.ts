@@ -141,6 +141,8 @@ export const ar = {
     issueUnavailable: 'غير متاح حالياً',
     issueStock: (n: number) => (n === 0 ? 'نفدت الكمية' : `المتوفر ${n} فقط`),
     fixIssues: 'عدّلي المنتجات غير المتوفرة لإتمام الطلب',
+    coverageTitle: 'لا يمكن التوصيل إلى هذا العنوان',
+    coverageBlocked: 'غيّري عنوان التوصيل إلى عنوان داخل منطقة التوصيل لإتمام الطلب',
     orderPlaced: 'تم استلام طلبك 🎉',
     orderPlacedHint: (n: number, store: string) => `${orderNumber(n)} من «${store}»`,
     viewOrder: 'تفاصيل الطلب',
@@ -192,6 +194,9 @@ export const ar = {
     required: 'هذا الحقل مطلوب',
     phoneInvalid: 'رقم ليبي غير صحيح، مثال: 0912345678',
     chooseCity: 'اختاري المدينة',
+    servedHint: (cities: string) => `التوصيل متاح حالياً داخل ${cities} فقط`,
+    notServed: (city: string, cities: string) =>
+      `التوصيل غير متاح بعد في ${city}. يمكنك حفظ العنوان، لكن الطلبات حالياً داخل ${cities} فقط`,
   },
   auth: {
     title: 'تسجيل الدخول',

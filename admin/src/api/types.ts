@@ -37,6 +37,7 @@ export interface Me {
   role: { key: string; name: string };
   store: { id: string; name: string } | null;
   permissions: Permission[];
+  serviceCities: string[];
 }
 
 export interface Dashboard {
@@ -55,6 +56,8 @@ export interface AdminStore {
   logoText: string | null;
   brandColor: string | null;
   city: string;
+  /** false = outside the delivery area: hidden from customers. */
+  inServiceArea: boolean;
   district: string | null;
   addressLine: string | null;
   phone: string | null;

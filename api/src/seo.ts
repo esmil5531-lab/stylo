@@ -1,4 +1,5 @@
 import type { Queryable } from './db.js';
+import { storeServed } from './lib/coverage.js';
 
 /**
  * Search engines (Google) and link previews (WhatsApp, Facebook) for the customer site.
@@ -122,7 +123,7 @@ export async function pageMeta(db: Queryable, path: string, query: URLSearchPara
               (SELECT url FROM product_images i WHERE i.product_id = p.id ORDER BY sort_order LIMIT 1) AS image,
               (SELECT COALESCE(SUM(stock_qty), 0) FROM product_variants v WHERE v.product_id = p.id) AS stock
          FROM products p JOIN stores s ON s.id = p.store_id LEFT JOIN categories c ON c.id = p.category_id
-        WHERE p.id = $1 AND p.status = 'active' AND s.status = 'active'`,
+        WHERE p.id = $1 AND p.status = 'active' AND s.status = 'active' AND ${storeServed()}`,
       [m[1]],
     );
     const p = rows[0];
@@ -173,7 +174,8 @@ export async function pageMeta(db: Queryable, path: string, query: URLSearchPara
   if (m) {
     const slug = decodeURIComponent(m[1]!);
     const { rows } = await db.query(
-      `SELECT id, slug, name_ar, description_ar, logo_url, cover_url, city FROM stores WHERE slug = $1 AND status = 'active'`,
+      `SELECT id, slug, name_ar, description_ar, logo_url, cover_url, city FROM stores s
+        WHERE slug = $1 AND status = 'active' AND ${storeServed()}`,
       [slug],
     );
     const s = rows[0];
@@ -213,7 +215,7 @@ export async function pageMeta(db: Queryable, path: string, query: URLSearchPara
     const { rows } = await db.query(
       `SELECT l.id, l.slug, l.title_ar, l.subtitle_ar, l.cover_url, s.name_ar AS store_name
          FROM looks l JOIN stores s ON s.id = l.store_id
-        WHERE (l.slug = $1 OR l.id::text = $1) AND l.is_active AND s.status = 'active'`,
+        WHERE (l.slug = $1 OR l.id::text = $1) AND l.is_active AND s.status = 'active' AND ${storeServed()}`,
       [key],
     );
     const l = rows[0];
@@ -314,16 +316,17 @@ export function robotsTxt(origin: string, cfg: SeoConfig): string {
 export async function sitemapXml(db: Queryable, origin: string): Promise<string> {
   const [categories, stores, products, looks] = await Promise.all([
     db.query(`SELECT c.slug FROM categories c LEFT JOIN categories pc ON pc.id = c.parent_id WHERE c.is_active AND (pc.id IS NULL OR pc.is_active) ORDER BY c.parent_id NULLS FIRST, c.sort_order`),
-    db.query(`SELECT slug, updated_at FROM stores WHERE status = 'active' ORDER BY slug`),
+    db.query(`SELECT slug, updated_at FROM stores s WHERE status = 'active' AND ${storeServed()} ORDER BY slug`),
     db.query(
       `SELECT p.id, p.updated_at,
               (SELECT url FROM product_images i WHERE i.product_id = p.id ORDER BY sort_order LIMIT 1) AS image
          FROM products p JOIN stores s ON s.id = p.store_id
-        WHERE p.status = 'active' AND s.status = 'active'
+        WHERE p.status = 'active' AND s.status = 'active' AND ${storeServed()}
         ORDER BY p.updated_at DESC LIMIT 45000`,
     ),
     db.query(
-      `SELECT l.slug FROM looks l JOIN stores s ON s.id = l.store_id WHERE l.is_active AND s.status = 'active' ORDER BY l.sort_order`,
+      `SELECT l.slug FROM looks l JOIN stores s ON s.id = l.store_id
+        WHERE l.is_active AND s.status = 'active' AND ${storeServed()} ORDER BY l.sort_order`,
     ),
   ]);
   const url = (path: string, lastmod?: Date, image?: string | null) =>

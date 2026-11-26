@@ -36,6 +36,7 @@ const STORE_SELECT = `
   SELECT s.id, s.slug, s.name_ar, s.name_en, s.logo_text, s.brand_color, s.city, s.district, s.address_line,
          s.phone, s.prep_hours, s.delivery_fee, s.status, s.is_featured, s.commission_bps, s.rating_avg, s.created_at,
          u.id AS owner_id, u.full_name AS owner_name, u.phone AS owner_phone,
+         (s.city IN (SELECT city FROM service_cities)) AS in_service_area,
          (SELECT count(*)::int FROM products p WHERE p.store_id = s.id AND p.status = 'active') AS products_count,
          (SELECT count(*)::int FROM orders o WHERE o.store_id = s.id
             AND o.status NOT IN ('delivered', 'cancelled')) AS open_orders
@@ -51,6 +52,8 @@ function mapStore(r: any) {
     logoText: r.logo_text as string | null,
     brandColor: r.brand_color as string | null,
     city: r.city as string,
+    /** false = its city is outside the delivery area: customers do not see this store. */
+    inServiceArea: r.in_service_area as boolean,
     district: r.district as string | null,
     addressLine: r.address_line as string | null,
     phone: r.phone as string | null,

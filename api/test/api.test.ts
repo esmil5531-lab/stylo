@@ -81,13 +81,15 @@ describe('catalog', () => {
     assert.ok(body.featuredLook.items.every((p: { store: { slug: string } }) => p.store.slug === 'laura'));
     assert.deepEqual(
       body.featuredStores.map((s: { logoText: string }) => s.logoText).sort(),
-      ['Chic', 'LAURA', 'LUNA', 'NOVA', 'VELA'],
+      // NOVA (مصراتة) and VELA (بنغازي) are outside the delivery area (Tripoli only): hidden.
+      ['Chic', 'LAURA', 'LUNA'],
     );
   });
 
   it('"عروض" feed lists only discounted products, biggest discount first, in LYD', async () => {
     const items = (await req('GET', '/products?feed=offers&limit=50')).json().items;
-    assert.equal(items.length, 10);
+    // 10 discounted products in the seed, 2 of them from stores outside Tripoli (hidden).
+    assert.equal(items.length, 8);
     assert.ok(items.every((p: { compareAtPrice: number; price: number }) => p.compareAtPrice > p.price));
     const discounts = items.map((p: { discountPercent: number }) => p.discountPercent);
     assert.deepEqual(discounts, [...discounts].sort((a, b) => b - a));
@@ -193,15 +195,20 @@ describe('looks, sharing and checkout', () => {
     assert.equal(opened.sharedBy, 'سارة');
     assert.equal(opened.cart.store.slug, 'laura');
 
-    await req('POST', '/cart/items', { variantId: variantIds['VEL-PRL-WHT'] }, MARYAM);
+    await req('POST', '/cart/items', { variantId: variantIds['LUN-WAT-SLV'] }, MARYAM);
     const refused = await req('POST', `/shared-carts/${token}/import`, {}, MARYAM);
     assert.equal(refused.statusCode, 409);
 
     const imported = (await req('POST', `/shared-carts/${token}/import`, { replaceCart: true }, MARYAM)).json();
     assert.equal(imported.store.slug, 'laura');
     assert.equal(imported.items.length, 4);
-    // Maryam is in Benghazi: a Tripoli store cannot deliver today.
-    assert.equal(imported.delivery.fastest.dayOffset, 1);
+    // Maryam's address is in Benghazi: outside the delivery area, so the cart says why and
+    // checkout is refused with the same message.
+    assert.equal(imported.coverage.code, 'outside_coverage');
+    assert.match(imported.coverage.message, /طرابلس فقط/);
+    const refusedCheckout = await req('POST', '/checkout', { deliveryMode: 'standard' }, MARYAM);
+    assert.equal(refusedCheckout.statusCode, 409);
+    assert.equal(refusedCheckout.json().error.code, 'outside_coverage');
   });
 
   it('checks out one order for the store, decrements stock and empties the cart', async () => {

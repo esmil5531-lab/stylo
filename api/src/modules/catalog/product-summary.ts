@@ -1,6 +1,7 @@
 import type { Ctx } from '../../lib/context.js';
 import { mediaVariant } from '../../lib/media.js';
 import { dayOffset, estimateArrival } from '../delivery/delivery.js';
+import { storeServed, type DeliveryArea } from '../../lib/coverage.js';
 
 /**
  * Shared SELECT for product cards. $1 must be the current user id (or NULL).
@@ -17,7 +18,7 @@ export const PRODUCT_SUMMARY_SELECT = `
          COALESCE(pc.slug, c.slug) AS category_slug, COALESCE(c.icon, pc.icon) AS category_icon,
          EXISTS (SELECT 1 FROM wishlist_items w WHERE w.user_id = $1::uuid AND w.product_id = p.id) AS is_wishlisted
     FROM products p
-    JOIN stores s ON s.id = p.store_id AND s.status = 'active'
+    JOIN stores s ON s.id = p.store_id AND s.status = 'active' AND ${storeServed()}
     LEFT JOIN categories c ON c.id = p.category_id
     LEFT JOIN categories pc ON pc.id = c.parent_id
    WHERE p.status = 'active'`;
@@ -42,12 +43,14 @@ export interface ProductSummary {
   inStock: boolean;
   isWishlisted: boolean;
   store: { id: string; slug: string; name: string; city: string };
-  delivery: { arrivesAt: string; dayOffset: number };
+  /** «يصلك اليوم/غداً» to the customer's city; null when it cannot be delivered there (coverage). */
+  delivery: { arrivesAt: string; dayOffset: number } | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function mapProductSummary(r: any, ctx: Ctx, customerCity: string): ProductSummary {
-  const at = estimateArrival(ctx.now, r.prep_hours, r.store_city, customerCity, ctx.config.delivery);
+export function mapProductSummary(r: any, ctx: Ctx, area: DeliveryArea): ProductSummary {
+  const deliverable = area.served && r.store_city === area.city;
+  const at = estimateArrival(ctx.now, r.prep_hours, r.store_city, area.city, ctx.config.delivery);
   return {
     id: r.id,
     name: r.name_ar,
@@ -69,6 +72,6 @@ export function mapProductSummary(r: any, ctx: Ctx, customerCity: string): Produ
     inStock: r.stock_total > 0,
     isWishlisted: r.is_wishlisted,
     store: { id: r.store_id, slug: r.store_slug, name: r.store_name, city: r.store_city },
-    delivery: { arrivesAt: at.toISOString(), dayOffset: dayOffset(ctx.now, at) },
+    delivery: deliverable ? { arrivesAt: at.toISOString(), dayOffset: dayOffset(ctx.now, at) } : null,
   };
 }

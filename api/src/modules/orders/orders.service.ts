@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 
 import { inTransaction, withTransaction, type Pool } from '../../db.js';
 import { requireAccount, type Ctx } from '../../lib/context.js';
-import { badRequest, conflict, notFound } from '../../lib/errors.js';
+import { AppError, badRequest, conflict, notFound } from '../../lib/errors.js';
 import { buildCartView, loadLines } from '../cart/cart.service.js';
 import { restockOrder } from './restock.js';
 import type { DeliveryMode } from '../delivery/delivery.js';
+import { deliveryArea, getServiceCities } from '../../lib/coverage.js';
 
 export interface CheckoutInput {
   deliveryMode: DeliveryMode;
@@ -35,8 +36,17 @@ export async function checkout(pool: Pool, baseCtx: Ctx, input: CheckoutInput) {
     if (!address) throw badRequest('address_required', 'أضيفي عنوان توصيل لإتمام الطلب');
 
     const rows = await loadLines(client, { kind: 'cart', userId }, true);
-    const cart = buildCartView(rows, address.city, ctx);
+    const area = deliveryArea(address.city as string, await getServiceCities(client));
+    const cart = buildCartView(rows, area, ctx);
     if (!cart.store || !cart.delivery) throw badRequest('cart_empty', 'السلة فارغة');
+    // Delivery area first (Tripoli only at launch): the clearest reason when it applies.
+    if (cart.coverage) {
+      throw new AppError(409, cart.coverage.code, cart.coverage.message, {
+        city: address.city,
+        storeCity: cart.store.city,
+        servedCities: cart.coverage.servedCities,
+      });
+    }
     if (cart.hasIssues) {
       const problems = cart.items
         .filter((i) => i.issue)

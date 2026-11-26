@@ -1,8 +1,8 @@
 import type { Ctx } from '../../lib/context.js';
 import { notFound } from '../../lib/errors.js';
 import { mediaVariant } from '../../lib/media.js';
-import { getCustomerCity } from '../users/users.service.js';
 import { mapProductSummary, PRODUCT_SUMMARY_SELECT, type ProductSummary } from './product-summary.js';
+import { coverageNote, getDeliveryArea, storeServed, type DeliveryArea } from '../../lib/coverage.js';
 
 /** Home tabs: لأجلك · ترند · عروض · قريب منك. `new` stays available for links (e.g. banners). */
 export const FEEDS = ['for_you', 'trending', 'offers', 'nearby', 'new'] as const;
@@ -79,7 +79,8 @@ export interface ProductPage {
 }
 
 export async function listProducts(ctx: Ctx, input: ListProductsInput): Promise<ProductPage> {
-  const city = await getCustomerCity(ctx);
+  const area = await getDeliveryArea(ctx);
+  const city = area.city;
   const params: unknown[] = [ctx.userId];
   const add = (v: unknown) => `$${params.push(v)}`;
   const where = productFilters(input, add);
@@ -143,7 +144,7 @@ export async function listProducts(ctx: Ctx, input: ListProductsInput): Promise<
   ]);
   const total = count.rows[0]?.n ?? 0;
   return {
-    items: list.rows.map((r) => mapProductSummary(r, ctx, city)),
+    items: list.rows.map((r) => mapProductSummary(r, ctx, area)),
     total,
     hasMore: input.offset + list.rows.length < total,
   };
@@ -192,16 +193,17 @@ export function sortSizes<T extends { size: string }>(list: T[]): T[] {
 }
 
 /** Product cards for the given ids, in the given order. */
-export async function getProductsByIds(ctx: Ctx, ids: string[], city?: string): Promise<ProductSummary[]> {
+export async function getProductsByIds(ctx: Ctx, ids: string[], area?: DeliveryArea): Promise<ProductSummary[]> {
   if (ids.length === 0) return [];
-  const c = city ?? (await getCustomerCity(ctx));
+  const c = area ?? (await getDeliveryArea(ctx));
   const { rows } = await ctx.db.query(`${PRODUCT_SUMMARY_SELECT} AND p.id = ANY($2::uuid[])`, [ctx.userId, ids]);
   const byId = new Map(rows.map((r) => [r.id as string, mapProductSummary(r, ctx, c)]));
   return ids.map((id) => byId.get(id)).filter((p): p is ProductSummary => !!p);
 }
 
 export async function getProduct(ctx: Ctx, id: string) {
-  const [summary] = await getProductsByIds(ctx, [id]);
+  const area = await getDeliveryArea(ctx);
+  const [summary] = await getProductsByIds(ctx, [id], area);
   if (!summary) throw notFound('المنتج');
 
   const [details, variants, images] = await Promise.all([
@@ -218,6 +220,8 @@ export async function getProduct(ctx: Ctx, id: string) {
   return {
     ...summary,
     description: (details.rows[0]?.description_ar as string | undefined) ?? null,
+    /** Shown instead of «يصلك…» when the customer's address is outside the delivery area. */
+    coverageNote: coverageNote(area),
     images: images.rows.map((r) => ({ url: r.url as string, alt: r.alt_ar as string | null })),
     variants: variants.rows.map((r) => ({
       id: r.id as string,
@@ -270,7 +274,7 @@ export interface CategoryNode {
 export async function listCategories(ctx: Ctx): Promise<CategoryNode[]> {
   const { rows } = await ctx.db.query(
     `SELECT c.id, c.slug, c.name_ar, c.parent_id, c.icon, c.color, c.image_url,
-            (SELECT count(*) FROM products p JOIN stores s ON s.id = p.store_id AND s.status = 'active'
+            (SELECT count(*) FROM products p JOIN stores s ON s.id = p.store_id AND s.status = 'active' AND ${storeServed()}
                LEFT JOIN categories pc ON pc.id = p.category_id
               WHERE p.status = 'active' AND (p.category_id = c.id OR (pc.parent_id = c.id AND pc.is_active)))::int
               AS product_count

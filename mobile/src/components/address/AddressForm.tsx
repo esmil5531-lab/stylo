@@ -36,6 +36,10 @@ interface Props {
 
 export function AddressForm({ initial, showDefaultToggle, submitting, error, onSubmit }: Props) {
   const cities = useCities();
+  // Served cities first (Tripoli at launch); the others can be saved but not ordered to yet.
+  const served = cities.data?.served ?? [];
+  const cityChoices = [...served, ...(cities.data?.items ?? []).filter((c) => !served.includes(c))];
+  const servedText = served.length <= 1 ? (served[0] ?? '') : `${served.slice(0, -1).join('، ')} و${served.at(-1)}`;
   const [f, setF] = useState({
     label: initial?.label ?? '',
     recipientName: initial?.recipientName ?? '',
@@ -85,12 +89,16 @@ export function AddressForm({ initial, showDefaultToggle, submitting, error, onS
       </View>
 
       <Label text={t.city} required />
+      {servedText ? <Text style={styles.hint}>{t.servedHint(servedText)}</Text> : null}
       <View style={styles.chips}>
-        {(cities.data ?? []).map((c) => (
+        {cityChoices.map((c) => (
           <Chip key={c} text={c} selected={f.city === c} onPress={() => set('city', c)} />
         ))}
       </View>
       {show(errors.city) && <Text style={styles.error}>{errors.city}</Text>}
+      {f.city && served.length > 0 && !served.includes(f.city) ? (
+        <Text style={styles.warning}>{t.notServed(f.city, servedText)}</Text>
+      ) : null}
 
       <Field label={t.district} value={f.district} onChangeText={(v) => set('district', v)} placeholder={t.districtPlaceholder} />
       <Field
@@ -202,6 +210,15 @@ const styles = StyleSheet.create({
   star: { color: colors.danger },
   hint: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: colors.inkMuted },
   error: { fontFamily: fonts.semiBold, fontSize: 12, lineHeight: 18, color: colors.danger },
+  warning: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.warning,
+    backgroundColor: colors.warningSoft,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+  },
   errorBox: {
     fontFamily: fonts.semiBold,
     fontSize: 13,

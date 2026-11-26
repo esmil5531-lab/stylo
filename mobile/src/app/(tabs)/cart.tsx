@@ -183,8 +183,19 @@ function CartContent({
           )
         )}
 
-        <Text style={styles.section}>{ar.delivery.chooseTitle}</Text>
-        <View style={{ gap: spacing.sm }}>
+        {cart.coverage && (
+          <View style={styles.coverage} accessibilityRole="alert">
+            <Ionicons name="location-outline" size={20} color={colors.warning} />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={styles.coverageTitle}>{ar.cart.coverageTitle}</Text>
+              <Text style={styles.coverageText}>{cart.coverage.message}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* No delivery options or fees for an address that cannot be delivered to. */}
+        {!cart.coverage && <Text style={styles.section}>{ar.delivery.chooseTitle}</Text>}
+        <View style={[{ gap: spacing.sm }, cart.coverage && { display: 'none' }]}>
           {MODES.map((m) => (
             <DeliveryOptionCard
               key={m}
@@ -198,23 +209,31 @@ function CartContent({
 
         <View style={styles.summary}>
           <Row label={ar.cart.subtotal} value={formatPrice(cart.subtotal, cart.currency)} />
-          <Row
-            label={`${ar.delivery.fee} · ${arrivalLabel(option.dayOffset)}`}
-            value={option.fee === 0 ? ar.delivery.free : formatPrice(option.fee, cart.currency)}
-          />
-          <View style={styles.divider} />
-          <Row label={ar.cart.total} value={formatPrice(total, cart.currency)} strong />
+          {!cart.coverage && (
+            <>
+              <Row
+                label={`${ar.delivery.fee} · ${arrivalLabel(option.dayOffset)}`}
+                value={option.fee === 0 ? ar.delivery.free : formatPrice(option.fee, cart.currency)}
+              />
+              <View style={styles.divider} />
+              <Row label={ar.cart.total} value={formatPrice(total, cart.currency)} strong />
+            </>
+          )}
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        {cart.hasIssues && <Text style={styles.error}>{ar.cart.fixIssues}</Text>}
+        {cart.coverage ? (
+          <Text style={styles.error}>{ar.cart.coverageBlocked}</Text>
+        ) : (
+          cart.hasIssues && <Text style={styles.error}>{ar.cart.fixIssues}</Text>
+        )}
         {me.data && !address && <Text style={styles.error}>{ar.cart.addAddress}</Text>}
         {checkout.isError && <Text style={styles.error}>{errorMessage(checkout.error)}</Text>}
         <Button
-          title={`${ar.cart.checkout} · ${formatPrice(total, cart.currency)}`}
+          title={cart.coverage ? ar.cart.checkout : `${ar.cart.checkout} · ${formatPrice(total, cart.currency)}`}
           loading={checkout.isPending}
-          disabled={cart.hasIssues || (signedIn && !address)}
+          disabled={cart.hasIssues || !!cart.coverage || (signedIn && !address)}
           onPress={() => {
             if (!signedIn) return signIn();
             if (address) {
@@ -291,6 +310,16 @@ const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
   section: { fontFamily: fonts.extraBold, fontSize: 17, color: colors.ink, marginTop: spacing.xs },
   notice: { backgroundColor: colors.successSoft, borderRadius: radius.md, padding: 12, gap: 4 },
+  coverage: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'flex-start',
+    backgroundColor: colors.warningSoft,
+    borderRadius: radius.md,
+    padding: 12,
+  },
+  coverageTitle: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 22, color: colors.warning },
+  coverageText: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 21, color: colors.ink },
   noticeTitle: { fontFamily: fonts.bold, fontSize: 13, color: colors.success },
   link: { fontFamily: fonts.regular, fontSize: 12, color: colors.ink, writingDirection: 'ltr' },
   error: { fontFamily: fonts.semiBold, fontSize: 13, color: colors.danger, textAlign: 'center' },

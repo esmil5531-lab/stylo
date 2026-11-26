@@ -1,6 +1,7 @@
 import type { Ctx } from '../../lib/context.js';
 import { notFound } from '../../lib/errors.js';
 import { listProducts } from '../catalog/catalog.service.js';
+import { storeServed } from '../../lib/coverage.js';
 
 const STORE_COLUMNS = `s.id, s.slug, s.name_ar, s.name_en, s.description_ar, s.logo_url, s.cover_url,
   s.logo_text, s.brand_color, s.city, s.prep_hours, s.delivery_fee, s.rating_avg, s.rating_count, s.is_featured`;
@@ -31,7 +32,7 @@ export type Store = ReturnType<typeof mapStore>;
 export async function listStores(ctx: Ctx, opts: { featured?: boolean; limit: number }) {
   const { rows } = await ctx.db.query(
     `SELECT ${STORE_COLUMNS} FROM stores s
-      WHERE s.status = 'active' ${opts.featured ? 'AND s.is_featured' : ''}
+      WHERE s.status = 'active' AND ${storeServed()} ${opts.featured ? 'AND s.is_featured' : ''}
       ORDER BY s.is_featured DESC, s.rating_avg DESC, s.name_ar
       LIMIT $1`,
     [opts.limit],
@@ -41,7 +42,7 @@ export async function listStores(ctx: Ctx, opts: { featured?: boolean; limit: nu
 
 export async function getStore(ctx: Ctx, slug: string) {
   const { rows } = await ctx.db.query(
-    `SELECT ${STORE_COLUMNS} FROM stores s WHERE s.slug = $1 AND s.status = 'active'`,
+    `SELECT ${STORE_COLUMNS} FROM stores s WHERE s.slug = $1 AND s.status = 'active' AND ${storeServed()}`,
     [slug],
   );
   if (!rows[0]) throw notFound('المتجر');

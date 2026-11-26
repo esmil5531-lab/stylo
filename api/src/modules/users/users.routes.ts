@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 import { CITIES } from '../../lib/cities.js';
+import { getServiceCities } from '../../lib/coverage.js';
 import { IdParams } from '../../lib/validation.js';
 import {
   createAddress,
@@ -45,7 +46,8 @@ export async function usersRoutes(app: FastifyInstance) {
   /** «حذف حسابي»: erases the personal data (see deleteAccount). */
   app.delete('/me', async (req) => deleteAccount(app.ctx(req)));
 
-  app.get('/cities', async () => ({ items: CITIES }));
+  /** Every city an address may use, and the ones Stylo delivers to now (Tripoli at launch). */
+  app.get('/cities', async () => ({ items: CITIES, served: await getServiceCities(app.db) }));
 
   // ------------------------------------------------------------ «عناويني»
   app.get('/me/addresses', async (req) => ({ items: await listAddresses(app.ctx(req)) }));

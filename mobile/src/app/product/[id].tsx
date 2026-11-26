@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -95,7 +96,14 @@ function ProductBody({ product }: { product: ProductDetail }) {
               </View>
             ) : null}
           </View>
-          <DeliveryBadge dayOffset={product.delivery.dayOffset} />
+          {product.delivery ? (
+            <DeliveryBadge dayOffset={product.delivery.dayOffset} />
+          ) : product.coverageNote ? (
+            <View style={styles.coverage}>
+              <Ionicons name="location-outline" size={18} color={colors.warning} />
+              <Text style={styles.coverageText}>{product.coverageNote}</Text>
+            </View>
+          ) : null}
           {product.description && <Text style={styles.description}>{product.description}</Text>}
 
           <VariantPicker variants={product.variants} selected={variant} onSelect={(v) => setVariantId(v?.id)} />
@@ -160,6 +168,15 @@ const styles = StyleSheet.create({
   price: { fontFamily: fonts.extraBold, fontSize: 24, color: colors.ink },
   compare: { fontFamily: fonts.regular, fontSize: 15, color: colors.inkMuted, textDecorationLine: 'line-through' },
   description: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 22, color: colors.inkMuted },
+  coverage: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'flex-start',
+    backgroundColor: colors.warningSoft,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+  },
+  coverageText: { flex: 1, fontFamily: fonts.medium, fontSize: 13, lineHeight: 21, color: colors.warning },
   label: { fontFamily: fonts.bold, fontSize: 15, color: colors.ink, marginTop: spacing.sm },
   footer: {
     paddingHorizontal: spacing.md,

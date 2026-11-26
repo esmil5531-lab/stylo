@@ -333,11 +333,11 @@ export const useAddresses = () =>
     queryFn: () => api.get<List<Address>>('/me/addresses').then((r) => r.items),
   });
 
-/** Cities Stylo delivers to (the address city is picked from this list). */
+/** Every address city, and the ones Stylo delivers to now (`served`, Tripoli at launch). */
 export const useCities = () =>
   useQuery({
     queryKey: queryKeys.cities,
-    queryFn: () => api.get<{ items: string[] }>('/cities').then((r) => r.items),
+    queryFn: () => api.get<{ items: string[]; served: string[] }>('/cities'),
     staleTime: 60 * 60_000,
   });
 
