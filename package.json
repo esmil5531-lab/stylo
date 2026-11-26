@@ -3,7 +3,7 @@
   "private": true,
   "description": "ستايلو — كل ستايل في مكان واحد",
   "scripts": {
-    "install:all": "npm --prefix api install && npm --prefix admin install && npm --prefix mobile install",
+    "install:all": "npm --prefix api install && npm --prefix admin install && npm --prefix mobile install && npm --prefix e2e install",
     "setup": "npm run install:all && npm run db:migrate && npm run build",
     "db:reset": "npm --prefix api run db:reset",
     "db:migrate": "npm --prefix api run db:migrate",
@@ -22,6 +22,8 @@
     "brand:assets": "node brand/scripts/render.mjs",
     "check": "npm --prefix api run typecheck && npm --prefix admin run typecheck && npm --prefix mobile run typecheck && npm --prefix mobile run lint",
     "test": "npm --prefix api test",
-    "check:site": "node scripts/check-site.mjs"
+    "check:site": "node scripts/check-site.mjs",
+    "e2e": "npm --prefix e2e test",
+    "e2e:install": "cd e2e && npm install && npx playwright install chromium"
   }
 }

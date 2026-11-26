@@ -8,3 +8,11 @@ deploy/backups/
 /backups/
 # Photos uploaded in development (MEDIA_STORAGE=local)
 /uploads/
+
+# Browser journeys (e2e/)
+/e2e/node_modules/
+/e2e/test-results/
+/e2e/playwright-report/
+/e2e/.state.json
+/e2e/.tokens.json
+/e2e/.staff-session.json

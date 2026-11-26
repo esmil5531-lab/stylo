@@ -1,6 +1,7 @@
 # Every push and pull request: the API against a real PostgreSQL, the back office and the
 # customer app (typecheck, lint, web export), then the whole site served by one server and
-# checked end to end with `npm run check:site` — the same check you run after each update.
+# checked end to end with `npm run check:site` — the same check you run after each update —
+# and the four journeys in a real browser (`npm run e2e`: customer, store, Stylo staff, driver).
 name: CI
 
 on:
@@ -20,7 +21,7 @@ env:
 jobs:
   api:
     name: API — typecheck, audit, tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
       postgres:
@@ -46,7 +47,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: api/package-lock.json
-      # pg_dump / pg_restore of the server's version for the backup tests.
+      # pg_dump / pg_restore of the server's version for the backup tests. Ubuntu 24.04 ships
+      # PostgreSQL 16 (newer images do not: keep runs-on pinned).
       - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends postgresql-client-16
       - run: npm ci
       - run: npm run typecheck
@@ -55,8 +57,8 @@ jobs:
       - run: npm test
 
   site:
-    name: Websites — build and check every route
-    runs-on: ubuntu-latest
+    name: Websites — build, check every route, browser journeys
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:
@@ -72,8 +74,9 @@ jobs:
       NODE_ENV: development
       DATABASE_URL: postgresql://stylo:stylo@localhost:5432/stylo_dev
       MESSAGING_PROVIDER: console
-      # The check makes many requests from one address in a few seconds.
+      # The check and the journeys make many requests (and sign-ins) from one address.
       API_MAX_PER_IP_MINUTE: '100000'
+      OTP_MAX_PER_IP_HOUR: '1000'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -84,11 +87,13 @@ jobs:
             api/package-lock.json
             admin/package-lock.json
             mobile/package-lock.json
+            e2e/package-lock.json
       - name: Install
         run: |
           npm --prefix api ci
           npm --prefix admin ci
           npm --prefix mobile ci
+          npm --prefix e2e ci
       - name: Typecheck and lint the apps
         run: |
           npm --prefix admin run typecheck
@@ -104,6 +109,20 @@ jobs:
           for i in $(seq 1 60); do curl -sf http://localhost:4000/health && break; sleep 1; done
       - name: Check the site end to end
         run: npm run check:site
+      - name: Browser for the journeys
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+      - name: Browser journeys — customer, store, Stylo staff, driver
+        run: npm run e2e
+      - name: Journeys report (screenshots and traces of failures)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 14
       - name: Server log
         if: failure()
         run: tail -n 200 server.log
