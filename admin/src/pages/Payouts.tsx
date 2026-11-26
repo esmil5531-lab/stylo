@@ -9,8 +9,9 @@ import {
   usePayout,
   usePayoutPreview,
   usePayouts,
+  useVerifyStoreBank,
 } from '@/api/hooks';
-import type { Payout, StoreBalance } from '@/api/types';
+import type { Payout, StoreBalance, StoreBank } from '@/api/types';
 import { Count, Money, Num, Percent } from '@/components/inputs';
 import { useCan } from '@/components/Layout';
 import { Async, Badge, Empty, ErrorAlert, Field, Modal, OrderNo, PageHead } from '@/components/ui';
@@ -68,6 +69,7 @@ export function PayoutsPage() {
                     <th>طلبات مسلّمة</th>
                     <th>المبيعات</th>
                     {finance && <th>عمولة ستايلو</th>}
+                    <th>مرتجعات تُخصم</th>
                     <th>المستحق للمتجر</th>
                     <th>الفترة</th>
                     <th>معلّق للتحويل</th>
@@ -94,6 +96,18 @@ export function PayoutsPage() {
                           <Money value={b.unsettled.commission ?? 0} />
                         </td>
                       )}
+                      <td>
+                        {b.unsettled.returnsCount > 0 ? (
+                          <>
+                            − <Money value={b.unsettled.returnsAmount} />{' '}
+                            <span className="muted small">
+                              (<Count value={b.unsettled.returnsCount} />)
+                            </span>
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td className="strong">
                         <Money value={b.unsettled.payout} />
                       </td>
@@ -293,6 +307,7 @@ function SettleDialog({
                   </dd>
                 </>
               )}
+              {p.returnsCount > 0 && <ReturnsRows count={p.returnsCount} amount={p.returnsAmount} commission={p.returnsCommission} />}
               <dt>المستحق للمتجر</dt>
               <dd className="strong">
                 <Money value={p.payout} />
@@ -349,6 +364,7 @@ function PayoutDialog({ id, canManage, onClose }: { id: string; canManage: boole
           }
         >
           <PayoutSummary p={p} />
+          {p.bank && <BankBox storeId={p.store.id} bank={p.bank} pending={p.status === 'pending'} />}
           {p.status === 'pending' && canManage && (
             <Field label="رقم الحوالة / الإيصال" required hint="يُحفظ في سجل التسوية">
               <input className="input" dir="ltr" value={reference} onChange={(e) => setReference(e.target.value)} />
@@ -389,6 +405,38 @@ function PayoutDialog({ id, canManage, onClose }: { id: string; canManage: boole
               </tbody>
             </table>
           </div>
+          {p.returns.length > 0 && (
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>المرتجع</th>
+                    <th>الطلب</th>
+                    <th>قيمة المرتجع</th>
+                    <th>الخصم من المستحق</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {p.returns.map((r) => (
+                    <tr key={r.id}>
+                      <td>
+                        <OrderNo n={r.number} />
+                      </td>
+                      <td>
+                        <OrderNo n={r.orderNumber} />
+                      </td>
+                      <td>
+                        <Money value={r.amount} />
+                      </td>
+                      <td>
+                        − <Money value={r.deduction} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <ErrorAlert error={markPaid.error ?? cancel.error} />
         </Modal>
       )}
@@ -420,6 +468,7 @@ function PayoutSummary({ p }: { p: Payout }) {
           </dd>
         </>
       )}
+      {p.returnsCount > 0 && <ReturnsRows count={p.returnsCount} amount={p.returnsAmount} commission={p.returnsCommission} />}
       <dt>المستحق للمتجر</dt>
       <dd className="strong">
         <Money value={p.payoutAmount} />
@@ -443,5 +492,79 @@ function PayoutSummary({ p }: { p: Payout }) {
         </>
       )}
     </dl>
+  );
+}
+
+/** Returns deducted from the store's dues (Stylo gives back its commission on them). */
+function ReturnsRows({ count, amount, commission }: { count: number; amount: number; commission?: number }) {
+  const finance = useCan('finance.view');
+  return (
+    <>
+      <dt>
+        مرتجعات (<Count value={count} />)
+      </dt>
+      <dd>
+        − <Money value={amount} />
+      </dd>
+      {finance && commission !== undefined && (
+        <>
+          <dt>عمولة مستردة على المرتجعات</dt>
+          <dd>
+            + <Money value={commission} />
+          </dd>
+        </>
+      )}
+    </>
+  );
+}
+
+/** The store's bank account on a payout, with the general manager's «توثيق». */
+function BankBox({ storeId, bank, pending }: { storeId: string; bank: StoreBank; pending: boolean }) {
+  const canVerify = useCan('stores.bank');
+  const verify = useVerifyStoreBank(storeId);
+  if (!bank.complete) {
+    return <div className="alert alert-warn">لم يُدخل المتجر بيانات حسابه البنكي بعد (من «إعدادات متجري»).</div>;
+  }
+  return (
+    <div className="card card-pad bank-box">
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <strong>التحويل إلى</strong>
+        <Badge tone={bank.verified ? 'green' : 'amber'}>{bank.verified ? 'حساب موثّق' : 'غير موثّق'}</Badge>
+      </div>
+      <dl className="kv">
+        <dt>المصرف</dt>
+        <dd>{bank.bankName}</dd>
+        <dt>اسم الحساب</dt>
+        <dd>{bank.accountName}</dd>
+        <dt>IBAN</dt>
+        <dd>
+          <Num>{bank.iban}</Num>
+        </dd>
+        {bank.accountNumber && (
+          <>
+            <dt>رقم الحساب</dt>
+            <dd>
+              <Num>{bank.accountNumber}</Num>
+            </dd>
+          </>
+        )}
+      </dl>
+      {!bank.verified && pending && (
+        <div className="alert alert-warn small">
+          الحساب تغيّر أو لم يُراجع بعد{bank.updatedBy ? ` (آخر تعديل: ${bank.updatedBy})` : ''}. تأكد منه مع المتجر قبل التحويل.
+        </div>
+      )}
+      {!bank.verified && canVerify && (
+        <button className="btn btn-outline btn-sm" disabled={verify.isPending} onClick={() => verify.mutate()}>
+          توثيق الحساب البنكي
+        </button>
+      )}
+      {bank.verified && bank.verifiedBy && (
+        <div className="muted small">
+          وثّقه {bank.verifiedBy} · {bank.verifiedAt ? formatDateTime(bank.verifiedAt) : ''}
+        </div>
+      )}
+      <ErrorAlert error={verify.error} />
+    </div>
   );
 }

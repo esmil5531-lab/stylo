@@ -4,6 +4,9 @@ import { z } from 'zod';
 import { enforceLimit, optionalLimiter } from '../../lib/rate-limit.js';
 import { Id, IdParams } from '../../lib/validation.js';
 import { getOrderAlerts } from './alerts.admin.js';
+import { getStoreBank, updateStoreBank, verifyStoreBank } from './bank.admin.js';
+import { setCustomerBlocked } from './customers.admin.js';
+import { createReturn, RETURN_REASONS } from './returns.admin.js';
 import { assignDriver, changeOrderStatus, getOrder, listOrders, ORDER_STATUSES } from './orders.admin.js';
 import {
   createProduct,
@@ -297,6 +300,36 @@ export async function adminRoutes(app: FastifyInstance) {
     const staff = can(req, 'stores.write');
     const { id } = IdParams.parse(req.params);
     return updateStore(app.ctx(req), staff, id, StoreUpdate.parse(req.body));
+  });
+
+  // ------------------------------------------------------------ store bank account (payouts)
+  const BankBody = z.object({
+    bankName: z.string().trim().min(2).max(80),
+    accountName: z.string().trim().min(2).max(120),
+    iban: z.string().trim().min(15).max(40),
+    accountNumber: z.string().trim().max(30).nullish(),
+  });
+  app.get('/my-store/bank', async (req) => {
+    const staff = can(req, 'store.profile');
+    if (!staff.storeId) throw forbidden('هذه الصفحة لموظفي المتاجر');
+    return getStoreBank(app.db, staff.storeId);
+  });
+  app.put('/my-store/bank', async (req) => {
+    const staff = can(req, 'store.profile');
+    if (!staff.storeId) throw forbidden('هذه الصفحة لموظفي المتاجر');
+    return updateStoreBank(app.ctx(req), staff, staff.storeId, BankBody.parse(req.body));
+  });
+  app.get('/stores/:id/bank', async (req) => {
+    can(req, 'stores.bank');
+    return getStoreBank(app.db, IdParams.parse(req.params).id);
+  });
+  app.put('/stores/:id/bank', async (req) => {
+    const staff = can(req, 'stores.bank');
+    return updateStoreBank(app.ctx(req), staff, IdParams.parse(req.params).id, BankBody.parse(req.body));
+  });
+  app.post('/stores/:id/bank/verify', async (req) => {
+    const staff = can(req, 'stores.bank');
+    return verifyStoreBank(app.ctx(req), staff, IdParams.parse(req.params).id);
   });
 
   // ------------------------------------------------------------ a store's own settings
@@ -648,6 +681,30 @@ export async function adminRoutes(app: FastifyInstance) {
     notifyOrderStatus(app, id);
     return order;
   });
+  /** «المرتجعات»: pieces of a delivered order coming back (restock + deducted from the store's payout). */
+  app.post('/orders/:id/returns', async (req, reply) => {
+    const staff = can(req, 'returns.manage');
+    const { id } = IdParams.parse(req.params);
+    const body = z
+      .object({
+        items: z.array(z.object({ orderItemId: Id, quantity: z.number().int().min(1).max(999) })).min(1).max(50),
+        reason: z.enum(RETURN_REASONS),
+        note: z.string().trim().max(300).optional(),
+        restock: z.boolean().optional(),
+      })
+      .parse(req.body);
+    reply.status(201);
+    return createReturn(app.ctx(req), staff, id, body);
+  });
+
+  /** «حظر الزبون»: a blocked customer cannot check out (browsing stays open). */
+  app.post('/customers/:id/block', async (req) => {
+    const staff = can(req, 'customers.block');
+    const { id } = IdParams.parse(req.params);
+    const body = z.object({ blocked: z.boolean(), reason: z.string().trim().max(200).optional() }).parse(req.body);
+    return setCustomerBlocked(app.ctx(req), staff, id, body);
+  });
+
   /** «تنبيهات الطلبات»: new / late pending orders (+ orders without a driver for dispatch). */
   app.get('/alerts', async (req) => getOrderAlerts(app.ctx(req), can(req, 'orders.read')));
   app.post('/orders/:id/driver', async (req) => {

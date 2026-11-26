@@ -143,7 +143,7 @@ function ReportBody({ report: r, storeView, finance }: { report: Report; storeVi
         {storeView ? (
           <Kpi label="رسوم التوصيل" value={<Money value={s.deliveryFees} />} hint="يحصّلها ستايلو مقابل التوصيل المباشر" />
         ) : (
-          finance && <Kpi label="مستحقات المتاجر" value={<Money value={s.storePayout ?? 0} />} hint="المبيعات ناقص العمولة" />
+          finance && <Kpi label="مستحقات المتاجر" value={<Money value={s.storePayout ?? 0} />} hint="المبيعات ناقص العمولة والمرتجعات" />
         )}
         <Kpi
           label="الطلبات"
@@ -156,6 +156,15 @@ function ReportBody({ report: r, storeView, finance }: { report: Report; storeVi
         />
         <Kpi label="متوسط قيمة الطلب" value={<Money value={s.averageOrderValue} />} hint="دون رسوم التوصيل" />
         <Kpi label="نسبة الإلغاء" value={<Percent bps={s.cancellationRateBps} />} hint={<>قيمة الملغى: <Money value={s.cancelledSales} /></>} />
+        <Kpi
+          label="المرتجعات"
+          value={<Money value={s.returnedSales} />}
+          hint={
+            <>
+              <Num>{s.returnsCount}</Num> مرتجع · صافي المبيعات <Money value={s.netSales} />
+            </>
+          }
+        />
         {!storeView && <Kpi label="رسوم التوصيل" value={<Money value={s.deliveryFees} />} hint="التوصيل المباشر بسائقي ستايلو" />}
       </div>
 

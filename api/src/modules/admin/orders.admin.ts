@@ -4,6 +4,8 @@ import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import type { StaffContext } from './permissions.js';
 import { restockOrder } from '../orders/restock.js';
 import { failureNote, type DeliveryFailure } from '../orders/delivery-failure.js';
+import { customerRecord } from './customers.admin.js';
+import { listOrderReturns, returnDeadline, returnedQuantities } from './returns.admin.js';
 
 /** The six statuses and allowed moves — mirrors order_status_can_transition() in 0001_init.sql. */
 export const ORDER_STATUSES = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
@@ -42,7 +44,10 @@ const LIST_SELECT = `
          s.id AS store_id, s.name_ar AS store_name,
          c.id AS customer_id, c.full_name AS customer_name, c.phone AS customer_phone,
          d.user_id AS driver_id, du.full_name AS driver_name, du.phone AS driver_phone,
-         (SELECT COALESCE(SUM(quantity), 0)::int FROM order_items oi WHERE oi.order_id = o.id) AS items_count
+         (SELECT COALESCE(SUM(quantity), 0)::int FROM order_items oi WHERE oi.order_id = o.id) AS items_count,
+         (SELECT count(*)::int FROM orders f WHERE f.customer_id = o.customer_id
+             AND f.delivery_failure IN ('refused', 'no_answer')) AS customer_refusals,
+         c.blocked_at IS NOT NULL AS customer_blocked
     FROM orders o
     JOIN stores s ON s.id = o.store_id
     JOIN users c ON c.id = o.customer_id
@@ -68,7 +73,14 @@ function mapOrderRow(r: any) {
     cancelReason: r.cancel_reason as string | null,
     itemsCount: r.items_count as number,
     store: { id: r.store_id as string, name: r.store_name as string },
-    customer: { id: r.customer_id as string, name: r.customer_name as string, phone: r.customer_phone as string | null },
+    customer: {
+      id: r.customer_id as string,
+      name: r.customer_name as string,
+      phone: r.customer_phone as string | null,
+      /** Failed deliveries «رفض الاستلام» + «لا يرد» of this customer (all stores). */
+      refusals: r.customer_refusals as number,
+      blocked: r.customer_blocked as boolean,
+    },
     driver: r.driver_id
       ? { id: r.driver_id as string, name: r.driver_name as string, phone: r.driver_phone as string | null }
       : null,
@@ -121,7 +133,7 @@ async function findScopedOrder(db: Queryable, staff: StaffContext, id: string, l
 export async function getOrder(ctx: Ctx, staff: StaffContext, id: string) {
   const row = await findScopedOrder(ctx.db, staff, id);
   const order = mapOrderRow(row);
-  const [items, history, address] = await Promise.all([
+  const [items, history, address, returns, returned, deadline, customer] = await Promise.all([
     ctx.db.query(
       `SELECT id, product_name_ar, sku, size, color_name_ar, unit_price, quantity, line_total
          FROM order_items WHERE order_id = $1 ORDER BY product_name_ar`,
@@ -134,6 +146,10 @@ export async function getOrder(ctx: Ctx, staff: StaffContext, id: string) {
       [id],
     ),
     ctx.db.query(`SELECT shipping_address FROM orders WHERE id = $1`, [id]),
+    listOrderReturns(ctx.db, id),
+    returnedQuantities(ctx.db, id),
+    order.status === 'delivered' ? returnDeadline(ctx.db, id, ctx.config.returns.windowDays) : Promise.resolve(null),
+    customerRecord(ctx.db, order.customer.id, ctx.config.returns.refusalWarnAt),
   ]);
   return {
     ...order,
@@ -147,7 +163,13 @@ export async function getOrder(ctx: Ctx, staff: StaffContext, id: string) {
       unitPrice: r.unit_price as number,
       quantity: r.quantity as number,
       lineTotal: r.line_total as number,
+      returned: returned.get(r.id as string) ?? 0,
     })),
+    returns,
+    /** A return can be recorded until then (delivered orders only). */
+    returnDeadline: deadline ? deadline.toISOString() : null,
+    canReturn: !!deadline && deadline >= ctx.now,
+    customerRecord: customer,
     history: history.rows.map((r) => ({
       from: r.from_status as OrderStatus | null,
       to: r.to_status as OrderStatus,

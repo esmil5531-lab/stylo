@@ -29,7 +29,10 @@ export type Permission =
   | 'reviews.manage'
   | 'custody.read'
   | 'custody.manage'
-  | 'finance.view';
+  | 'finance.view'
+  | 'returns.manage'
+  | 'customers.block'
+  | 'stores.bank';
 
 export interface Me {
   id: string;
@@ -124,8 +127,66 @@ export interface AdminOrder {
   cancelReason: string | null;
   itemsCount: number;
   store: { id: string; name: string };
-  customer: { id: string; name: string; phone: string | null };
+  customer: {
+    id: string;
+    name: string;
+    phone: string | null;
+    /** Failed deliveries «رفض الاستلام» + «لا يرد» (all stores). */
+    refusals: number;
+    blocked: boolean;
+  };
   driver: { id: string; name: string; phone: string | null } | null;
+}
+
+export type ReturnReason = 'wrong_size' | 'defective' | 'not_as_described' | 'changed_mind' | 'other';
+
+export interface OrderReturn {
+  id: string;
+  number: number;
+  reason: ReturnReason;
+  reasonLabel: string;
+  note: string | null;
+  restocked: boolean;
+  amount: number;
+  commission?: number;
+  settled: boolean;
+  createdAt: string;
+  createdBy: string | null;
+  items: { orderItemId: string; name: string; size: string | null; colorName: string | null; quantity: number; amount: number }[];
+}
+
+export interface CustomerRecord {
+  delivered: number;
+  failed: { refused: number; noAnswer: number; wrongAddress: number; postponed: number };
+  refusals: number;
+  cancelledBeforeShipping: number;
+  warn: boolean;
+  blocked: { at: string; reason: string; by: string | null } | null;
+}
+
+export interface StoreBank {
+  bankName: string | null;
+  accountName: string | null;
+  iban: string | null;
+  accountNumber: string | null;
+  complete: boolean;
+  verified: boolean;
+  updatedAt: string | null;
+  updatedBy: string | null;
+  verifiedAt: string | null;
+  verifiedBy: string | null;
+}
+
+/** A return deducted (or to be deducted) by a store payout. */
+export interface PayoutReturnLine {
+  id: string;
+  number: number;
+  orderId: string;
+  orderNumber: number;
+  createdAt: string;
+  amount: number;
+  commission?: number;
+  deduction: number;
 }
 
 export interface AdminOrderDetail extends AdminOrder {
@@ -139,9 +200,15 @@ export interface AdminOrderDetail extends AdminOrder {
     unitPrice: number;
     quantity: number;
     lineTotal: number;
+    /** Pieces of this line already returned. */
+    returned: number;
   }[];
   history: { from: OrderStatus | null; to: OrderStatus; note: string | null; at: string; by: string | null }[];
   allowedNext: OrderStatus[];
+  returns: OrderReturn[];
+  returnDeadline: string | null;
+  canReturn: boolean;
+  customerRecord: CustomerRecord;
 }
 
 // ---------------------------------------------------------------- 0005: store panel, products, reports
@@ -235,6 +302,10 @@ export interface Report {
     realisedSales: number;
     realisedCommission?: number;
     cancelledSales: number;
+    returnsCount: number;
+    returnedSales: number;
+    returnedCommission?: number;
+    netSales: number;
     averageOrderValue: number;
     effectiveCommissionBps?: number;
     cancellationRateBps: number;
@@ -261,7 +332,17 @@ export interface StoreBalance {
   storeId: string;
   storeName: string;
   commissionBps?: number;
-  unsettled: { orders: number; sales: number; commission?: number; payout: number; firstDay: string | null; lastDay: string | null };
+  unsettled: {
+    orders: number;
+    sales: number;
+    commission?: number;
+    returnsCount: number;
+    returnsAmount: number;
+    returnsCommission?: number;
+    payout: number;
+    firstDay: string | null;
+    lastDay: string | null;
+  };
   lastSettledTo: string | null;
   pendingAmount: number;
 }
@@ -273,7 +354,11 @@ export interface PayoutPreview {
   ordersCount: number;
   sales: number;
   commission?: number;
+  returnsCount: number;
+  returnsAmount: number;
+  returnsCommission?: number;
   payout: number;
+  returns: PayoutReturnLine[];
   orders: { id: string; orderNumber: number; deliveredAt: string; subtotal: number; commissionBps?: number; commission?: number; payout: number }[];
 }
 
@@ -287,6 +372,9 @@ export interface Payout {
   ordersCount: number;
   sales: number;
   commission?: number;
+  returnsCount: number;
+  returnsAmount: number;
+  returnsCommission?: number;
   payoutAmount: number;
   status: 'pending' | 'paid';
   note: string | null;
@@ -298,6 +386,9 @@ export interface Payout {
 }
 
 export interface PayoutDetail extends Payout {
+  /** Where to transfer it: only for the store itself and the general manager (stores.bank). */
+  bank: StoreBank | null;
+  returns: PayoutReturnLine[];
   orders: { id: string; orderNumber: number; placedAt: string; subtotal: number; commissionBps?: number; commission?: number; payout: number }[];
 }
 

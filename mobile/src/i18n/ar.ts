@@ -380,6 +380,8 @@ export const ar = {
     empty: 'لا توجد طلبات بعد',
     number: orderNumber,
     items: (n: number) => (n === 1 ? 'قطعة واحدة' : `${n} قطع`),
+    returnTitle: (n: number, refund: string) => `مرتجع \u2066#${n}\u2069 · استرداد ${refund}`,
+    returnItem: (name: string, qty: number) => (qty === 1 ? name : `${name} × ${qty}`),
     statusesTitle: 'حالة الطلب',
     expected: 'الوصول المتوقع',
     deliveryMode: 'طريقة التوصيل',

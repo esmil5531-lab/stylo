@@ -50,7 +50,7 @@ export async function getReport(ctx: Ctx, staff: StaffContext, q: ReportQuery) {
   const scope = `(o.placed_at AT TIME ZONE '${TZ}')::date BETWEEN $1::date AND $2::date
                  AND ($3::uuid IS NULL OR o.store_id = $3::uuid)`;
 
-  const [summary, daily, byStore, topProducts, byStatus] = await Promise.all([
+  const [summary, daily, byStore, topProducts, byStatus, returned] = await Promise.all([
     ctx.db.query(
       `SELECT count(*)::int AS orders,
               count(*) FILTER (WHERE o.status = 'delivered')::int AS delivered,
@@ -102,7 +102,19 @@ export async function getReport(ctx: Ctx, staff: StaffContext, q: ReportQuery) {
       params,
     ),
     ctx.db.query(`SELECT o.status, count(*)::int AS n FROM orders o WHERE ${scope} GROUP BY 1`, params),
+    // Returns («المرتجعات») by the day they were recorded.
+    ctx.db.query(
+      `SELECT count(*)::int AS n, COALESCE(SUM(r.amount), 0)::bigint AS amount,
+              COALESCE(SUM(r.commission_amount), 0)::bigint AS commission
+         FROM order_returns r
+        WHERE (r.created_at AT TIME ZONE '${TZ}')::date BETWEEN $1::date AND $2::date
+          AND ($3::uuid IS NULL OR r.store_id = $3::uuid)`,
+      params,
+    ),
   ]);
+  const ret = returned.rows[0];
+  const returnedSales = Number(ret.amount);
+  const returnedCommission = Number(ret.commission);
 
   const s = summary.rows[0];
   const nonCancelled = s.orders - s.cancelled;
@@ -121,8 +133,13 @@ export async function getReport(ctx: Ctx, staff: StaffContext, q: ReportQuery) {
       sales: s.sales as number,
       commission: s.commission as number,
       deliveryFees: s.delivery_fees as number,
-      storePayout: (s.sales - s.commission) as number,
-      styloRevenue: (s.commission + s.delivery_fees) as number,
+      /** Returns recorded in the period: refunded merchandise and the commission given back. */
+      returnsCount: ret.n as number,
+      returnedSales,
+      returnedCommission,
+      netSales: Number(s.sales) - returnedSales,
+      storePayout: Number(s.sales) - Number(s.commission) - returnedSales + returnedCommission,
+      styloRevenue: Number(s.commission) - returnedCommission + Number(s.delivery_fees),
       realisedSales: s.realised_sales as number,
       realisedCommission: s.realised_commission as number,
       cancelledSales: s.cancelled_sales as number,

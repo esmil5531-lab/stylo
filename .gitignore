@@ -16,3 +16,4 @@ deploy/backups/
 /e2e/.state.json
 /e2e/.tokens.json
 /e2e/.staff-session.json
+/e2e/.store-session.json

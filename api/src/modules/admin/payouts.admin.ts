@@ -1,6 +1,7 @@
 import { inTransaction, type Queryable } from '../../db.js';
 import type { Ctx } from '../../lib/context.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
+import { canSeeBank, getStoreBank } from './bank.admin.js';
 import type { StaffContext } from './permissions.js';
 
 /**
@@ -8,7 +9,11 @@ import type { StaffContext } from './permissions.js';
  * - Only **delivered** orders are settled (open orders may still be cancelled).
  * - The period is by delivery day (Libya calendar), i.e. when the order became `delivered`.
  * - Each order is settled once (`payout_orders.order_id` is UNIQUE).
- * - payout = Σ subtotal − Σ commission (commission snapshot per order). Delivery fees are Stylo's.
+ * - payout = Σ subtotal − Σ commission (commission snapshot per order) − returns + their
+ *   commission. Delivery fees are Stylo's.
+ * - Returns («المرتجعات») not yet deducted, recorded up to the period's last day, are deducted by
+ *   the next payout of the store (each once: order_returns.payout_id), whenever the order itself
+ *   was settled.
  * Lifecycle: pending (calculated, not yet transferred) → paid (transfer reference recorded).
  * A pending payout can be cancelled, which releases its orders for a new settlement.
  */
@@ -26,6 +31,36 @@ const UNSETTLED = `
     ) d ON true
    WHERE o.status = 'delivered'
      AND NOT EXISTS (SELECT 1 FROM payout_orders po WHERE po.order_id = o.id)`;
+
+/** Returns not yet deducted from any payout. */
+const UNSETTLED_RETURNS = `
+  SELECT r.id, r.number, r.store_id, r.order_id, o.order_number, r.amount, r.commission_amount, r.created_at,
+         (r.created_at AT TIME ZONE '${TZ}')::date AS return_day
+    FROM order_returns r JOIN orders o ON o.id = r.order_id
+   WHERE r.payout_id IS NULL`;
+
+async function returnCandidates(db: Queryable, storeId: string, to: string, lock = false) {
+  const { rows } = await db.query(
+    `SELECT * FROM (${UNSETTLED_RETURNS}) x WHERE x.store_id = $1 AND x.return_day <= $2::date ORDER BY x.created_at`,
+    [storeId, to],
+  );
+  if (lock && rows.length) {
+    await db.query(`SELECT id FROM order_returns WHERE id = ANY($1::uuid[]) FOR UPDATE`, [rows.map((r) => r.id)]);
+  }
+  return rows;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mapReturnLine = (r: any) => ({
+  id: r.id as string,
+  number: Number(r.number),
+  orderId: r.order_id as string,
+  orderNumber: Number(r.order_number),
+  createdAt: (r.created_at as Date).toISOString(),
+  amount: Number(r.amount),
+  commission: Number(r.commission_amount),
+  deduction: Number(r.amount) - Number(r.commission_amount),
+});
 
 function scopeStore(staff: StaffContext, requested?: string): string | null {
   if (staff.storeId) {
@@ -46,7 +81,12 @@ export async function listBalances(ctx: Ctx, staff: StaffContext) {
             min(u.delivered_day)::text AS first_day, max(u.delivered_day)::text AS last_day,
             (SELECT max(p.period_to)::text FROM payouts p WHERE p.store_id = s.id) AS last_settled_to,
             (SELECT COALESCE(SUM(p.payout_amount), 0)::bigint FROM payouts p
-              WHERE p.store_id = s.id AND p.status = 'pending') AS pending_amount
+              WHERE p.store_id = s.id AND p.status = 'pending') AS pending_amount,
+            (SELECT count(*)::int FROM order_returns r WHERE r.store_id = s.id AND r.payout_id IS NULL) AS returns_count,
+            (SELECT COALESCE(SUM(r.amount), 0)::bigint FROM order_returns r
+              WHERE r.store_id = s.id AND r.payout_id IS NULL) AS returns_amount,
+            (SELECT COALESCE(SUM(r.commission_amount), 0)::bigint FROM order_returns r
+              WHERE r.store_id = s.id AND r.payout_id IS NULL) AS returns_commission
        FROM stores s
        LEFT JOIN (${UNSETTLED}) u ON u.store_id = s.id
       WHERE ($1::uuid IS NULL OR s.id = $1::uuid)
@@ -62,7 +102,10 @@ export async function listBalances(ctx: Ctx, staff: StaffContext) {
       orders: r.orders as number,
       sales: r.sales as number,
       commission: r.commission as number,
-      payout: (r.sales - r.commission) as number,
+      returnsCount: r.returns_count as number,
+      returnsAmount: Number(r.returns_amount),
+      returnsCommission: Number(r.returns_commission),
+      payout: Number(r.sales) - Number(r.commission) - Number(r.returns_amount) + Number(r.returns_commission),
       firstDay: r.first_day as string | null,
       lastDay: r.last_day as string | null,
     },
@@ -93,8 +136,11 @@ export async function previewPayout(ctx: Ctx, staff: StaffContext, q: { storeId:
   checkPeriod(q.from, q.to);
   const storeId = scopeStore(staff, q.storeId)!;
   const rows = await candidates(ctx.db, storeId, q.from, q.to);
+  const returns = await returnCandidates(ctx.db, storeId, q.to);
   const sales = rows.reduce((s, r) => s + Number(r.subtotal), 0);
   const commission = rows.reduce((s, r) => s + Number(r.commission_amount), 0);
+  const returnsAmount = returns.reduce((s, r) => s + Number(r.amount), 0);
+  const returnsCommission = returns.reduce((s, r) => s + Number(r.commission_amount), 0);
   return {
     storeId,
     from: q.from,
@@ -102,7 +148,11 @@ export async function previewPayout(ctx: Ctx, staff: StaffContext, q: { storeId:
     ordersCount: rows.length,
     sales,
     commission,
-    payout: sales - commission,
+    returnsCount: returns.length,
+    returnsAmount,
+    returnsCommission,
+    payout: sales - commission - returnsAmount + returnsCommission,
+    returns: returns.map(mapReturnLine),
     orders: rows.map((r) => ({
       id: r.id as string,
       orderNumber: r.order_number as number,
@@ -124,14 +174,34 @@ export async function createPayout(
   const id = await inTransaction(ctx.db, async (db) => {
     const rows = await candidates(db, input.storeId, input.from, input.to, true);
     if (rows.length === 0) throw badRequest('nothing_to_settle', 'لا توجد طلبات مسلّمة غير مسوّاة في هذه الفترة');
+    const returns = await returnCandidates(db, input.storeId, input.to, true);
     const sales = rows.reduce((s, r) => s + Number(r.subtotal), 0);
     const commission = rows.reduce((s, r) => s + Number(r.commission_amount), 0);
+    const returnsAmount = returns.reduce((s, r) => s + Number(r.amount), 0);
+    const returnsCommission = returns.reduce((s, r) => s + Number(r.commission_amount), 0);
     const { rows: created } = await db.query(
-      `INSERT INTO payouts (store_id, period_from, period_to, orders_count, sales, commission, note, created_by, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [input.storeId, input.from, input.to, rows.length, sales, commission, input.note?.trim() || null, staff.userId, ctx.now],
+      `INSERT INTO payouts (store_id, period_from, period_to, orders_count, sales, commission,
+                            returns_count, returns_amount, returns_commission, note, created_by, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+      [
+        input.storeId,
+        input.from,
+        input.to,
+        rows.length,
+        sales,
+        commission,
+        returns.length,
+        returnsAmount,
+        returnsCommission,
+        input.note?.trim() || null,
+        staff.userId,
+        ctx.now,
+      ],
     );
     const payoutId = created[0].id as string;
+    if (returns.length) {
+      await db.query(`UPDATE order_returns SET payout_id = $1 WHERE id = ANY($2::uuid[])`, [payoutId, returns.map((r) => r.id)]);
+    }
     await db.query(
       `INSERT INTO payout_orders (payout_id, order_id) SELECT $1, unnest($2::uuid[])`,
       [payoutId, rows.map((r) => r.id)],
@@ -161,7 +231,10 @@ function mapPayout(r: any) {
     ordersCount: r.orders_count as number,
     sales: r.sales as number,
     commission: r.commission as number,
-    payoutAmount: r.payout_amount as number,
+    returnsCount: r.returns_count as number,
+    returnsAmount: Number(r.returns_amount),
+    returnsCommission: Number(r.returns_commission),
+    payoutAmount: Number(r.payout_amount),
     status: r.status as 'pending' | 'paid',
     note: r.note as string | null,
     reference: r.reference as string | null,
@@ -193,8 +266,16 @@ export async function getPayout(ctx: Ctx, staff: StaffContext, id: string) {
       WHERE po.payout_id = $1 ORDER BY o.order_number`,
     [id],
   );
+  const returns = await ctx.db.query(
+    `SELECT r.id, r.number, r.order_id, o.order_number, r.amount, r.commission_amount, r.created_at
+       FROM order_returns r JOIN orders o ON o.id = r.order_id WHERE r.payout_id = $1 ORDER BY r.created_at`,
+    [id],
+  );
   return {
     ...mapPayout(r),
+    /** Where to transfer it (only for the store itself and the general manager). */
+    bank: canSeeBank(staff, r.store_id) ? await getStoreBank(ctx.db, r.store_id) : null,
+    returns: returns.rows.map(mapReturnLine),
     orders: orders.rows.map((o) => ({
       id: o.id as string,
       orderNumber: o.order_number as number,

@@ -233,6 +233,8 @@ export interface OrderDetail extends OrderSummary {
     lineTotal: number;
   }[];
   history: { from: OrderStatusValue | null; to: OrderStatusValue; note: string | null; at: string }[];
+  /** Pieces returned after delivery, recorded by Stylo, with the refunded amount. */
+  returns?: { number: number; refund: number; at: string; items: { name: string; quantity: number }[] }[];
 }
 
 export interface CheckoutResult {

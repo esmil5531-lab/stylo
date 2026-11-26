@@ -34,6 +34,10 @@ import type {
   StaffMember,
   StoreStatus,
   OrderAlerts,
+  OrderReturn,
+  CustomerRecord,
+  ReturnReason,
+  StoreBank,
   Vehicle,
 } from './types';
 
@@ -84,6 +88,59 @@ export const useAssignDriver = (id: string) =>
   useOrderMutation((driverId: string) =>
     request<AdminOrderDetail>('POST', `/admin/orders/${id}/driver`, { driverId }),
   );
+
+export const useCreateReturn = (orderId: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { items: { orderItemId: string; quantity: number }[]; reason: ReturnReason; note?: string; restock: boolean }) =>
+      request<OrderReturn>('POST', `/admin/orders/${orderId}/returns`, v),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['order', orderId] });
+      void qc.invalidateQueries({ queryKey: ['payouts'] });
+      void qc.invalidateQueries({ queryKey: ['report'] });
+    },
+  });
+};
+
+export const useBlockCustomer = (orderId: string, customerId: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { blocked: boolean; reason?: string }) =>
+      request<CustomerRecord>('POST', `/admin/customers/${customerId}/block`, v),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['order', orderId] });
+      void qc.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+};
+
+// ---------------------------------------------------------------- store bank account
+export const useMyStoreBank = () => useQuery({ queryKey: ['bank', 'mine'], queryFn: () => get<StoreBank>('/admin/my-store/bank') });
+export const useStoreBank = (storeId: string, enabled = true) =>
+  useQuery({ enabled, queryKey: ['bank', storeId], queryFn: () => get<StoreBank>(`/admin/stores/${storeId}/bank`) });
+export interface BankInput {
+  bankName: string;
+  accountName: string;
+  iban: string;
+  accountNumber?: string | null;
+}
+export const useSaveMyStoreBank = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: BankInput) => request<StoreBank>('PUT', '/admin/my-store/bank', v),
+    onSuccess: (bank) => qc.setQueryData(['bank', 'mine'], bank),
+  });
+};
+export const useVerifyStoreBank = (storeId: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request<StoreBank>('POST', `/admin/stores/${storeId}/bank/verify`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['bank'] });
+      void qc.invalidateQueries({ queryKey: ['payouts'] });
+    },
+  });
+};
 
 // ---------------------------------------------------------------- stores
 /** `enabled: false` for screens shown to staff without `stores.read` (e.g. store owners). */

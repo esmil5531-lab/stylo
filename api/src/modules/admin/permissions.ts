@@ -30,6 +30,9 @@ export const PERMISSIONS = {
   'custody.read': 'عرض عُهدة المناديب النقدية',
   'custody.manage': 'تقفيل عُهدة المناديب واستلام المبالغ',
   'finance.view': 'رؤية العمولات وإيراد ستايلو (المدير العام)',
+  'returns.manage': 'تسجيل المرتجعات بعد التسليم',
+  'customers.block': 'حظر الزبائن وإلغاء الحظر',
+  'stores.bank': 'رؤية وتعديل وتوثيق الحسابات البنكية للمتاجر',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -86,6 +89,8 @@ export const FINANCE_KEYS = new Set([
   'currentCommissionBps',
   'effectiveCommissionBps',
   'realisedCommission',
+  'returnsCommission',
+  'returnedCommission',
   'styloRevenue',
 ]);
 

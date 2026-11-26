@@ -6,6 +6,8 @@ const STATE = join(__dirname, '.state.json');
 const TOKENS = join(__dirname, '.tokens.json');
 /** The back-office session of the Stylo staff member, reused by the custody journey. */
 export const STAFF_SESSION = join(__dirname, '.staff-session.json');
+/** The store owner's back-office session, reused by the bank-account journey. */
+export const STORE_SESSION = join(__dirname, '.store-session.json');
 
 export interface JourneyState {
   orderId?: string;

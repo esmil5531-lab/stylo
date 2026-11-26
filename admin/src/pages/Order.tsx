@@ -3,7 +3,9 @@ import { Link, useParams } from 'react-router';
 
 import { useAssignDriver, useChangeOrderStatus, useDrivers, useOrder } from '@/api/hooks';
 import type { AdminOrderDetail, OrderStatus } from '@/api/types';
+import { CustomerRecordCard } from '@/components/CustomerRecordCard';
 import { useCan } from '@/components/Layout';
+import { OrderReturns } from '@/components/OrderReturns';
 import { Count, Money, Num, Phone } from '@/components/inputs';
 import { Async, Badge, ErrorAlert, Field, Icon, Modal, OrderNo, PageHead } from '@/components/ui';
 import { DELIVERY_MODE, ORDER_STATUS, VEHICLE } from '@/lib/constants';
@@ -143,6 +145,8 @@ function OrderView({ order }: { order: AdminOrderDetail }) {
               </div>
             </div>
           </section>
+
+          <OrderReturns order={order} />
         </div>
 
         <div className="stack">
@@ -198,6 +202,8 @@ function OrderView({ order }: { order: AdminOrderDetail }) {
               )}
             </dl>
           </section>
+
+          <CustomerRecordCard order={order} />
         </div>
       </div>
 

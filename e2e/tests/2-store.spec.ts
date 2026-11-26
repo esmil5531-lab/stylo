@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { adminLogin, PHONES, placeOrderAsSara } from '../helpers';
-import { saveState, tokens } from '../state';
+import { saveState, STORE_SESSION, tokens } from '../state';
 
 /**
  * Journey 2 — the store («أزياء لورا»): its panel is open when a customer orders; the new order
@@ -12,6 +12,7 @@ test('the store sees a new order arrive, confirms it and prepares it', async ({ 
   await adminLogin(page, PHONES.lauraOwner);
   await expect(page.getByText('STYLO STORE')).toBeVisible();
   await expect(page.getByText('لوحة متجر «أزياء لورا»')).toBeVisible();
+  await page.context().storageState({ path: STORE_SESSION }); // reused by journey 6 (bank account)
 
   // A customer orders while the panel is open → within one refresh (20 s) the alert appears.
   const order = await placeOrderAsSara(tokens().sara);

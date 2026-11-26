@@ -25,6 +25,12 @@ export async function checkout(pool: Pool, baseCtx: Ctx, input: CheckoutInput) {
   return withTransaction(pool, async (client) => {
     const ctx: Ctx = { ...baseCtx, db: client };
 
+    // A customer blocked by Stylo (repeated refusals…) can browse but not order.
+    const blocked = await client.query(`SELECT blocked_at FROM users WHERE id = $1`, [userId]);
+    if (blocked.rows[0]?.blocked_at) {
+      throw new AppError(403, 'customer_blocked', 'لا يمكن إتمام الطلب من هذا الحساب حالياً. تواصل مع خدمة عملاء ستايلو');
+    }
+
     const addr = await client.query(
       `SELECT id, label, recipient_name, phone, country_code, city, district, street, building, landmark, postal_code
          FROM addresses WHERE user_id = $1 AND ($2::uuid IS NULL OR id = $2::uuid)
@@ -166,7 +172,7 @@ export async function getOrder(ctx: Ctx, id: string) {
   const { rows } = await ctx.db.query(`${ORDER_LIST_SELECT} WHERE o.id = $1 AND o.customer_id = $2`, [id, userId]);
   if (!rows[0]) throw notFound('الطلب');
 
-  const [items, history] = await Promise.all([
+  const [items, history, returns] = await Promise.all([
     ctx.db.query(
       `SELECT oi.id, oi.variant_id, oi.product_name_ar, oi.sku, oi.size, oi.color_name_ar, oi.unit_price,
               oi.quantity, oi.line_total, v.product_id, v.color_hex
@@ -176,6 +182,16 @@ export async function getOrder(ctx: Ctx, id: string) {
     ),
     ctx.db.query(
       `SELECT from_status, to_status, note, changed_at FROM order_status_history WHERE order_id = $1 ORDER BY id`,
+      [id],
+    ),
+    // Returns recorded by Stylo (reason and staff notes stay internal).
+    ctx.db.query(
+      `SELECT r.number, r.amount, r.created_at,
+              json_agg(json_build_object('name', oi.product_name_ar, 'quantity', ri.quantity) ORDER BY oi.product_name_ar) AS items
+         FROM order_returns r
+         JOIN order_return_items ri ON ri.return_id = r.id
+         JOIN order_items oi ON oi.id = ri.order_item_id
+        WHERE r.order_id = $1 GROUP BY r.id ORDER BY r.created_at`,
       [id],
     ),
   ]);
@@ -200,6 +216,12 @@ export async function getOrder(ctx: Ctx, id: string) {
       to: r.to_status as string,
       note: r.note as string | null,
       at: (r.changed_at as Date).toISOString(),
+    })),
+    returns: returns.rows.map((r) => ({
+      number: Number(r.number),
+      refund: Number(r.amount),
+      at: (r.created_at as Date).toISOString(),
+      items: r.items as { name: string; quantity: number }[],
     })),
   };
 }

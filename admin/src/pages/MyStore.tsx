@@ -1,11 +1,11 @@
 import { useState } from 'react';
 
-import { useMyStore, useUpdateMyStore } from '@/api/hooks';
-import type { AdminStore } from '@/api/types';
+import { useMyStore, useMyStoreBank, useSaveMyStoreBank, useUpdateMyStore } from '@/api/hooks';
+import type { AdminStore, StoreBank } from '@/api/types';
 import { IntInput, Money, PhoneInput, phoneToInput } from '@/components/inputs';
 import { Async, Badge, Empty, ErrorAlert, Field, PageHead } from '@/components/ui';
 import { STORE_STATUS } from '@/lib/constants';
-import { normaliseLibyanPhone, parseIntInput } from '@/lib/numbers';
+import { normaliseLibyanPhone, parseIntInput, toWesternDigits } from '@/lib/numbers';
 
 /** «إعدادات متجري»: what a store can change about itself. */
 export function MyStorePage() {
@@ -124,6 +124,8 @@ function MyStoreForm({ store }: { store: AdminStore }) {
             {update.isSuccess && <span className="alert alert-info">تم الحفظ ✓</span>}
           </div>
           <ErrorAlert error={update.error} />
+
+          <BankSection />
         </div>
 
         <aside className="card section-card">
@@ -142,5 +144,69 @@ function MyStoreForm({ store }: { store: AdminStore }) {
         </aside>
       </div>
     </div>
+  );
+}
+
+/**
+ * «الحساب البنكي» — where Stylo transfers the store's dues. Any change needs a new check by the
+ * general manager («موثّق») before the next transfer.
+ */
+function BankSection() {
+  const bank = useMyStoreBank();
+  return <Async query={bank}>{(b) => <BankForm bank={b} />}</Async>;
+}
+
+function BankForm({ bank }: { bank: StoreBank }) {
+  const save = useSaveMyStoreBank();
+  const [f, setF] = useState({
+    bankName: bank.bankName ?? '',
+    accountName: bank.accountName ?? '',
+    iban: bank.iban ?? '',
+    accountNumber: bank.accountNumber ?? '',
+  });
+  const [submitted, setSubmitted] = useState(false);
+  const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }));
+  const errors = {
+    bankName: f.bankName.trim().length < 2 ? 'اسم المصرف مطلوب' : null,
+    accountName: f.accountName.trim().length < 2 ? 'اسم صاحب الحساب كما في المصرف' : null,
+    iban: /^LY\d{23}$/.test(toWesternDigits(f.iban).replace(/[\s-]/g, '').toUpperCase()) ? null : 'الآيبان 25 خانة تبدأ بـ LY',
+  };
+  const submit = () => {
+    setSubmitted(true);
+    if (Object.values(errors).some(Boolean)) return;
+    save.mutate({ bankName: f.bankName, accountName: f.accountName, iban: f.iban, accountNumber: f.accountNumber.trim() || null });
+  };
+  const current = save.data ?? bank;
+  return (
+    <section className="card section-card">
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <h2>الحساب البنكي لتحويل المستحقات</h2>
+        {current.complete && (
+          <Badge tone={current.verified ? 'green' : 'amber'}>{current.verified ? 'موثّق من ستايلو' : 'بانتظار توثيق ستايلو'}</Badge>
+        )}
+      </div>
+      <div className="section-sub">يراجع فريق ستايلو أي تعديل قبل التحويل التالي، حمايةً لمستحقاتك.</div>
+      <div className="form-grid">
+        <Field label="المصرف" required error={submitted ? errors.bankName : null}>
+          <input className="input" value={f.bankName} onChange={(e) => set('bankName', e.target.value)} placeholder="مثال: مصرف الجمهورية" />
+        </Field>
+        <Field label="اسم صاحب الحساب" required error={submitted ? errors.accountName : null}>
+          <input className="input" value={f.accountName} onChange={(e) => set('accountName', e.target.value)} />
+        </Field>
+        <Field label="رقم الآيبان (IBAN)" required error={submitted ? errors.iban : null} hint="25 خانة تبدأ بـ LY، من كشف الحساب">
+          <input className="input" dir="ltr" value={f.iban} onChange={(e) => set('iban', e.target.value)} placeholder="LY00 0000 0000 0000 0000 0000 0" />
+        </Field>
+        <Field label="رقم الحساب (اختياري)">
+          <input className="input" dir="ltr" inputMode="numeric" value={f.accountNumber} onChange={(e) => set('accountNumber', e.target.value)} />
+        </Field>
+      </div>
+      <div className="row">
+        <button className="btn btn-primary" onClick={submit} disabled={save.isPending}>
+          حفظ الحساب البنكي
+        </button>
+        {save.isSuccess && <span className="alert alert-info">تم الحفظ ✓ — بانتظار توثيق ستايلو</span>}
+      </div>
+      <ErrorAlert error={save.error} />
+    </section>
   );
 }

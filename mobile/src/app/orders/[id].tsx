@@ -112,6 +112,14 @@ function OrderBody({ order }: { order: OrderDetail }) {
         <Line label={ar.cart.subtotal} value={formatPrice(order.subtotal, order.currency)} />
         <Line label={ar.delivery.fee} value={formatPrice(order.shippingFee, order.currency)} />
         <Line label={ar.cart.total} value={formatPrice(order.total, order.currency)} strong />
+        {(order.returns ?? []).map((r) => (
+          <View key={r.number} style={styles.returnBox}>
+            <Text style={styles.returnTitle}>{ar.orders.returnTitle(r.number, formatPrice(r.refund, order.currency))}</Text>
+            <Text style={styles.returnItems}>
+              {r.items.map((i) => ar.orders.returnItem(i.name, i.quantity)).join('، ')} · {formatDate(r.at)}
+            </Text>
+          </View>
+        ))}
       </View>
 
       <Text style={styles.section}>{ar.orders.shipTo}</Text>
@@ -169,6 +177,9 @@ function Line({ label, value, strong }: { label: string; value: string; strong?:
 }
 
 const styles = StyleSheet.create({
+  returnBox: { gap: 2, padding: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, marginTop: spacing.xs },
+  returnTitle: { fontFamily: fonts.semiBold, fontSize: 13, lineHeight: 20, color: colors.ink },
+  returnItems: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, color: colors.inkMuted, writingDirection: 'rtl' },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xl },
   card: {

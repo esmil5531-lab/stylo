@@ -71,6 +71,10 @@ const EnvSchema = z.object({
   PENDING_ALERT_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(15),
   /** Cancel pending orders the store has not confirmed after this many minutes. 0 = never (default). */
   PENDING_AUTO_CANCEL_MINUTES: z.coerce.number().int().min(0).max(7 * 24 * 60).default(0),
+  /** Days after delivery during which staff may record a return (the returns policy says 3). */
+  RETURN_WINDOW_DAYS: z.coerce.number().int().min(0).max(60).default(3),
+  /** Failed deliveries (refused / no answer) from which the back office warns about a customer. */
+  REFUSAL_WARN_AT: z.coerce.number().int().min(1).max(20).default(2),
   /** Days the WhatsApp/SMS send log is kept (daily clean-up). */
   MESSAGE_LOG_DAYS: z.coerce.number().int().min(7).max(3650).default(180),
   /** Extra request limits (see LimitsConfig). Default: on, except in tests. */
@@ -165,6 +169,7 @@ export interface Config {
   limits: LimitsConfig;
   orderAlerts: OrderAlertsConfig;
   maintenance: { messageLogDays: number };
+  returns: { windowDays: number; refusalWarnAt: number };
   seo: SeoConfig;
   trustProxy: boolean;
   /** true = reflect any origin (development); otherwise the listed origins only. */
@@ -280,6 +285,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
           : undefined,
     },
     maintenance: { messageLogDays: e.MESSAGE_LOG_DAYS },
+    returns: { windowDays: e.RETURN_WINDOW_DAYS, refusalWarnAt: e.REFUSAL_WARN_AT },
     orderAlerts: {
       pendingAlertMinutes: e.PENDING_ALERT_MINUTES,
       autoCancelPendingMinutes: e.PENDING_AUTO_CANCEL_MINUTES,

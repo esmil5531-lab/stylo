@@ -101,7 +101,16 @@ export function OrdersPage() {
                           </td>
                           <td>{o.store.name}</td>
                           <td>
-                            <div>{o.customer.name}</div>
+                            <div>
+                              {o.customer.name}
+                              {o.customer.blocked ? (
+                                <span className="refusal-flag" title="لا يستطيع إتمام طلبات جديدة">محظور</span>
+                              ) : o.customer.refusals >= 2 ? (
+                                <span className="refusal-flag" title="تعذّر التسليم: رفض الاستلام أو لم يرد">
+                                  رفض {o.customer.refusals}
+                                </span>
+                              ) : null}
+                            </div>
                             <div className="cell-sub">
                               <Phone value={o.customer.phone} />
                             </div>
