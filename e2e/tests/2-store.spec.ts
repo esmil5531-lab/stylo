@@ -1,6 +1,4 @@
-import { expect, test } from '@playwright/test';
-
-import { adminLogin, PHONES, placeOrderAsSara } from '../helpers';
+import { adminLogin, expect, expectOrder, PHONES, placeOrderAsSara, test, untilSaved } from '../helpers';
 import { saveState, STORE_SESSION, tokens } from '../state';
 
 /**
@@ -26,10 +24,15 @@ test('the store sees a new order arrive, confirms it and prepares it', async ({ 
   await expect(page).toHaveURL(/\/admin\/orders\?status=pending/);
   await page.getByText(`#${order.orderNumber}`, { exact: true }).first().click();
   await expect(page.getByText(`طلب #${order.orderNumber}`)).toBeVisible();
-  await page.getByRole('button', { name: 'تأكيد الطلب' }).click();
-  await expect(page.locator('.page-head, .card').getByText('مؤكد', { exact: true }).first()).toBeVisible();
-  await page.getByRole('button', { name: 'بدء التجهيز' }).click();
-  await expect(page.locator('.page-head, .card').getByText('قيد التجهيز', { exact: true }).first()).toBeVisible();
+  // Each step is checked on the status badge of the page head (the timeline always lists every
+  // status name) and only once the server saved it.
+  const status = page.locator('.page-head .badge');
+  const saveStatus = /\/v1\/admin\/orders\/[^/]+\/status$/;
+  await untilSaved(page, 'POST', saveStatus, () => page.getByRole('button', { name: 'تأكيد الطلب' }).click());
+  await expect(status).toHaveText('مؤكد');
+  await untilSaved(page, 'POST', saveStatus, () => page.getByRole('button', { name: 'بدء التجهيز' }).click());
+  await expect(status).toHaveText('قيد التجهيز');
+  await expectOrder(tokens().admin, order.id, { status: 'processing' }, 'the store journey');
   // Handing it to a driver is Stylo's job, not the store's.
   await expect(page.getByRole('button', { name: /تسليم للسائق/ })).toHaveCount(0);
 

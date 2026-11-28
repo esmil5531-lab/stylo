@@ -1,4 +1,31 @@
-import { expect, type Page } from '@playwright/test';
+import { test as base, expect, type BrowserContext, type Page } from '@playwright/test';
+
+export { expect };
+
+/**
+ * E2E_SLOW_MS=800 delays every /v1 request of the browser by that much, to run the journeys as on
+ * a slow machine or network: a test that leaves a page before its request finished (the browser
+ * cancels it) fails here instead of only on someone else's computer.
+ */
+const SLOW_MS = Number(process.env.E2E_SLOW_MS ?? 0);
+export async function slowDown(context: BrowserContext): Promise<void> {
+  if (!(SLOW_MS > 0)) return;
+  await context.route(/\/v1\//, async (route) => {
+    await new Promise((r) => setTimeout(r, SLOW_MS));
+    await route.continue().catch(() => {}); // the page may have navigated away meanwhile
+  });
+}
+
+/** `test` with the optional slow-down applied to every journey's browser context. */
+export const test = base.extend<{ slowApi: void }>({
+  slowApi: [
+    async ({ context }, use) => {
+      await slowDown(context);
+      await use();
+    },
+    { auto: true },
+  ],
+});
 
 /** Seeded accounts (database/seeds/dev_seed.sql). */
 export const PHONES = {
@@ -94,4 +121,35 @@ export async function placeOrderAsSara(token: string): Promise<{ id: string; ord
   await api('DELETE', '/cart', undefined, token);
   await api('POST', '/cart/items', { variantId: d.variants[0]!.id, quantity: 1, replaceCart: true }, token);
   return api('POST', '/checkout', { deliveryMode: 'standard' }, token);
+}
+
+/**
+ * Runs `action` (a click…) and waits until the server answered the matching /v1 request, so the
+ * journey never leaves the page while it is in flight (a full navigation cancels it, which on a
+ * slow machine silently loses the change). Fails if the server refused it.
+ */
+export async function untilSaved(page: Page, method: string, path: RegExp, action: () => Promise<unknown>) {
+  const response = page.waitForResponse(
+    (r) => r.request().method() === method && path.test(new URL(r.url()).pathname),
+    { timeout: 30_000 },
+  );
+  await action();
+  const res = await response;
+  if (!res.ok()) throw new Error(`${method} ${new URL(res.url()).pathname} → ${res.status()} ${await res.text()}`);
+  return res;
+}
+
+/**
+ * Where the shared order stands, from the server — not from text on screen (the order timeline
+ * always shows every status name). `previous` names the journey that should have got it there.
+ */
+export async function expectOrder(
+  adminToken: string,
+  orderId: string,
+  want: { status: string; driver?: boolean },
+  previous: string,
+) {
+  const order = await api<{ status: string; driver: unknown }>('GET', `/admin/orders/${orderId}`, undefined, adminToken);
+  expect(order.status, `the order should be «${want.status}» after ${previous}`).toBe(want.status);
+  if (want.driver !== undefined) expect(!!order.driver, `driver assigned after ${previous}`).toBe(want.driver);
 }

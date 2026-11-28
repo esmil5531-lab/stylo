@@ -1,6 +1,4 @@
-import { expect, test } from '@playwright/test';
-
-import { codeOnScreen, localPhone, newCustomerPhone, simpleLauraProduct } from '../helpers';
+import { codeOnScreen, expect, localPhone, newCustomerPhone, simpleLauraProduct, test, untilSaved } from '../helpers';
 
 /**
  * Journey 1 — a NEW customer on her phone: browses as a guest, adds a piece to the cart, signs in
@@ -21,7 +19,8 @@ test('a new customer browses as a guest, signs in at checkout, adds her address 
   await page.goto(`/product/${product.id}`);
   await expect(see(product.name)).toBeVisible();
   await expect(see(/يصلك/)).toBeVisible(); // Tripoli by default: a delivery estimate
-  await tap('أضيفي إلى السلة').click();
+  // Wait for the server to save it: opening /cart right away would cancel the request.
+  await untilSaved(page, 'POST', /\/v1\/cart\/items$/, () => tap('أضيفي إلى السلة').click());
 
   // The cart (guest): checkout asks for the phone number first.
   await page.goto('/cart');
@@ -49,13 +48,13 @@ test('a new customer browses as a guest, signs in at checkout, adds her address 
   if (!(await recipient.inputValue())) await recipient.fill('نجلاء اختبار');
   const recipientPhone = page.getByLabel('هاتف المستلم').filter({ visible: true });
   if (!(await recipientPhone.inputValue())) await recipientPhone.fill(localPhone(phone));
-  await tap('حفظ العنوان').click();
+  await untilSaved(page, 'POST', /\/v1\/me\/addresses$/, () => tap('حفظ العنوان').click());
 
   // Order: delivery options are priced, the order is placed.
   await expect(page).toHaveURL(/\/cart/);
   await expect(see('توصيل عادي')).toBeVisible();
   await see('توصيل عادي').click();
-  await tap(/^إتمام الطلب ·/).click();
+  await untilSaved(page, 'POST', /\/v1\/checkout$/, () => tap(/^إتمام الطلب ·/).click());
   await expect(see('تم استلام طلبك 🎉')).toBeVisible();
   const placed = await see(/#\d{6}\u2069? من «أزياء لورا»/).textContent();
   const orderNumber = Number(/#(\d{6})/.exec(placed ?? '')?.[1]);

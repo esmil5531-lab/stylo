@@ -1,6 +1,4 @@
-import { expect, test } from '@playwright/test';
-
-import { api, DRIVER_NAME } from '../helpers';
+import { api, DRIVER_NAME, expect, expectOrder, test, untilSaved } from '../helpers';
 import { readState, STAFF_SESSION, tokens } from '../state';
 
 /**
@@ -14,6 +12,7 @@ test('Stylo staff close the driver custody after the delivery', async ({ page })
   test.skip(!orderId, 'needs the order delivered by the driver journey');
 
   // The customer's order is delivered (and paid in cash).
+  await expectOrder(tokens().admin, orderId!, { status: 'delivered' }, 'the driver journey (4)');
   const mine = await api('GET', `/orders/${orderId}`, undefined, tokens().sara);
   expect(mine.status).toBe('delivered');
 
@@ -27,7 +26,9 @@ test('Stylo staff close the driver custody after the delivery', async ({ page })
   await expect(dialog.getByText(`#${orderNumber}`)).toBeVisible();
   const amount = (orderTotal! / 1000).toLocaleString('en-US');
   expect(amount.length).toBeGreaterThan(0);
-  await dialog.getByRole('button', { name: /^تقفيل العُهدة واستلام/ }).click();
+  await untilSaved(page, 'POST', /\/v1\/admin\/custody\/[^/]+\/settle$/, () =>
+    dialog.getByRole('button', { name: /^تقفيل العُهدة واستلام/ }).click(),
+  );
   await expect(page.getByText(new RegExp(`تقفيل عُهدة ${DRIVER_NAME}`))).toBeVisible();
   await page.getByRole('button', { name: /^(تم|إغلاق)$/ }).first().click();
 

@@ -1,6 +1,4 @@
-import { expect, test } from '@playwright/test';
-
-import { api } from '../helpers';
+import { api, expect, expectOrder, slowDown, test, untilSaved } from '../helpers';
 import { readState, STAFF_SESSION, STORE_SESSION, tokens } from '../state';
 
 /**
@@ -14,7 +12,9 @@ test.describe('returns, customer block, store bank account', () => {
   test('Stylo staff record a returned piece; the store payout will deduct it', async ({ browser }) => {
     const { orderId, orderNumber } = readState();
     test.skip(!orderId, 'needs the order delivered by the driver journey');
+    await expectOrder(tokens().admin, orderId!, { status: 'delivered' }, 'the driver journey (4)');
     const context = await browser.newContext({ storageState: STAFF_SESSION });
+    await slowDown(context);
     const page = await context.newPage();
 
     await page.goto(`/admin/orders/${orderId}`);
@@ -26,7 +26,9 @@ test.describe('returns, customer block, store bank account', () => {
     await dialog.locator('select').first().selectOption('1');
     await dialog.getByRole('button', { name: 'المقاس غير مناسب' }).click();
     await expect(dialog.getByRole('checkbox')).toBeChecked(); // back on the shelf by default
-    await dialog.getByRole('button', { name: /^تسجيل الإرجاع واسترداد/ }).click();
+    await untilSaved(page, 'POST', /\/v1\/admin\/orders\/[^/]+\/returns$/, () =>
+      dialog.getByRole('button', { name: /^تسجيل الإرجاع واسترداد/ }).click(),
+    );
     await expect(dialog).toHaveCount(0);
     await expect(returns.getByText(/مرتجع #\d+ · المقاس غير مناسب/)).toBeVisible();
     await expect(returns.getByText('يُخصم في التسوية القادمة')).toBeVisible();
@@ -42,6 +44,7 @@ test.describe('returns, customer block, store bank account', () => {
     const { orderId } = readState();
     test.skip(!orderId, 'needs the delivered order');
     const context = await browser.newContext({ storageState: STAFF_SESSION });
+    await slowDown(context);
     const page = await context.newPage();
     await page.goto(`/admin/orders/${orderId}`);
 
@@ -49,7 +52,9 @@ test.describe('returns, customer block, store bank account', () => {
     await expect(card.getByText('طلبات سُلّمت')).toBeVisible();
     await card.getByRole('button', { name: 'حظر الزبون' }).click();
     await page.getByRole('dialog').getByRole('textbox').fill('اختبار آلي — يُلغى فوراً');
-    await page.getByRole('dialog').getByRole('button', { name: 'تأكيد الحظر' }).click();
+    await untilSaved(page, 'POST', /\/v1\/admin\/customers\/[^/]+\/block$/, () =>
+      page.getByRole('dialog').getByRole('button', { name: 'تأكيد الحظر' }).click(),
+    );
     await expect(card.getByText(/محظور منذ/)).toBeVisible();
 
     // Blocked: checkout refused with a clear message (browsing still open).
@@ -61,13 +66,16 @@ test.describe('returns, customer block, store bank account', () => {
     expect(res.status).toBe(403);
     expect((await res.json()).error.code).toBe('customer_blocked');
 
-    await card.getByRole('button', { name: 'إلغاء الحظر' }).click();
+    await untilSaved(page, 'POST', /\/v1\/admin\/customers\/[^/]+\/block$/, () =>
+      card.getByRole('button', { name: 'إلغاء الحظر' }).click(),
+    );
     await expect(card.getByRole('button', { name: 'حظر الزبون' })).toBeVisible();
     await context.close();
   });
 
   test('the store enters its bank account; the general manager verifies it', async ({ browser }) => {
     const context = await browser.newContext({ storageState: STORE_SESSION });
+    await slowDown(context);
     const page = await context.newPage();
     await page.goto('/admin/my-store');
     const bank = page.locator('section', { has: page.getByText('الحساب البنكي لتحويل المستحقات') });
@@ -81,7 +89,9 @@ test.describe('returns, customer block, store bank account', () => {
     await expect(bank.getByText(/رقم الآيبان غير صحيح/)).toBeVisible();
 
     await bank.getByLabel('رقم الآيبان (IBAN)').fill('LY83 0020 4800 0020 1001 2036 1');
-    await bank.getByRole('button', { name: 'حفظ الحساب البنكي' }).click();
+    await untilSaved(page, 'PUT', /\/v1\/admin\/my-store\/bank$/, () =>
+      bank.getByRole('button', { name: 'حفظ الحساب البنكي' }).click(),
+    );
     await expect(bank.getByText('بانتظار توثيق ستايلو').first()).toBeVisible();
 
     // The general manager verifies it (stores.bank); the store sees «موثّق».
